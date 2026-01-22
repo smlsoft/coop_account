@@ -31,13 +31,17 @@ const handleConfirm = () => {
 
 <template>
     <Dialog :visible="confirmDialog" :style="{ width: '450px' }" header="ยืนยัน" :modal="true" @update:visible="handleClose">
-        <div class="flex items-center gap-4">
-            <i class="pi pi-question-circle text-4xl text-primary"></i>
-            <span>{{ textContent }}</span>
+        <div class="flex flex-col items-center gap-4 p-4">
+            <div class="w-16 h-16 rounded-full bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
+                <i class="pi pi-question-circle text-4xl text-primary-500 dark:text-primary-400"></i>
+            </div>
+            <p class="text-center text-surface-700 dark:text-surface-300 text-lg">{{ textContent }}</p>
         </div>
         <template #footer>
-            <Button :label="cancelLabel" icon="pi pi-times" class="p-button-text" @click="handleClose" />
-            <Button :label="confirmLabel" icon="pi pi-check" class="p-button-success" @click="handleConfirm" />
+            <div class="flex justify-end gap-2">
+                <Button :label="cancelLabel" icon="pi pi-times" severity="secondary" text @click="handleClose" />
+                <Button :label="confirmLabel" icon="pi pi-check" @click="handleConfirm" />
+            </div>
         </template>
     </Dialog>
 </template>

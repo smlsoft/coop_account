@@ -1,11 +1,21 @@
 <script setup>
-import { useLayout } from '@/layout/composables/layout';
-import { computed } from 'vue';
-import AppFooter from './AppFooter.vue';
+import { layoutState, useLayout } from '@/layout/composables/layout';
+import { computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 
-const { layoutConfig, layoutState, hideMobileMenu } = useLayout();
+const { layoutConfig, hideMobileMenu } = useLayout();
+const route = useRoute();
+
+// Sync activePath with current route (kept for backward compatibility)
+watch(
+    () => route.path,
+    (newPath) => {
+        layoutState.activePath = newPath;
+    },
+    { immediate: true }
+);
 
 const containerClass = computed(() => {
     return {
@@ -26,7 +36,7 @@ const containerClass = computed(() => {
             <div class="layout-main">
                 <router-view />
             </div>
-            <AppFooter />
+            <!-- <AppFooter /> -->
         </div>
         <div class="layout-mask animate-fadein" @click="hideMobileMenu" />
     </div>

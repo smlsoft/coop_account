@@ -69,13 +69,18 @@ const getModeConfig = () => {
 <template>
     <Dialog :visible="confirmDialog" :style="{ width: '450px' }" :header="title" :modal="true" @update:visible="handleClose">
         <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-4">
-                <i :class="[getModeConfig().icon, 'text-4xl', getModeConfig().iconClass]"></i>
-                <span>กรุณากรอกตัวเลข <strong class="text-xl">{{ ramdomNumber }}</strong> เพื่อยืนยัน</span>
+            <div class="flex flex-col items-center gap-3 p-4 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+                <i :class="[getModeConfig().icon, 'text-5xl', getModeConfig().iconClass]"></i>
+                <div class="text-center">
+                    <p class="text-surface-700 dark:text-surface-300 mb-2">กรุณากรอกตัวเลขเพื่อยืนยัน</p>
+                    <div class="inline-flex items-center justify-center px-6 py-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border-2 border-primary-500 dark:border-primary-400">
+                        <span class="text-4xl font-bold text-primary-600 dark:text-primary-400 tracking-wider">{{ ramdomNumber }}</span>
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col gap-2">
-                <label for="confirmNumber">ตัวเลขยืนยัน</label>
-                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus />
+                <label for="confirmNumber" class="font-medium text-surface-700 dark:text-surface-300">ตัวเลขยืนยัน</label>
+                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus class="text-center text-2xl" />
             </div>
         </div>
         <template #footer>

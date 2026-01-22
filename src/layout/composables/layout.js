@@ -27,7 +27,7 @@ watch(
     }
 );
 
-const layoutState = reactive({
+export const layoutState = reactive({
     staticMenuInactive: false,
     overlayMenuActive: false,
     profileSidebarVisible: false,
@@ -93,7 +93,7 @@ export function useLayout() {
 
     return {
         layoutConfig,
-        layoutState,
+        // layoutState, // ลบออก - ให้ใช้ direct import แทน
         isDarkTheme,
         toggleDarkMode,
         toggleConfigSidebar,

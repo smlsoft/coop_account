@@ -13,6 +13,10 @@ export const getTasks = (params = {}) => {
     });
 };
 
+export const getTask = (guidfixed) => {
+    return apiClient.get(`task/${guidfixed}`);
+};
+
 export const createTask = (data) => {
     return apiClient.post('task', data);
 };

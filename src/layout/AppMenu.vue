@@ -20,7 +20,8 @@ const model = ref([
             {
                 label: 'อัพโหลดรูปภาพเอกสาร',
                 icon: 'pi pi-fw pi-cloud-upload',
-                to: '/image/upload'
+                to: '/image/upload',
+                path: '/upload'
             }
         ]
     },

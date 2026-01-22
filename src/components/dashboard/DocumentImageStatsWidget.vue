@@ -155,7 +155,7 @@ const fetchDocumentStats = async () => {
             // แปลง key เป็นชื่อเดือน (ภาษาไทย) - แสดงเฉพาะเดือน
             const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
             const labels = sortedMonths.map((key) => {
-                const [year, month] = key.split('-');
+                const [, month] = key.split('-');
                 return thaiMonths[parseInt(month) - 1];
             });
 
@@ -213,19 +213,19 @@ watch(selectedYear, () => {
             <Chart type="line" :data="chartData" :options="chartOptions" class="h-80" />
 
             <div class="grid grid-cols-2 gap-4 mt-6">
-                <div class="flex items-center gap-3 p-3 rounded-lg" style="background-color: var(--p-primary-50)">
-                    <div class="w-3 h-3 rounded-full" style="background-color: var(--p-primary-500)"></div>
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-primary-50 dark:bg-primary-900/10">
+                    <div class="w-3 h-3 rounded-full bg-primary-500"></div>
                     <div>
-                        <div class="text-sm text-muted-color">บิลที่ยังไม่บันทึก</div>
+                        <div class="text-sm text-surface-600 dark:text-surface-400">บิลที่ยังไม่บันทึก</div>
                         <div class="text-lg font-semibold text-surface-900 dark:text-surface-0">
                             {{ chartData.datasets[0].data.reduce((a, b) => a + b, 0).toLocaleString() }}
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 p-3 rounded-lg" style="background-color: var(--p-primary-50)">
-                    <div class="w-3 h-3 rounded-full" style="background-color: var(--p-primary-200)"></div>
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-primary-50 dark:bg-primary-900/10">
+                    <div class="w-3 h-3 rounded-full bg-primary-200 dark:bg-primary-300"></div>
                     <div>
-                        <div class="text-sm text-muted-color">บิลที่บันทึกแล้ว</div>
+                        <div class="text-sm text-surface-600 dark:text-surface-400">บิลที่บันทึกแล้ว</div>
                         <div class="text-lg font-semibold text-surface-900 dark:text-surface-0">
                             {{ chartData.datasets[1].data.reduce((a, b) => a + b, 0).toLocaleString() }}
                         </div>

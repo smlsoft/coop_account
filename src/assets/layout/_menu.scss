@@ -48,6 +48,9 @@
 
     li.active-menuitem {
         > a {
+            font-weight: 700;
+            color: var(--primary-color);
+            
             .layout-submenu-toggler {
                 transform: rotate(-180deg);
             }
