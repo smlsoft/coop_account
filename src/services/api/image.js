@@ -60,3 +60,15 @@ export const updateDocumentImageGroupsOrder = (taskGuid, orderData) => {
 export const ungroupDocumentImageGroup = (guidfixed) => {
     return apiClient.put(`documentimagegroup/${guidfixed}/ungroup`);
 };
+
+// Delete API
+export const deleteDocumentImageGroups = (guidfixedArray) => {
+    return apiClient.delete('documentimagegroup', {
+        data: guidfixedArray
+    });
+};
+
+// Sort images within a group
+export const updateDocumentImageGroupImages = (groupGuidfixed, imagesArray) => {
+    return apiClient.put(`documentimagegroup/${groupGuidfixed}/documentimages`, imagesArray);
+};

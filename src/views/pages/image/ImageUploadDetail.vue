@@ -1,4 +1,5 @@
 <script setup>
+import DialogApprove from '@/components/DialogApprove.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageGridPanel from '@/components/image/ImageGridPanel.vue';
 import ImageUploadDialog from '@/components/image/ImageUploadDialog.vue';
@@ -6,10 +7,10 @@ import MergeDocumentDialog from '@/components/image/MergeDocumentDialog.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
-import { getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupsOrder } from '@/services/api/image';
-import { getTask } from '@/services/api/task';
+import { deleteDocumentImageGroups, getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupsOrder } from '@/services/api/image';
+import { getTask, updateTaskStatus } from '@/services/api/task';
 import { useToast } from 'primevue/usetoast';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -25,9 +26,13 @@ const mergeDialogVisible = ref(false);
 const multiSelectMode = ref(false);
 const selectedGroupsForMerge = ref([]);
 const ungrouping = ref(false);
+const deleting = ref(false);
 const sortMode = ref(false);
 const sortableGroups = ref([]);
 const savingOrder = ref(false);
+const dialogJobClose = ref(false);
+const randomNumber = ref(0);
+const closingJob = ref(false);
 const imageGroups = ref([]);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -36,10 +41,29 @@ const selectedImageDetail = ref(null);
 const loadingDetail = ref(false);
 const currentPage = ref(1);
 const totalPages = ref(1);
+const searchQuery = ref('');
+const searchTimeout = ref(null);
+
+// Computed: Check if job is closed (status !== 0)
+const isJobClosed = computed(() => {
+    return taskData.value?.status !== 0;
+});
+
+// Watch searchQuery with debounce (1 seconds)
+watch(searchQuery, (newValue, oldValue) => {
+    // Clear existing timeout
+    if (searchTimeout.value) {
+        clearTimeout(searchTimeout.value);
+    }
+
+    // Set new timeout for 3 seconds
+    searchTimeout.value = setTimeout(() => {
+        fetchImageGroups(true);
+    }, 1000);
+});
 
 const fetchTaskDetail = async () => {
     try {
-        showLoading('กำลังโหลดข้อมูลงาน...');
         const response = await getTask(taskId.value);
         if (response.data.success) {
             taskData.value = response.data.data;
@@ -52,8 +76,6 @@ const fetchTaskDetail = async () => {
             detail: 'ไม่สามารถโหลดข้อมูล Task ได้',
             life: 3000
         });
-    } finally {
-        hideLoading();
     }
 };
 
@@ -63,16 +85,22 @@ const fetchImageGroups = async (reset = true) => {
             loading.value = true;
             currentPage.value = 1;
             imageGroups.value = [];
-            showLoading('กำลังโหลดรายการเอกสาร...');
         } else {
             loadingMore.value = true;
         }
 
-        const response = await getDocumentImageGroups({
+        const params = {
             taskguid: taskId.value,
             page: currentPage.value,
             limit: 100
-        });
+        };
+
+        // Add search query if exists
+        if (searchQuery.value && searchQuery.value.trim()) {
+            params.q = searchQuery.value.trim();
+        }
+
+        const response = await getDocumentImageGroups(params);
 
         if (response.data.success) {
             if (reset) {
@@ -93,9 +121,6 @@ const fetchImageGroups = async (reset = true) => {
     } finally {
         loading.value = false;
         loadingMore.value = false;
-        if (reset) {
-            hideLoading();
-        }
     }
 };
 
@@ -178,6 +203,7 @@ const handleUploadComplete = async () => {
 };
 
 const toggleMultiSelectMode = () => {
+    if (isJobClosed.value) return;
     multiSelectMode.value = !multiSelectMode.value;
     if (!multiSelectMode.value) {
         selectedGroupsForMerge.value = [];
@@ -185,6 +211,7 @@ const toggleMultiSelectMode = () => {
 };
 
 const toggleGroupSelection = (group) => {
+    if (isJobClosed.value) return;
     const index = selectedGroupsForMerge.value.findIndex((g) => g.guidfixed === group.guidfixed);
     if (index !== -1) {
         selectedGroupsForMerge.value.splice(index, 1);
@@ -194,6 +221,7 @@ const toggleGroupSelection = (group) => {
 };
 
 const openMergeDialog = () => {
+    if (isJobClosed.value) return;
     if (selectedGroupsForMerge.value.length < 2) {
         toast.add({
             severity: 'warn',
@@ -212,12 +240,11 @@ const handleMergeComplete = async () => {
     selectedGroupsForMerge.value = [];
 
     // Refresh data
-    showLoading('กำลังโหลดรายการเอกสาร...');
     await fetchImageGroups(true);
-    hideLoading();
 };
 
 const handleUngroup = async () => {
+    if (isJobClosed.value) return;
     if (!selectedGroup.value?.guidfixed) return;
 
     const imageCount = selectedGroup.value.imagereferences?.length || 0;
@@ -292,6 +319,7 @@ const handleUngroup = async () => {
 };
 
 const toggleSortMode = () => {
+    if (isJobClosed.value) return;
     sortMode.value = !sortMode.value;
     if (sortMode.value) {
         // Enter sort mode: copy current groups
@@ -355,6 +383,133 @@ const cancelSortMode = () => {
     sortableGroups.value = [];
 };
 
+const handleDelete = async () => {
+    if (isJobClosed.value) return;
+    if (!selectedGroup.value?.guidfixed) return;
+
+    deleting.value = true;
+
+    try {
+        // 1. Delete the document group
+        showLoading('กำลังลบเอกสาร...');
+        const response = await deleteDocumentImageGroups([selectedGroup.value.guidfixed]);
+
+        if (response.data.success) {
+            // 2. Recount task documents
+            showLoading('กำลังนับจำนวนเอกสารใหม่...');
+            await recountTaskDocuments(taskId.value);
+
+            // 3. Refresh task data
+            showLoading('กำลังอัปเดตข้อมูลงาน...');
+            await fetchTaskDetail();
+
+            // 4. Refresh image groups
+            showLoading('กำลังโหลดรายการเอกสาร...');
+            await fetchImageGroups(true);
+
+            // 5. Re-sort (xsort) - prepare order data
+            if (imageGroups.value.length > 0) {
+                showLoading('กำลังจัดเรียงลำดับ...');
+                const orderData = imageGroups.value.map((group, index) => ({
+                    guidfixed: group.guidfixed,
+                    xorder: index
+                }));
+                await updateDocumentImageGroupsOrder(taskId.value, orderData);
+            }
+
+            hideLoading();
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: 'ลบเอกสารเรียบร้อยแล้ว',
+                life: 3000
+            });
+
+            // Clear selection
+            selectedGroup.value = null;
+            selectedImageDetail.value = null;
+        } else {
+            throw new Error('Delete failed');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        hideLoading();
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถลบเอกสารได้',
+            life: 3000
+        });
+    } finally {
+        deleting.value = false;
+    }
+};
+
+const generateRandomNumber = () => {
+    return Math.floor(1000 + Math.random() * 9000);
+};
+
+const openCloseJobDialog = () => {
+    randomNumber.value = generateRandomNumber();
+    dialogJobClose.value = true;
+};
+
+const confirmJobFalse = () => {
+    randomNumber.value = generateRandomNumber();
+    toast.add({
+        severity: 'error',
+        summary: 'ตัวเลขไม่ถูกต้อง',
+        detail: 'กรุณากรอกตัวเลขใหม่',
+        life: 3000
+    });
+};
+
+const confirmCloseJob = async () => {
+    closingJob.value = true;
+
+    try {
+        showLoading('กำลังปิดงาน...');
+        const response = await updateTaskStatus(taskId.value, { status: 1 });
+
+        if (response.data.success) {
+            hideLoading();
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: 'ปิดงานเรียบร้อยแล้ว',
+                life: 3000
+            });
+
+            dialogJobClose.value = false;
+
+            // กลับไปหน้า ImageUpload
+            setTimeout(() => {
+                router.push({ name: 'image-upload' });
+            }, 500);
+        }
+    } catch (error) {
+        console.error('Close job error:', error);
+        hideLoading();
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถปิดงานได้',
+            life: 3000
+        });
+    } finally {
+        closingJob.value = false;
+    }
+};
+
+const handleSearch = () => {
+    fetchImageGroups(true);
+};
+
+const clearSearch = () => {
+    searchQuery.value = '';
+    fetchImageGroups(true);
+};
+
 const goBack = () => {
     router.push({ name: 'image-upload' });
 };
@@ -369,6 +524,7 @@ const goBack = () => {
                 <template #start>
                     <Button icon="pi pi-arrow-left" class="mr-2" severity="secondary" text @click="goBack" />
                     <div class="font-semibold text-ml">งานอัพโหลด - {{ taskData?.name || taskId }} ({{ imageGroups.length }})</div>
+                    <Tag v-if="isJobClosed" value="งานถูกปิดแล้ว" severity="danger" class="ml-3" />
                 </template>
 
                 <template #center>
@@ -376,13 +532,16 @@ const goBack = () => {
                         <InputIcon>
                             <i class="pi pi-search" />
                         </InputIcon>
-                        <InputText placeholder="Search" />
+                        <InputText v-model="searchQuery" placeholder="ค้นหาเอกสาร..." @keyup.enter="handleSearch" />
                     </IconField>
+                    <Button icon="pi pi-refresh" severity="secondary" text @click="fetchImageGroups" :loading="loading" :disabled="sortMode" title="รีเฟรช" />
                 </template>
 
                 <template #end>
-                    <Button v-if="sortMode" label="บันทึกการเรียง" icon="pi pi-check" severity="success" class="mr-2" @click="saveSortOrder" :loading="savingOrder" />
-                    <Button v-if="sortMode" label="ยกเลิก" icon="pi pi-times" severity="secondary" class="mr-2" @click="cancelSortMode" outlined />
+                    <Button v-if="sortMode" label="บันทึกการเรียง" icon="pi pi-check" severity="success" class="mr-2" @click="saveSortOrder" :loading="savingOrder" :disabled="isJobClosed" />
+                    <Button v-if="sortMode" label="ยกเลิก" icon="pi pi-times" severity="secondary" class="mr-2" @click="cancelSortMode" outlined :disabled="isJobClosed" />
+                    <Button v-if="!sortMode && !isJobClosed" label="ปิดงาน" icon="pi pi-lock" severity="success" class="mr-2" @click="openCloseJobDialog" outlined />
+                    <Button v-if="!sortMode && selectedGroup" label="ลบเอกสาร" icon="pi pi-trash" severity="danger" class="mr-2" @click="handleDelete" :loading="deleting" :disabled="isJobClosed" outlined />
                     <Button
                         v-if="!sortMode && selectedGroup && selectedGroup.imagereferences && selectedGroup.imagereferences.length > 1"
                         label="แยกเอกสาร"
@@ -391,9 +550,18 @@ const goBack = () => {
                         class="mr-2"
                         @click="handleUngroup"
                         :loading="ungrouping"
+                        :disabled="isJobClosed"
                         outlined
                     />
-                    <Button v-if="!sortMode && multiSelectMode && selectedGroupsForMerge.length >= 2" :label="`รวมเอกสาร (${selectedGroupsForMerge.length})`" icon="pi pi-plus-circle" severity="success" class="mr-2" @click="openMergeDialog" />
+                    <Button
+                        v-if="!sortMode && multiSelectMode && selectedGroupsForMerge.length >= 2"
+                        :label="`รวมเอกสาร (${selectedGroupsForMerge.length})`"
+                        icon="pi pi-plus-circle"
+                        severity="success"
+                        class="mr-2"
+                        @click="openMergeDialog"
+                        :disabled="isJobClosed"
+                    />
                     <Button
                         v-if="!sortMode"
                         :label="multiSelectMode ? 'เลือกหลายรายการ' : 'เลือกเอกสาร'"
@@ -401,11 +569,11 @@ const goBack = () => {
                         :severity="multiSelectMode ? 'secondary' : 'contrast'"
                         class="mr-2"
                         @click="toggleMultiSelectMode"
+                        :disabled="isJobClosed"
                         outlined
                     />
-                    <Button v-if="!sortMode" :label="sortMode ? 'เรียงลำดับ' : 'เรียงลำดับ'" icon="pi pi-sort-alt" severity="info" class="mr-2" @click="toggleSortMode" outlined />
-                    <Button v-if="!sortMode" label="Upload" icon="pi pi-cloud-upload" class="mr-2" @click="uploadDialogVisible = true" />
-                    <Button icon="pi pi-refresh" severity="secondary" text @click="fetchImageGroups" :loading="loading" :disabled="sortMode" />
+                    <Button v-if="!sortMode" :label="sortMode ? 'เรียงลำดับ' : 'เรียงลำดับ'" icon="pi pi-sort-alt" severity="info" class="mr-2" @click="toggleSortMode" :disabled="isJobClosed" outlined />
+                    <Button v-if="!sortMode" label="Upload" icon="pi pi-cloud-upload" class="mr-2" @click="uploadDialogVisible = true" :disabled="isJobClosed" />
                 </template>
             </Toolbar>
         </div>
@@ -430,7 +598,14 @@ const goBack = () => {
                     />
                 </SplitterPanel>
                 <SplitterPanel :size="50" :minSize="30">
-                    <ImageDetailPanel :selected-group="selectedGroup" :selected-image-detail="selectedImageDetail" :loading-detail="loadingDetail" @refresh-detail="handleRefreshDetail" @refresh-group="handleRefreshGroup" />
+                    <ImageDetailPanel
+                        :selected-group="selectedGroup"
+                        :selected-image-detail="selectedImageDetail"
+                        :loading-detail="loadingDetail"
+                        :is-job-closed="isJobClosed"
+                        @refresh-detail="handleRefreshDetail"
+                        @refresh-group="handleRefreshGroup"
+                    />
                 </SplitterPanel>
             </Splitter>
         </div>
@@ -440,6 +615,9 @@ const goBack = () => {
 
         <!-- Merge Dialog -->
         <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="username" @merge-complete="handleMergeComplete" />
+
+        <!-- Close Job Dialog -->
+        <DialogApprove mode="close" title="ยืนยันการปิดงาน" :ramdomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />
 
         <!-- Loading Dialog -->
         <LoadingDialog />

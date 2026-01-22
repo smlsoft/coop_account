@@ -1,5 +1,6 @@
 <script setup>
 import ImageCommentSection from '@/components/image/ImageCommentSection.vue';
+import ImageSortPanel from '@/components/image/ImageSortPanel.vue';
 import ImageTagSection from '@/components/image/ImageTagSection.vue';
 import ImageZoomViewer from '@/components/image/ImageZoomViewer.vue';
 import PdfViewer from '@/components/image/PdfViewer.vue';
@@ -17,6 +18,10 @@ const props = defineProps({
     loadingDetail: {
         type: Boolean,
         default: false
+    },
+    isJobClosed: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -25,6 +30,7 @@ const emit = defineEmits(['refresh-detail', 'refresh-group']);
 const currentImageIndex = ref(0);
 const showCommentDialog = ref(false);
 const showTagDialog = ref(false);
+const imageSortMode = ref(false);
 
 // Computed properties for carousel
 const currentImageRef = computed(() => {
@@ -69,6 +75,7 @@ const handleCommentAdded = () => {
 };
 
 const openCommentDialog = () => {
+    if (props.isJobClosed) return;
     showCommentDialog.value = true;
 };
 
@@ -77,7 +84,22 @@ const handleTagsUpdated = () => {
 };
 
 const openTagDialog = () => {
+    if (props.isJobClosed) return;
     showTagDialog.value = true;
+};
+
+const toggleImageSortMode = () => {
+    if (props.isJobClosed) return;
+    imageSortMode.value = !imageSortMode.value;
+};
+
+const handleImageSortComplete = () => {
+    imageSortMode.value = false;
+    emit('refresh-group');
+};
+
+const handleImageSortCancel = () => {
+    imageSortMode.value = false;
 };
 </script>
 
@@ -91,70 +113,91 @@ const openTagDialog = () => {
             <ProgressSpinner />
         </div>
         <div v-else class="h-full flex flex-col overflow-auto p-4">
-            <div class="mb-4">
-                <h3 class="mb-2 text-surface-900 dark:text-surface-100">{{ selectedGroup.title || 'ไม่มีชื่อ' }}</h3>
-                <div class="flex gap-2 mb-4">
-                    <Tag :value="`${selectedGroup.imagereferences?.length || 0} รูป`" severity="info" />
-                    <Tag :value="`${selectedGroup.billcount || 0} บิล`" severity="success" />
-                    <Button v-if="selectedImageDetail" icon="pi pi-comment" :label="`${selectedImageDetail.comments?.length || 0}`" severity="secondary" text size="small" @click="openCommentDialog" />
-                </div>
-            </div>
+            <!-- Sort Images Mode -->
+            <ImageSortPanel v-if="imageSortMode && !isJobClosed" :image-references="selectedGroup.imagereferences || []" :group-guidfixed="selectedGroup.guidfixed" @save-complete="handleImageSortComplete" @cancel="handleImageSortCancel" />
 
-            <!-- รูปภาพเต็ม with Carousel -->
-            <div class="mb-4 rounded-lg overflow-hidden relative bg-surface-100 dark:bg-surface-800" style="min-height: 400px; height: 50vh">
-                <!-- Image/PDF Viewer -->
-                <ImageZoomViewer v-if="currentImageRef && !isPDF(currentImageRef.imageuri)" :key="`img-${currentImageIndex}`" :src="currentImageRef.imageuri" :alt="selectedGroup.title" />
-                <PdfViewer v-else-if="currentImageRef && isPDF(currentImageRef.imageuri)" :key="`pdf-${currentImageIndex}`" :src="currentImageRef.imageuri" />
-
-                <!-- Navigation Arrows (show only if more than 1 image) -->
-                <template v-if="totalImages > 1">
-                    <Button icon="pi pi-chevron-left" class="carousel-nav carousel-nav-left" severity="secondary" rounded :disabled="!canGoPrev" @click="prevImage" />
-                    <Button icon="pi pi-chevron-right" class="carousel-nav carousel-nav-right" severity="secondary" rounded :disabled="!canGoNext" @click="nextImage" />
-
-                    <!-- Image Counter -->
-                    <div class="carousel-counter">{{ currentImageIndex + 1 }} / {{ totalImages }}</div>
-                </template>
-            </div>
-
-            <!-- รายละเอียด -->
-            <div class="space-y-3 bg-surface-50 dark:bg-surface-800 p-4 rounded-lg border border-surface-200 dark:border-surface-700">
-                <div v-if="selectedImageDetail?.references && selectedImageDetail.references.length > 0">
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">เอกสารอ้างอิง</label>
-                    <div class="space-y-2 mt-1">
-                        <div v-for="(ref, index) in selectedImageDetail.references" :key="index" class="flex gap-2 items-center text-sm text-surface-700 dark:text-surface-200">
-                            <Tag :value="ref.module" severity="info" />
-                            <span>{{ ref.docno }}</span>
+            <!-- Normal Mode -->
+            <template v-else>
+                <div class="mb-4">
+                    <h3 class="mb-2 text-surface-900 dark:text-surface-100">{{ selectedGroup.title || 'ไม่มีชื่อ' }}</h3>
+                    <div class="flex gap-2 mb-4 items-center">
+                        <Tag :value="`${selectedGroup.imagereferences?.length || 0} รูป`" severity="info" />
+                        <Tag :value="`${selectedGroup.billcount || 0} บิล`" severity="success" />
+                        <Button v-if="selectedImageDetail" icon="pi pi-comment" :label="`${selectedImageDetail.comments?.length || 0}`" severity="secondary" text size="small" @click="openCommentDialog" :disabled="isJobClosed" />
+                        <div class="ml-auto">
+                            <Button v-if="totalImages > 1" label="เรียงรูปภาพ" icon="pi pi-sort-alt" severity="info" size="small" @click="toggleImageSortMode" :disabled="isJobClosed" outlined />
                         </div>
                     </div>
                 </div>
-                <div>
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">คำอธิบาย</label>
-                    <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">{{ selectedGroup.description || '-' }}</p>
+
+                <!-- รูปภาพเต็ม with Carousel -->
+                <div class="mb-4 rounded-lg overflow-hidden relative bg-surface-100 dark:bg-surface-800" style="min-height: 400px; height: 60vh">
+                    <!-- Image/PDF Viewer -->
+                    <ImageZoomViewer v-if="currentImageRef && !isPDF(currentImageRef.imageuri)" :key="`img-${currentImageIndex}`" :src="currentImageRef.imageuri" :alt="selectedGroup.title" />
+                    <PdfViewer v-else-if="currentImageRef && isPDF(currentImageRef.imageuri)" :key="`pdf-${currentImageIndex}`" :src="currentImageRef.imageuri" />
+
+                    <!-- Navigation Arrows (show only if more than 1 image) -->
+                    <template v-if="totalImages > 1">
+                        <Button icon="pi pi-chevron-left" class="carousel-nav carousel-nav-left" severity="secondary" rounded :disabled="!canGoPrev" @click="prevImage" />
+                        <Button icon="pi pi-chevron-right" class="carousel-nav carousel-nav-right" severity="secondary" rounded :disabled="!canGoNext" @click="nextImage" />
+
+                        <!-- Image Counter -->
+                        <div class="carousel-counter">{{ currentImageIndex + 1 }} / {{ totalImages }}</div>
+                    </template>
                 </div>
-                <div>
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">อัพโหลดโดย</label>
-                    <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">{{ selectedGroup.uploadedby }}</p>
-                </div>
-                <div>
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">วันที่อัพโหลด</label>
-                    <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">
-                        {{ new Date(selectedGroup.uploadedat).toLocaleString('th-TH') }}
-                    </p>
-                </div>
-                <div v-if="selectedGroup.tags && selectedGroup.tags.length > 0">
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
-                    <div class="flex flex-wrap gap-2 mt-1 items-center">
-                        <Tag v-for="tag in selectedGroup.tags" :key="tag" :value="tag" />
-                        <Button icon="pi pi-pencil" size="small" severity="secondary" text @click="openTagDialog" title="จัดการ Tags" />
+
+                <!-- รายละเอียด -->
+                <div class="bg-surface-50 dark:bg-surface-800 p-4 rounded-lg border border-surface-200 dark:border-surface-700">
+                    <!-- เอกสารอ้างอิง (full width) -->
+                    <div v-if="selectedImageDetail?.references && selectedImageDetail.references.length > 0" class="mb-3">
+                        <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">เอกสารอ้างอิง</label>
+                        <div class="space-y-2 mt-1">
+                            <div v-for="(ref, index) in selectedImageDetail.references" :key="index" class="flex gap-2 items-center text-sm text-surface-700 dark:text-surface-200">
+                                <Tag :value="ref.module" severity="info" />
+                                <span>{{ ref.docno }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2 Column Grid -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Left Column -->
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">อัพโหลดโดย</label>
+                                <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">{{ selectedGroup.uploadedby }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">วันที่อัพโหลด</label>
+                                <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">
+                                    {{ new Date(selectedGroup.uploadedat).toLocaleString('th-TH') }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right Column -->
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">คำอธิบาย</label>
+                                <p class="text-sm mt-1 text-surface-700 dark:text-surface-200">{{ selectedGroup.description || '-' }}</p>
+                            </div>
+                            <div v-if="selectedGroup.tags && selectedGroup.tags.length > 0">
+                                <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
+                                <div class="flex flex-wrap gap-2 mt-1 items-center">
+                                    <Tag v-for="tag in selectedGroup.tags" :key="tag" :value="tag" />
+                                    <Button icon="pi pi-pencil" size="small" severity="secondary" text @click="openTagDialog" title="จัดการ Tags" :disabled="isJobClosed" />
+                                </div>
+                            </div>
+                            <div v-else>
+                                <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
+                                <div class="mt-1">
+                                    <Button icon="pi pi-plus" label="เพิ่ม Tags" size="small" severity="secondary" text @click="openTagDialog" :disabled="isJobClosed" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div v-else>
-                    <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
-                    <div class="mt-1">
-                        <Button icon="pi pi-plus" label="เพิ่ม Tags" size="small" severity="secondary" text @click="openTagDialog" />
-                    </div>
-                </div>
-            </div>
+            </template>
         </div>
 
         <!-- Comment Dialog -->
