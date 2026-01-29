@@ -145,6 +145,54 @@ const router = createRouter({
                     name: 'image-upload-detail',
                     meta: { title: 'รายละเอียดงานอัพโหลด' },
                     component: () => import('@/views/pages/image/ImageUploadDetail.vue')
+                },
+                {
+                    path: '/image/review',
+                    name: 'image-review',
+                    meta: { title: 'ตรวจสอบรูปภาพเอกสาร' },
+                    component: () => import('@/views/pages/image/ImageReview.vue')
+                },
+                {
+                    path: '/image/review/:id',
+                    name: 'image-review-detail',
+                    meta: { title: 'รายละเอียดงานตรวจสอบ' },
+                    component: () => import('@/views/pages/image/ImageReviewDetail.vue')
+                },
+                {
+                    path: '/accounting/entry',
+                    name: 'journal-entry',
+                    meta: { title: 'บันทึกรายการบัญชี' },
+                    component: () => import('@/views/pages/accounting/JournalEntry.vue')
+                },
+                {
+                    path: '/accounting/entry/create',
+                    name: 'journal-create',
+                    meta: { title: 'เพิ่มรายการบัญชี' },
+                    component: () => import('@/views/pages/accounting/JournalForm.vue')
+                },
+                {
+                    path: '/accounting/entry/:id',
+                    name: 'journal-edit',
+                    meta: { title: 'แก้ไขรายการบัญชี' },
+                    component: () => import('@/views/pages/accounting/JournalForm.vue')
+                },
+                {
+                    path: '/accounting/entry-from-image',
+                    name: 'journal-from-image',
+                    meta: { title: 'บันทึกรายการบัญชีจากรูปภาพ' },
+                    component: () => import('@/views/pages/accounting/JournalFromImage.vue')
+                },
+                {
+                    path: '/accounting/entry-from-image/:id',
+                    name: 'journal-from-image-detail',
+                    meta: { title: 'รายละเอียดงานบันทึกรายการบัญชี' },
+                    component: () => import('@/views/pages/accounting/JournalFromImageDetail.vue')
+                },
+                {
+                    path: '/accounting/entry-from-image/:taskId/form',
+                    name: 'journal-from-image-form',
+                    meta: { title: 'บันทึกรายการบัญชีจากรูปภาพ' },
+                    component: () => import('@/views/pages/accounting/JournalFromImageForm.vue')
                 }
             ]
         },

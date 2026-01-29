@@ -37,18 +37,51 @@ const props = defineProps({
     totalPages: {
         type: Number,
         default: 1
+    },
+    showStatus: {
+        type: Boolean,
+        default: false
+    },
+    isJobClosed: {
+        type: Boolean,
+        default: false
+    },
+    selectedByUsers: {
+        type: Array,
+        default: () => []
+    },
+    disableMerge: {
+        type: Boolean,
+        default: false
     }
 });
 
-const emit = defineEmits(['select-group', 'toggle-group-selection', 'load-more', 'reorder']);
+// Status configuration for review mode
+const STATUS_CONFIG = {
+    0: { text: 'รอตรวจสอบ', severity: 'secondary', icon: 'pi pi-clock' },
+    1: { text: 'ผ่าน', severity: 'success', icon: 'pi pi-check' },
+    2: { text: 'ไม่ผ่าน', severity: 'danger', icon: 'pi pi-times' },
+    3: { text: 'ไม่บันทึกรายวัน', severity: 'warn', icon: 'pi pi-minus' }
+};
+
+const getStatusConfig = (status) => {
+    return STATUS_CONFIG[status] || STATUS_CONFIG[0];
+};
+
+const emit = defineEmits(['select-group', 'toggle-group-selection', 'load-more', 'reorder', 'merge-groups', 'add-to-group']);
 
 const selectedIndex = ref(0);
 const scrollContainer = ref(null);
 const gridContainer = ref(null);
 
-// Drag & Drop state
+// Drag & Drop state for sort mode
 const draggedIndex = ref(null);
 const dragOverIndex = ref(null);
+
+// Drag & Drop state for merge mode (non-sort mode)
+const mergeDraggedGroup = ref(null);
+const mergeDragOverGroup = ref(null);
+const isDraggingForMerge = ref(false);
 
 watch(
     () => props.selectedGroup,
@@ -204,6 +237,170 @@ const handleDragEnd = (event) => {
     draggedIndex.value = null;
     dragOverIndex.value = null;
 };
+
+// ========== Drag & Drop handlers for Merge Mode ==========
+const handleMergeDragStart = (event, group, index) => {
+    // ไม่ทำงานในโหมด sort, multiSelectMode, เมื่องานถูกปิด หรือ disableMerge
+    if (props.sortMode || props.multiSelectMode || props.isJobClosed || props.disableMerge) return;
+
+    mergeDraggedGroup.value = group;
+    isDraggingForMerge.value = true;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', JSON.stringify({ guidfixed: group.guidfixed, index }));
+    event.target.style.opacity = '0.5';
+};
+
+const handleMergeDragOver = (event, group, index) => {
+    // ไม่ทำงานในโหมด sort, multiSelectMode, เมื่องานถูกปิด หรือ disableMerge
+    if (props.sortMode || props.multiSelectMode || props.isJobClosed || props.disableMerge) return;
+    if (!isDraggingForMerge.value || !mergeDraggedGroup.value) return;
+
+    // ไม่ให้ drop ลงบนตัวเอง
+    if (mergeDraggedGroup.value.guidfixed === group.guidfixed) return;
+
+    // ชุด กับ ชุด รวมกันไม่ได้
+    const sourceHasMultipleImages = mergeDraggedGroup.value.imagereferences && mergeDraggedGroup.value.imagereferences.length > 1;
+    const targetHasMultipleImages = group.imagereferences && group.imagereferences.length > 1;
+    if (sourceHasMultipleImages && targetHasMultipleImages) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    mergeDragOverGroup.value = group;
+};
+
+const handleMergeDragLeave = (event) => {
+    // ตรวจสอบว่าออกจาก element จริงๆ ไม่ใช่แค่ไปยัง child
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+        return;
+    }
+    mergeDragOverGroup.value = null;
+};
+
+const handleMergeDrop = (event, targetGroup, targetIndex) => {
+    // ไม่ทำงานในโหมด sort, multiSelectMode, เมื่องานถูกปิด หรือ disableMerge
+    if (props.sortMode || props.multiSelectMode || props.isJobClosed || props.disableMerge) return;
+    if (!isDraggingForMerge.value || !mergeDraggedGroup.value) return;
+
+    event.preventDefault();
+
+    const sourceGroup = mergeDraggedGroup.value;
+
+    // ไม่ให้ drop ลงบนตัวเอง
+    if (sourceGroup.guidfixed === targetGroup.guidfixed) {
+        resetMergeDragState();
+        return;
+    }
+
+    // ตรวจสอบว่า source และ target มีหลายรูปหรือไม่
+    const sourceHasMultipleImages = sourceGroup.imagereferences && sourceGroup.imagereferences.length > 1;
+    const targetHasMultipleImages = targetGroup.imagereferences && targetGroup.imagereferences.length > 1;
+
+    // ชุด กับ ชุด รวมกันไม่ได้
+    if (sourceHasMultipleImages && targetHasMultipleImages) {
+        resetMergeDragState();
+        return;
+    }
+
+    if (targetHasMultipleImages) {
+        // Use Case 2: เพิ่มเอกสารเข้าในชุดที่มีอยู่แล้ว (source ต้องมี 1 รูป)
+        emit('add-to-group', {
+            sourceGroup,
+            targetGroup
+        });
+    } else {
+        // Use Case 1: รวมเอกสาร (สร้าง group ใหม่)
+        emit('merge-groups', {
+            sourceGroup,
+            targetGroup
+        });
+    }
+
+    resetMergeDragState();
+};
+
+const handleMergeDragEnd = (event) => {
+    event.target.style.opacity = '1';
+    resetMergeDragState();
+};
+
+const resetMergeDragState = () => {
+    mergeDraggedGroup.value = null;
+    mergeDragOverGroup.value = null;
+    isDraggingForMerge.value = false;
+};
+
+// Combined drag handlers - เลือกใช้ตาม mode
+const onDragStart = (event, group, index) => {
+    if (props.sortMode) {
+        handleDragStart(event, index);
+    } else if (!props.multiSelectMode) {
+        handleMergeDragStart(event, group, index);
+    }
+};
+
+const onDragOver = (event, group, index) => {
+    if (props.sortMode) {
+        handleDragOver(event, index);
+    } else if (!props.multiSelectMode) {
+        handleMergeDragOver(event, group, index);
+    }
+};
+
+const onDragLeave = (event) => {
+    if (props.sortMode) {
+        handleDragLeave();
+    } else {
+        handleMergeDragLeave(event);
+    }
+};
+
+const onDrop = (event, group, index) => {
+    if (props.sortMode) {
+        handleDrop(event, index);
+    } else if (!props.multiSelectMode) {
+        handleMergeDrop(event, group, index);
+    }
+};
+
+const onDragEnd = (event) => {
+    if (props.sortMode) {
+        handleDragEnd(event);
+    } else {
+        handleMergeDragEnd(event);
+    }
+};
+
+// ตรวจสอบว่ากำลัง drag over group นี้อยู่หรือไม่
+const isMergeDragOver = (group) => {
+    return isDraggingForMerge.value && mergeDragOverGroup.value?.guidfixed === group.guidfixed;
+};
+
+// ตรวจสอบว่า group นี้กำลังถูก drag อยู่หรือไม่
+const isMergeDragging = (group) => {
+    return isDraggingForMerge.value && mergeDraggedGroup.value?.guidfixed === group.guidfixed;
+};
+
+// Get username who is selecting this group
+const getSelectedByUser = (group) => {
+    if (!props.selectedByUsers || props.selectedByUsers.length === 0) return null;
+    const found = props.selectedByUsers.find((item) => item.docref === group.guidfixed);
+    return found ? found.username : null;
+};
+
+// Format username for display (show only first part of email)
+const formatUsername = (username) => {
+    if (!username) return '';
+    if (username.includes('@')) {
+        return username.split('@')[0];
+    }
+    return username;
+};
+
+// Check if group has references (recorded in journal)
+const hasReferences = (group) => {
+    return group.references && group.references.length > 0;
+};
 </script>
 
 <template>
@@ -221,22 +418,26 @@ const handleDragEnd = (event) => {
                     <div
                         v-for="(group, index) in imageGroups"
                         :key="group.guidfixed"
-                        :draggable="sortMode"
+                        :draggable="sortMode || (!multiSelectMode && !sortMode && !isJobClosed && !disableMerge)"
                         class="relative aspect-square bg-surface-100 dark:bg-surface-800 rounded-lg overflow-hidden transition-all"
                         :class="{
-                            'ring-2 ring-primary': !sortMode && isGroupSelected(group),
+                            'ring-2 ring-primary': !sortMode && isGroupSelected(group) && !hasReferences(group),
                             'ring-4': multiSelectMode && isGroupSelected(group),
-                            'cursor-pointer hover:shadow-lg hover:scale-105': !sortMode,
+                            'cursor-pointer hover:shadow-lg hover:scale-105': !sortMode && !isDraggingForMerge,
                             'cursor-move': sortMode,
+                            'cursor-grab': !sortMode && !multiSelectMode && !isDraggingForMerge && !isJobClosed && !disableMerge,
+                            'cursor-grabbing': !sortMode && !multiSelectMode && isDraggingForMerge && !isJobClosed && !disableMerge,
                             'ring-2 ring-blue-500': sortMode && dragOverIndex === index,
-                            'opacity-50': sortMode && draggedIndex === index
+                            'opacity-50': sortMode && draggedIndex === index,
+                            'ring-2 ring-green-500 scale-105': isMergeDragOver(group) || hasReferences(group),
+                            'opacity-50 scale-95': isMergeDragging(group)
                         }"
                         @click="selectGroup(group, index)"
-                        @dragstart="handleDragStart($event, index)"
-                        @dragover="handleDragOver($event, index)"
-                        @dragleave="handleDragLeave"
-                        @drop="handleDrop($event, index)"
-                        @dragend="handleDragEnd"
+                        @dragstart="onDragStart($event, group, index)"
+                        @dragover="onDragOver($event, group, index)"
+                        @dragleave="onDragLeave($event)"
+                        @drop="onDrop($event, group, index)"
+                        @dragend="onDragEnd"
                     >
                         <!-- Order number badge for sort mode -->
                         <div v-if="sortMode" class="absolute top-2 left-2 z-20 bg-primary text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center shadow-lg">
@@ -264,10 +465,27 @@ const handleDragEnd = (event) => {
                         <!-- Overlay with info -->
                         <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-surface-900/70 dark:from-surface-800/80 to-transparent p-2">
                             <div class="text-surface-0 text-xs truncate font-medium">{{ group.title || 'ไม่มีชื่อ' }}</div>
+                            <!-- Status badge for review mode -->
+                            <Tag v-if="showStatus" :value="getStatusConfig(group.status).text" :severity="getStatusConfig(group.status).severity" class="mt-1" style="font-size: 0.65rem; padding: 0.15rem 0.4rem" />
                         </div>
 
                         <!-- Image count badge (only show if more than 1 and not in sort mode) -->
-                        <div v-if="!sortMode && group.imagereferences && group.imagereferences.length > 1" class="absolute top-2 right-2 bg-primary text-white text-xs font-bold px-2 py-1 rounded">{{ group.imagereferences.length }} รูป</div>
+                        <div v-if="!sortMode && group.imagereferences && group.imagereferences.length > 1" class="absolute top-2 right-2 bg-primary text-white text-xs font-bold px-2 py-1 rounded">{{ group.imagereferences.length }} เอกสาร</div>
+
+                        <!-- User selecting badge -->
+                        <div v-if="getSelectedByUser(group)" class="absolute top-2 left-2 z-20 bg-orange-500 text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                            <i class="pi pi-user text-xs"></i>
+                            <span>{{ formatUsername(getSelectedByUser(group)) }}</span>
+                        </div>
+
+                        <!-- Merge drop zone indicator -->
+                        <div v-if="isMergeDragOver(group)" class="absolute inset-0 bg-green-500/30 flex items-center justify-center z-30 pointer-events-none">
+                            <div class="bg-green-600 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-semibold flex items-center gap-2">
+                                <i class="pi pi-plus-circle"></i>
+                                <span v-if="group.imagereferences && group.imagereferences.length > 1">เพิ่มเข้าชุดนี้</span>
+                                <span v-else>รวมเอกสาร</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

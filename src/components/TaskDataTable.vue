@@ -56,7 +56,7 @@ const STATUS_CONFIG = {
 
 const LOCAL_STORAGE_KEYS = {
     1: 'images_job_upload_perPage',
-    2: 'images_job_approve_perPage',
+    2: 'images_job_review_perPage',
     3: 'images_job_daily_perPage'
 };
 
@@ -244,20 +244,20 @@ onMounted(() => {
             </Column>
 
             <!-- วันที่ -->
-            <Column field="ownerat" header="วันที่" sortable style="min-width: 10rem">
+            <Column field="ownerat" header="วันที่" style="min-width: 10rem">
                 <template #body="{ data }">
                     {{ formatDate(data.ownerat) }}
                 </template>
             </Column>
 
             <!-- เลขที่งาน -->
-            <Column field="code" header="เลขที่งาน" sortable style="min-width: 10rem"></Column>
+            <Column field="code" header="เลขที่งาน" style="min-width: 10rem"></Column>
 
             <!-- ชื่องาน -->
-            <Column field="name" header="ชื่องาน" sortable style="min-width: 12rem"></Column>
+            <Column field="name" header="ชื่องาน" style="min-width: 12rem"></Column>
 
             <!-- จำนวน (modeMenu !== 3) -->
-            <Column v-if="props.modeMenu !== 3" field="totaldocument" header="จำนวน" sortable style="min-width: 6rem">
+            <Column v-if="props.modeMenu !== 3" field="totaldocument" header="จำนวน" style="min-width: 6rem">
                 <template #body="{ data }">
                     {{ data.totaldocument || 0 }}
                 </template>
@@ -311,10 +311,10 @@ onMounted(() => {
             </Column>
 
             <!-- ผู้สร้าง -->
-            <Column field="ownerby" header="ผู้สร้าง" sortable style="min-width: 10rem"></Column>
+            <Column field="ownerby" header="ผู้สร้าง" style="min-width: 10rem"></Column>
 
             <!-- สถานะ -->
-            <Column field="status" header="สถานะ" sortable style="min-width: 8rem">
+            <Column field="status" header="สถานะ" style="min-width: 8rem">
                 <template #body="{ data }">
                     <Tag :value="getStatusLabel(data)" :severity="getStatusSeverity(data)" />
                 </template>

@@ -1,7 +1,7 @@
 <script setup>
 import { getDocumentImageDetail, mergeDocumentImageGroups, recountTaskDocuments } from '@/services/api/image';
 import { useToast } from 'primevue/usetoast';
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     visible: {
@@ -206,6 +206,31 @@ const isPDF = (uri) => {
     if (!uri) return false;
     return uri.toLowerCase().endsWith('.pdf');
 };
+
+// Handle Enter key
+const handleKeyPress = (event) => {
+    if (event.key === 'Enter' && props.visible && !loading.value && !loadingDetails.value && title.value.trim()) {
+        event.preventDefault();
+        handleMerge();
+    }
+};
+
+watch(
+    () => props.visible,
+    async (newVal) => {
+        if (newVal) {
+            resetForm();
+            await loadAllImageReferences();
+            window.addEventListener('keypress', handleKeyPress);
+        } else {
+            window.removeEventListener('keypress', handleKeyPress);
+        }
+    }
+);
+
+onUnmounted(() => {
+    window.removeEventListener('keypress', handleKeyPress);
+});
 </script>
 
 <template>
@@ -300,7 +325,7 @@ const isPDF = (uri) => {
         <template #footer>
             <div class="flex justify-end gap-2">
                 <Button label="ยกเลิก" severity="secondary" @click="dialogVisible = false" :disabled="loading" />
-                <Button label="รวมเอกสาร" icon="pi pi-check" @click="handleMerge" :loading="loading" :disabled="!title.trim() || loadingDetails" />
+                <Button label="รวมเอกสาร (Enter)" icon="pi pi-check" @click="handleMerge" :loading="loading" :disabled="!title.trim() || loadingDetails" />
             </div>
         </template>
     </Dialog>

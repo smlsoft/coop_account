@@ -39,6 +39,11 @@ export const bulkCreateDocumentImages = (data) => {
     return apiClient.post('documentimage/bulk', data);
 };
 
+// Create single document image
+export const createDocumentImage = (data) => {
+    return apiClient.post('documentimage', data);
+};
+
 // Merge APIs
 export const mergeDocumentImageGroups = (data) => {
     return apiClient.post('documentimagegroup', data);
@@ -71,4 +76,14 @@ export const deleteDocumentImageGroups = (guidfixedArray) => {
 // Sort images within a group
 export const updateDocumentImageGroupImages = (groupGuidfixed, imagesArray) => {
     return apiClient.put(`documentimagegroup/${groupGuidfixed}/documentimages`, imagesArray);
+};
+
+// Update document image group status (for review)
+export const updateDocumentImageGroupStatus = (guidfixed, status) => {
+    return apiClient.put(`documentimagegroup/${guidfixed}/status`, { status });
+};
+
+// Update all document image groups status in a task
+export const updateAllDocumentImageGroupsStatus = (taskGuid, status) => {
+    return apiClient.put(`documentimagegroup/task/${taskGuid}/status`, { status });
 };

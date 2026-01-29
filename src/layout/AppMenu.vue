@@ -22,6 +22,32 @@ const model = ref([
                 icon: 'pi pi-fw pi-cloud-upload',
                 to: '/image/upload',
                 path: '/upload'
+            },
+            {
+                label: 'ตรวจสอบรูปภาพเอกสาร',
+                icon: 'pi pi-fw pi-eye',
+                to: '/image/review',
+                path: '/review'
+            }
+        ]
+    },
+    {
+        label: 'Accounting',
+        path: '/accounting',
+        items: [
+            /// บันทึกรายการบัญชี
+            {
+                label: 'บันทึกรายการบัญชี',
+                icon: 'pi pi-fw pi-book',
+                to: '/accounting/entry',
+                path: '/entry'
+            },
+            /// บันทึกรายการบัญชี จากรูปภาพเอกสาร
+            {
+                label: 'บันทึกรายการบัญชี จากรูปภาพ',
+                icon: 'pi pi-fw pi-image',
+                to: '/accounting/entry-from-image',
+                path: '/entry-from-image'
             }
         ]
     },

@@ -22,10 +22,38 @@ const props = defineProps({
     isJobClosed: {
         type: Boolean,
         default: false
+    },
+    isReviewMode: {
+        type: Boolean,
+        default: false
+    },
+    updatingStatus: {
+        type: Boolean,
+        default: false
+    },
+    isReadOnly: {
+        type: Boolean,
+        default: false
+    },
+    hideDetails: {
+        type: Boolean,
+        default: false
+    },
+    showJournalButton: {
+        type: Boolean,
+        default: false
+    },
+    isSelectedByOther: {
+        type: Boolean,
+        default: false
+    },
+    selectedByUsername: {
+        type: String,
+        default: ''
     }
 });
 
-const emit = defineEmits(['refresh-detail', 'refresh-group']);
+const emit = defineEmits(['refresh-detail', 'refresh-group', 'update-status', 'create-journal', 'view-journal-detail']);
 
 const currentImageIndex = ref(0);
 const showCommentDialog = ref(false);
@@ -44,6 +72,11 @@ const totalImages = computed(() => {
 
 const canGoPrev = computed(() => currentImageIndex.value > 0);
 const canGoNext = computed(() => currentImageIndex.value < totalImages.value - 1);
+
+// Check if selected image has references (recorded in journal)
+const hasReferences = computed(() => {
+    return props.selectedImageDetail?.references && props.selectedImageDetail.references.length > 0;
+});
 
 // Reset image index when group changes
 watch(
@@ -70,6 +103,10 @@ const isPDF = (uri) => {
     return uri.toLowerCase().endsWith('.pdf');
 };
 
+const handleViewJournalDetail = (reference) => {
+    emit('view-journal-detail', reference);
+};
+
 const handleCommentAdded = () => {
     emit('refresh-detail');
 };
@@ -84,7 +121,7 @@ const handleTagsUpdated = () => {
 };
 
 const openTagDialog = () => {
-    if (props.isJobClosed) return;
+    if (props.isJobClosed || props.isReadOnly) return;
     showTagDialog.value = true;
 };
 
@@ -100,6 +137,27 @@ const handleImageSortComplete = () => {
 
 const handleImageSortCancel = () => {
     imageSortMode.value = false;
+};
+
+// Review status functions
+const STATUS_CONFIG = {
+    0: { text: 'รอตรวจสอบ', severity: 'secondary', icon: 'pi pi-clock' },
+    1: { text: 'ผ่าน', severity: 'success', icon: 'pi pi-check' },
+    2: { text: 'ไม่ผ่าน', severity: 'danger', icon: 'pi pi-times' },
+    3: { text: 'ไม่บันทึกรายวัน', severity: 'warn', icon: 'pi pi-minus' }
+};
+
+const getStatusConfig = (status) => {
+    return STATUS_CONFIG[status] || STATUS_CONFIG[0];
+};
+
+const updateStatus = (status) => {
+    if (props.updatingStatus) return;
+    emit('update-status', props.selectedGroup.guidfixed, status);
+};
+
+const handleCreateJournal = () => {
+    emit('create-journal');
 };
 </script>
 
@@ -118,20 +176,38 @@ const handleImageSortCancel = () => {
 
             <!-- Normal Mode -->
             <template v-else>
-                <div class="mb-4">
-                    <h3 class="mb-2 text-surface-900 dark:text-surface-100">{{ selectedGroup.title || 'ไม่มีชื่อ' }}</h3>
+                <div v-if="!hideDetails" class="mb-4">
+                    <div class="mb-2 text-lg font-semibold text-surface-900 dark:text-surface-100">{{ selectedGroup.title || 'ไม่มีชื่อ' }}</div>
                     <div class="flex gap-2 mb-4 items-center">
-                        <Tag :value="`${selectedGroup.imagereferences?.length || 0} รูป`" severity="info" />
-                        <Tag :value="`${selectedGroup.billcount || 0} บิล`" severity="success" />
-                        <Button v-if="selectedImageDetail" icon="pi pi-comment" :label="`${selectedImageDetail.comments?.length || 0}`" severity="secondary" text size="small" @click="openCommentDialog" :disabled="isJobClosed" />
+                        <Tag :value="`${selectedGroup.imagereferences?.length || 0} เอกสาร`" severity="info" />
+                        <!-- <Tag :value="`${selectedGroup.billcount || 0} บิล`" severity="success" /> -->
+                        <Tag v-if="isReviewMode" :value="getStatusConfig(selectedGroup.status).text" :severity="getStatusConfig(selectedGroup.status).severity" />
+                        <Button v-if="selectedImageDetail" icon="pi pi-comment" :label="`${selectedImageDetail.comments?.length || 0}`" severity="danger" text size="small" @click="openCommentDialog" :disabled="isJobClosed" />
                         <div class="ml-auto">
                             <Button v-if="totalImages > 1" label="เรียงรูปภาพ" icon="pi pi-sort-alt" severity="info" size="small" @click="toggleImageSortMode" :disabled="isJobClosed" outlined />
                         </div>
                     </div>
+
+                    <!-- Review Mode Buttons -->
+                    <div v-if="isReviewMode" class="flex gap-2 mb-4 flex-wrap">
+                        <Button label="ผ่าน" icon="pi pi-check" severity="success" size="small" @click="updateStatus(1)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 1" />
+                        <Button label="ไม่ผ่าน" icon="pi pi-times" severity="danger" size="small" @click="updateStatus(2)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 2" />
+                        <Button label="ไม่บันทึกรายวัน" icon="pi pi-minus" severity="warn" size="small" @click="updateStatus(3)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 3" />
+                        <Button v-if="selectedGroup.status !== 0" label="รีเซ็ต" icon="pi pi-refresh" severity="secondary" size="small" @click="updateStatus(0)" :loading="updatingStatus" :disabled="isJobClosed" outlined />
+                    </div>
+
+                    <!-- Journal Button -->
+                    <div v-if="showJournalButton && !hasReferences" class="flex gap-2 mb-4 flex-wrap items-center">
+                        <Button label="บันทึกรายวัน" icon="pi pi-book" severity="success" @click="handleCreateJournal" :disabled="isJobClosed || isSelectedByOther" />
+                        <span v-if="isSelectedByOther" class="text-orange-500 text-sm flex items-center gap-1">
+                            <i class="pi pi-user"></i>
+                            {{ selectedByUsername }} กำลังดูอยู่
+                        </span>
+                    </div>
                 </div>
 
                 <!-- รูปภาพเต็ม with Carousel -->
-                <div class="mb-4 rounded-lg overflow-hidden relative bg-surface-100 dark:bg-surface-800" style="min-height: 400px; height: 60vh">
+                <div :class="['rounded-lg overflow-hidden relative bg-surface-100 dark:bg-surface-800', { 'mb-4': !hideDetails }]" :style="hideDetails ? 'min-height: 400px; height: 100%' : 'min-height: 400px; height: 60vh'">
                     <!-- Image/PDF Viewer -->
                     <ImageZoomViewer v-if="currentImageRef && !isPDF(currentImageRef.imageuri)" :key="`img-${currentImageIndex}`" :src="currentImageRef.imageuri" :alt="selectedGroup.title" />
                     <PdfViewer v-else-if="currentImageRef && isPDF(currentImageRef.imageuri)" :key="`pdf-${currentImageIndex}`" :src="currentImageRef.imageuri" />
@@ -147,7 +223,7 @@ const handleImageSortCancel = () => {
                 </div>
 
                 <!-- รายละเอียด -->
-                <div class="bg-surface-50 dark:bg-surface-800 p-4 rounded-lg border border-surface-200 dark:border-surface-700">
+                <div v-if="!hideDetails" class="bg-surface-50 dark:bg-surface-800 p-4 rounded-lg border border-surface-200 dark:border-surface-700">
                     <!-- เอกสารอ้างอิง (full width) -->
                     <div v-if="selectedImageDetail?.references && selectedImageDetail.references.length > 0" class="mb-3">
                         <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">เอกสารอ้างอิง</label>
@@ -155,6 +231,7 @@ const handleImageSortCancel = () => {
                             <div v-for="(ref, index) in selectedImageDetail.references" :key="index" class="flex gap-2 items-center text-sm text-surface-700 dark:text-surface-200">
                                 <Tag :value="ref.module" severity="info" />
                                 <span>{{ ref.docno }}</span>
+                                <Button icon="pi pi-eye" label="ดูรายละเอียด" size="small" text @click="handleViewJournalDetail(ref)" />
                             </div>
                         </div>
                     </div>
@@ -185,14 +262,15 @@ const handleImageSortCancel = () => {
                                 <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
                                 <div class="flex flex-wrap gap-2 mt-1 items-center">
                                     <Tag v-for="tag in selectedGroup.tags" :key="tag" :value="tag" />
-                                    <Button icon="pi pi-pencil" size="small" severity="secondary" text @click="openTagDialog" title="จัดการ Tags" :disabled="isJobClosed" />
+                                    <Button v-if="!props.isReadOnly" icon="pi pi-pencil" size="small" severity="secondary" text @click="openTagDialog" title="จัดการ Tags" :disabled="props.isJobClosed" />
                                 </div>
                             </div>
                             <div v-else>
                                 <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">Tags</label>
-                                <div class="mt-1">
-                                    <Button icon="pi pi-plus" label="เพิ่ม Tags" size="small" severity="secondary" text @click="openTagDialog" :disabled="isJobClosed" />
+                                <div v-if="!props.isReadOnly" class="mt-1">
+                                    <Button icon="pi pi-plus" label="เพิ่ม Tags" size="small" severity="secondary" text @click="openTagDialog" :disabled="props.isJobClosed" />
                                 </div>
+                                <p v-else class="text-sm mt-1 text-surface-400">-</p>
                             </div>
                         </div>
                     </div>

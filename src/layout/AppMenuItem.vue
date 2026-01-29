@@ -29,7 +29,13 @@ const isActive = computed(() => {
     const hasTo = props.item.to;
 
     if (hasPath) {
-        return currentPath?.startsWith(fullPath.value);
+        // Check if current path starts with fullPath and is followed by / or end of string
+        const startsWithPath = currentPath?.startsWith(fullPath.value);
+        if (startsWithPath) {
+            const nextChar = currentPath.charAt(fullPath.value.length);
+            return nextChar === '' || nextChar === '/';
+        }
+        return false;
     } else if (hasTo) {
         return currentPath === props.item.to;
     }

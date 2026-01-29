@@ -1,4 +1,5 @@
 <script setup>
+import { useLoading } from '@/composables/useLoading';
 import { bulkCreateDocumentImages, uploadImage } from '@/services/api/image';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref, watch } from 'vue';
@@ -21,12 +22,14 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'upload-complete']);
 
 const toast = useToast();
+const { showLoading, hideLoading } = useLoading();
 const fileInput = ref(null);
 const uploadedFiles = ref([]);
 const uploading = ref(false);
 const confirming = ref(false);
 const searchQuery = ref('');
 const statusFilter = ref('all'); // all, uploaded, error, pending, uploading
+const isDragging = ref(false);
 
 const dialogVisible = computed({
     get: () => props.visible,
@@ -161,6 +164,9 @@ const startUpload = async () => {
             fileObj.status = 'error';
             fileObj.error = error.message || 'Upload failed';
         }
+
+        // Delay 0.5 วินาทีระหว่างการอัปโหลดแต่ละรูป เพื่อให้เห็น progress bar
+        await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     uploading.value = false;
@@ -230,9 +236,11 @@ const handleConfirm = async () => {
             taskguid: props.taskGuid
         }));
 
+        showLoading('กำลังบันทึกข้อมูล...');
         const response = await bulkCreateDocumentImages(payload);
 
         if (response.data.success) {
+            hideLoading();
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
@@ -247,6 +255,7 @@ const handleConfirm = async () => {
         }
     } catch (error) {
         console.error('Confirm error:', error);
+        hideLoading();
         toast.add({
             severity: 'error',
             summary: 'ข้อผิดพลาด',
@@ -315,6 +324,15 @@ const openFileDialog = () => {
     fileInput.value?.click();
 };
 
+const showHelp = () => {
+    toast.add({
+        severity: 'info',
+        summary: 'วิธีใช้งาน Upload',
+        detail: '1. ลากไฟล์มาวางในพื้นที่ หรือ 2. คลิกปุ่มเลือกไฟล์ หรือ 3. คลิกที่กรอบเพื่อเลือกไฟล์',
+        life: 5000
+    });
+};
+
 // Batch actions
 const retryAllErrors = async () => {
     const errorFiles = uploadedFiles.value.filter((f) => f.status === 'error');
@@ -330,6 +348,69 @@ const removeAllErrors = () => {
 
 const clearAll = () => {
     uploadedFiles.value = [];
+};
+
+// Drag and drop handlers
+const handleDragOver = (event) => {
+    event.preventDefault();
+    isDragging.value = true;
+};
+
+const handleDragLeave = (event) => {
+    event.preventDefault();
+    isDragging.value = false;
+};
+
+const handleDrop = async (event) => {
+    event.preventDefault();
+    isDragging.value = false;
+
+    const files = Array.from(event.dataTransfer.files);
+
+    // Filter เฉพาะ image และ PDF
+    const validFiles = files.filter((file) => {
+        const isPdf = file.type === 'application/pdf';
+        const isImage = file.type.startsWith('image/');
+        return isPdf || isImage;
+    });
+
+    if (validFiles.length !== files.length) {
+        toast.add({
+            severity: 'warn',
+            summary: 'คำเตือน',
+            detail: 'บางไฟล์ไม่ใช่รูปภาพหรือ PDF',
+            life: 3000
+        });
+    }
+
+    // เพิ่มไฟล์เข้า list
+    for (const file of validFiles) {
+        const fileObj = {
+            id: Date.now() + Math.random(),
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            status: 'pending',
+            preview: null,
+            uploadedUri: null,
+            error: null
+        };
+
+        // สร้าง preview สำหรับ image
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                fileObj.preview = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        uploadedFiles.value.push(fileObj);
+    }
+
+    // เริ่ม upload ทันที
+    await startUpload();
 };
 </script>
 
@@ -391,7 +472,7 @@ const clearAll = () => {
             </div>
 
             <!-- Progress Bar -->
-            <ProgressBar v-if="uploading || (hasFiles && !allUploaded)" :value="uploadProgress" :show-value="true" class="h-4" />
+            <ProgressBar v-if="hasFiles" :value="uploadProgress" :show-value="true" class="h-4" />
 
             <!-- File Grid - Compact for 100+ items -->
             <div v-if="hasFiles" class="max-h-[600px] overflow-y-auto border border-surface-200 dark:border-surface-700 rounded-lg bg-surface-50 dark:bg-surface-900 p-3 @container">
@@ -444,10 +525,52 @@ const clearAll = () => {
             </div>
 
             <!-- Empty State -->
-            <div v-else class="text-center py-12 text-surface-500 dark:text-surface-400">
-                <i class="pi pi-cloud-upload text-6xl mb-4"></i>
-                <p class="text-lg">คลิกเลือกไฟล์เพื่อเริ่ม upload</p>
-                <p class="text-sm mt-2">รองรับไฟล์รูปภาพและ PDF</p>
+            <div v-else class="py-8">
+                <!-- Drag & Drop Zone -->
+                <div
+                    class="relative border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden"
+                    :class="
+                        isDragging
+                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 shadow-lg shadow-primary-500/20'
+                            : 'border-primary-300 dark:border-primary-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/30 dark:hover:bg-primary-900/10 hover:shadow-md'
+                    "
+                    @dragover="handleDragOver"
+                    @dragleave="handleDragLeave"
+                    @drop="handleDrop"
+                    @click="openFileDialog"
+                >
+                    <div class="p-16 text-center">
+                        <!-- Text Section -->
+                        <div class="mb-6">
+                            <h3 class="text-2xl font-bold mb-2 transition-colors duration-300" :class="isDragging ? 'text-primary-700 dark:text-primary-300' : 'text-surface-800 dark:text-surface-100'">
+                                {{ isDragging ? 'วางไฟล์ที่นี่เลย!' : 'ลากไฟล์มาวางที่นี่' }}
+                            </h3>
+                            <p class="text-sm mb-1 transition-colors duration-300" :class="isDragging ? 'text-primary-600 dark:text-primary-400 font-medium' : 'text-surface-600 dark:text-surface-400'">รองรับไฟล์: รูปภาพ (JPG, PNG) และ PDF</p>
+                            <p class="text-xs text-surface-500 dark:text-surface-500">ขนาดไฟล์สูงสุด: 100MB | จำนวนไฟล์: ไม่จำกัด</p>
+                        </div>
+
+                        <!-- Divider -->
+                        <div class="flex items-center gap-4 mb-6 max-w-xs mx-auto">
+                            <div class="flex-1 h-px bg-surface-200 dark:bg-surface-700"></div>
+                            <span class="text-xs text-surface-500 dark:text-surface-500 font-medium">หรือ</span>
+                            <div class="flex-1 h-px bg-surface-200 dark:bg-surface-700"></div>
+                        </div>
+
+                        <!-- Button Section -->
+                        <div class="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                            <Button label="เลือกไฟล์จากเครื่อง" icon="pi pi-folder-open" size="large" class="font-semibold" :class="isDragging ? 'scale-105' : ''" />
+                            <Button label="วิธีใช้งาน" icon="pi pi-question-circle" severity="secondary" size="large" outlined @click.stop="showHelp" />
+                        </div>
+                    </div>
+
+                    <!-- Animated border effect on drag -->
+                    <div v-if="isDragging" class="absolute inset-0 rounded-2xl pointer-events-none border-2 border-primary-500" style="animation: pulse-border 1.5s ease-in-out infinite"></div>
+
+                    <!-- Shimmer effect on drag -->
+                    <div v-if="isDragging" class="absolute inset-0 rounded-2xl pointer-events-none overflow-hidden">
+                        <div class="absolute inset-0" style="background: linear-gradient(90deg, transparent 0%, rgba(var(--primary-500-rgb), 0.1) 50%, transparent 100%); background-size: 200% 100%; animation: shimmer 2s linear infinite"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -483,5 +606,14 @@ const clearAll = () => {
 <style scoped>
 .space-y-4 > * + * {
     margin-top: 1rem;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
 }
 </style>

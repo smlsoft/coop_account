@@ -1,38 +1,38 @@
 <script setup>
+import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import DialogApprove from '@/components/DialogApprove.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageGridPanel from '@/components/image/ImageGridPanel.vue';
-import ImageUploadDialog from '@/components/image/ImageUploadDialog.vue';
 import MergeDocumentDialog from '@/components/image/MergeDocumentDialog.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
-import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
-import { deleteDocumentImageGroups, getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupImages, updateDocumentImageGroupsOrder } from '@/services/api/image';
+import { getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupsOrder } from '@/services/api/image';
+import { deselectDocref, getDocrefSelected, getJournalById, selectDocref } from '@/services/api/journal';
 import { getTask, updateTaskStatus } from '@/services/api/task';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-const { username } = useAuth();
 const { showLoading, hideLoading } = useLoading();
+
+// Get current user email from localStorage
+const getCurrentUserEmail = () => {
+    return localStorage.getItem('username') || '';
+};
+const currentUserEmail = ref(getCurrentUserEmail());
 
 const taskId = ref('');
 const taskData = ref(null);
-const uploadDialogVisible = ref(false);
 const mergeDialogVisible = ref(false);
 const multiSelectMode = ref(false);
 const selectedGroupsForMerge = ref([]);
 const ungrouping = ref(false);
-const deleting = ref(false);
 const sortMode = ref(false);
 const sortableGroups = ref([]);
 const savingOrder = ref(false);
-const dialogJobClose = ref(false);
-const randomNumber = ref(0);
-const closingJob = ref(false);
 const imageGroups = ref([]);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -43,6 +43,17 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const searchQuery = ref('');
 const searchTimeout = ref(null);
+const updatingStatus = ref(false);
+const updatingAllStatus = ref(false);
+const closingJob = ref(false);
+const dialogJobClose = ref(false);
+const randomNumber = ref(0);
+const selectedByUsers = ref([]);
+const wsDocref = ref(null);
+const pollingInterval = ref(null);
+const journalDetailDialog = ref(false);
+const selectedJournal = ref(null);
+const loadingJournal = ref(false);
 
 // Menu refs
 const documentMenu = ref(null);
@@ -69,38 +80,46 @@ const documentMenuItems = computed(() => [
         icon: 'pi pi-clone',
         command: () => handleUngroup(),
         disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1
-    },
-    {
-        label: 'ลบเอกสาร',
-        icon: 'pi pi-trash',
-        command: () => handleDelete(),
-        disabled: isJobClosed.value || !selectedGroup.value
     }
 ]);
 
-// Toggle menu functions
+// Toggle menu function
 const toggleDocumentMenu = (event) => {
     documentMenu.value.toggle(event);
 };
 
-// Computed: Check if job is closed (status !== 0)
+// Computed property to check if job is closed (status = 4)
 const isJobClosed = computed(() => {
-    return taskData.value?.status !== 0;
+    return taskData.value?.status === 4;
 });
 
-// Computed: Check if can close job
+// Computed property to check if job can be closed
 const canCloseJob = computed(() => {
-    return imageGroups.value.length > 0 && !isJobClosed.value;
+    // ตรวจสอบว่า เอกสารทั้งหมดได้รับการบันทึกรายวันครบหรือไม่
+    // ต้องบันทึก (status=1) ทั้งหมด และมี referencecount เท่ากับจำนวนเอกสาร
+    const needToRecord = getStatusCount(1); // เอกสารที่ต้องบันทึก
+    const recorded = taskData.value?.referencecount || 0; // บันทึกแล้ว
+    return needToRecord > 0 && needToRecord === recorded;
 });
 
-// Watch searchQuery with debounce (1 seconds)
-watch(searchQuery, (newValue, oldValue) => {
-    // Clear existing timeout
+// Computed properties สำหรับจำนวนเอกสารตามสถานะ
+const getStatusCount = (status) => {
+    if (!taskData.value?.totaldocumentstatus) return 0;
+    const statusData = taskData.value.totaldocumentstatus.find((s) => s.status === status);
+    return statusData?.total || 0;
+};
+
+const totalDocuments = computed(() => taskData.value?.totaldocument || 0);
+const needToRecordCount = computed(() => getStatusCount(1)); // status = 1 (ผ่าน) = ต้องบันทึก
+const recordedCount = computed(() => taskData.value?.referencecount || 0);
+const remainingCount = computed(() => needToRecordCount.value - recordedCount.value);
+
+// Watch searchQuery with debounce
+watch(searchQuery, () => {
     if (searchTimeout.value) {
         clearTimeout(searchTimeout.value);
     }
 
-    // Set new timeout for 3 seconds
     searchTimeout.value = setTimeout(() => {
         fetchImageGroups(true);
     }, 1000);
@@ -108,21 +127,9 @@ watch(searchQuery, (newValue, oldValue) => {
 
 // Watch mergeDialogVisible
 watch(mergeDialogVisible, (newValue) => {
-    // Watch for merge dialog visibility changes
-});
-
-// Watch selectedGroupsForMerge
-watch(
-    selectedGroupsForMerge,
-    (newValue) => {
-        // Watch for selected groups changes
-    },
-    { deep: true }
-);
-
-// Watch multiSelectMode
-watch(multiSelectMode, (newValue) => {
-    // Watch for multi-select mode changes
+    if (!newValue && !multiSelectMode.value) {
+        selectedGroupsForMerge.value = [];
+    }
 });
 
 const fetchTaskDetail = async () => {
@@ -155,10 +162,11 @@ const fetchImageGroups = async (reset = true) => {
         const params = {
             taskguid: taskId.value,
             page: currentPage.value,
-            limit: 100
+            limit: 100,
+            // เฉพาะเอกสารที่ status = 1 (ผ่าน/ต้องบันทึก)
+            status: '1'
         };
 
-        // Add search query if exists
         if (searchQuery.value && searchQuery.value.trim()) {
             params.q = searchQuery.value.trim();
         }
@@ -196,7 +204,6 @@ const loadMore = async () => {
 const handleSelectGroup = async (group) => {
     selectedGroup.value = group;
 
-    // ดึงข้อมูล detail ของ image แรก
     if (group.imagereferences && group.imagereferences.length > 0) {
         const firstImageGuid = group.imagereferences[0].documentimageguid;
         if (firstImageGuid) {
@@ -240,11 +247,7 @@ const handleRefreshGroup = async () => {
 
     try {
         const selectedGuid = selectedGroup.value.guidfixed;
-
-        // Reset and reload all groups
         await fetchImageGroups(true);
-
-        // Find and reselect the updated group
         const updatedGroup = imageGroups.value.find((g) => g.guidfixed === selectedGuid);
         if (updatedGroup) {
             selectedGroup.value = updatedGroup;
@@ -254,16 +257,149 @@ const handleRefreshGroup = async () => {
     }
 };
 
+// Fetch selected users from API (initial load)
+const fetchSelectedUsers = async () => {
+    try {
+        const response = await getDocrefSelected();
+        if (response.data.success) {
+            selectedByUsers.value = response.data.data || [];
+        }
+    } catch (error) {
+        console.error('Error fetching selected users:', error);
+    }
+};
+
+// Send select docref when user clicks journal button
+const sendSelectDocref = async (docref) => {
+    try {
+        const response = await selectDocref(docref);
+        return response.data.success;
+    } catch (error) {
+        console.error('Error sending select docref:', error);
+        return false;
+    }
+};
+
+// Deselect current docref before selecting new one
+const sendDeselectDocref = async (docref) => {
+    try {
+        await deselectDocref(docref);
+    } catch (error) {
+        console.error('Error sending deselect docref:', error);
+    }
+};
+
+// Find if current user has selected any docref
+const getCurrentUserSelectedDocref = () => {
+    const found = selectedByUsers.value.find((item) => item.username === currentUserEmail.value);
+    return found ? found.docref : null;
+};
+
+// WebSocket connection for real-time docref updates
+const connectDocrefWebSocket = () => {
+    const token = localStorage.getItem('_token');
+    if (!token) return;
+
+    wsDocref.value = new WebSocket(`wss://api.dev.dedepos.com/gl/journal/ws/docref?apikey=${token}`);
+
+    wsDocref.value.onopen = () => {
+        console.log('WebSocket docref connected');
+    };
+
+    wsDocref.value.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            console.log('WebSocket docref message:', data);
+
+            if (data.status === 'selected') {
+                // Add user to selectedByUsers if not already exists
+                const exists = selectedByUsers.value.find((item) => item.docref === data.docref);
+                if (!exists) {
+                    selectedByUsers.value.push({
+                        docref: data.docref,
+                        username: data.username
+                    });
+                }
+            } else if (data.status === 'deselected') {
+                // Remove user from selectedByUsers
+                selectedByUsers.value = selectedByUsers.value.filter((item) => item.docref !== data.docref);
+            }
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+        }
+    };
+
+    wsDocref.value.onclose = (e) => {
+        console.log('WebSocket docref closed:', e.reason);
+        // Reconnect after 1 second if still on this page
+        setTimeout(() => {
+            const token = localStorage.getItem('_token');
+            if (token && route.name === 'journal-from-image-detail') {
+                connectDocrefWebSocket();
+            }
+        }, 1000);
+    };
+
+    wsDocref.value.onerror = (error) => {
+        console.error('WebSocket docref error:', error);
+    };
+};
+
+// Disconnect WebSocket
+const disconnectDocrefWebSocket = () => {
+    if (wsDocref.value) {
+        wsDocref.value.close();
+        wsDocref.value = null;
+    }
+};
+
+// Computed: check if selected group is being viewed by another user
+const isSelectedByOther = computed(() => {
+    if (!selectedGroup.value?.guidfixed) return false;
+    const found = selectedByUsers.value.find((item) => item.docref === selectedGroup.value.guidfixed);
+    if (!found) return false;
+    // Check if it's not the current user
+    return found.username !== currentUserEmail.value;
+});
+
+// Computed: get username of who is selecting the current group
+const selectedByUsername = computed(() => {
+    if (!selectedGroup.value?.guidfixed) return '';
+    const found = selectedByUsers.value.find((item) => item.docref === selectedGroup.value.guidfixed);
+    if (!found || found.username === currentUserEmail.value) return '';
+    return found.username;
+});
+
+// Start polling for selected users every 5 seconds
+const startPolling = () => {
+    pollingInterval.value = setInterval(async () => {
+        await fetchSelectedUsers();
+    }, 5000);
+};
+
+// Stop polling
+const stopPolling = () => {
+    if (pollingInterval.value) {
+        clearInterval(pollingInterval.value);
+        pollingInterval.value = null;
+    }
+};
+
 onMounted(async () => {
     taskId.value = route.params.id;
     await fetchTaskDetail();
     await fetchImageGroups();
+    // Fetch initial selected users then connect WebSocket for real-time updates
+    await fetchSelectedUsers();
+    connectDocrefWebSocket();
+    // Start polling every 5 seconds
+    startPolling();
 });
 
-const handleUploadComplete = async () => {
-    // Refresh data after upload
-    await fetchImageGroups(true);
-};
+onUnmounted(() => {
+    disconnectDocrefWebSocket();
+    stopPolling();
+});
 
 const toggleMultiSelectMode = () => {
     if (isJobClosed.value) return;
@@ -284,9 +420,7 @@ const toggleGroupSelection = (group) => {
 };
 
 const openMergeDialog = () => {
-    if (isJobClosed.value) {
-        return;
-    }
+    if (isJobClosed.value) return;
     if (selectedGroupsForMerge.value.length < 2) {
         toast.add({
             severity: 'warn',
@@ -296,35 +430,27 @@ const openMergeDialog = () => {
         });
         return;
     }
-
     mergeDialogVisible.value = true;
 };
 
 const handleMergeComplete = async (newGroupGuid) => {
     try {
-        // Find the position of the first selected group before clearing
         const firstSelectedGuid = selectedGroupsForMerge.value[0]?.guidfixed;
         const firstSelectedIndex = imageGroups.value.findIndex((g) => g.guidfixed === firstSelectedGuid);
 
-        // Reset states
         multiSelectMode.value = false;
         selectedGroupsForMerge.value = [];
 
-        // Refresh data to get the new merged group
         showLoading('กำลังโหลดรายการเอกสาร...');
         await fetchImageGroups(true);
 
-        // If we found the original position and have a new group
         if (firstSelectedIndex !== -1 && newGroupGuid) {
-            // Find the new merged group (it's probably at the end)
             const newGroupIndex = imageGroups.value.findIndex((g) => g.guidfixed === newGroupGuid);
 
             if (newGroupIndex !== -1 && newGroupIndex !== firstSelectedIndex) {
-                // Move the new group to the original position
                 const newGroup = imageGroups.value.splice(newGroupIndex, 1)[0];
                 imageGroups.value.splice(firstSelectedIndex, 0, newGroup);
 
-                // Re-sort with new order
                 showLoading('กำลังจัดเรียงลำดับ...');
                 const orderData = imageGroups.value.map((group, index) => ({
                     guidfixed: group.guidfixed,
@@ -332,10 +458,8 @@ const handleMergeComplete = async (newGroupGuid) => {
                 }));
                 await updateDocumentImageGroupsOrder(taskId.value, orderData);
 
-                // Refresh again to confirm the order
                 await fetchImageGroups(true);
 
-                // Auto-select the merged group at its new position
                 const mergedGroup = imageGroups.value.find((g) => g.guidfixed === newGroupGuid);
                 if (mergedGroup) {
                     selectedGroup.value = mergedGroup;
@@ -348,7 +472,6 @@ const handleMergeComplete = async (newGroupGuid) => {
     } catch (error) {
         console.error('Error in handleMergeComplete:', error);
         hideLoading();
-        // Still refresh the list even if reordering failed
         await fetchImageGroups(true);
     }
 };
@@ -371,26 +494,21 @@ const handleUngroup = async () => {
     ungrouping.value = true;
 
     try {
-        // 1. Ungroup the document
         showLoading('กำลังแยกเอกสาร...');
         const response = await ungroupDocumentImageGroup(selectedGroup.value.guidfixed);
 
         if (response.data.success) {
             const newGuids = response.data.data || [];
 
-            // 2. Recount task documents
             showLoading('กำลังนับจำนวนเอกสารใหม่...');
             await recountTaskDocuments(taskId.value);
 
-            // 3. Refresh task data
             showLoading('กำลังอัปเดตข้อมูลงาน...');
             await fetchTaskDetail();
 
-            // 4. Refresh image groups
             showLoading('กำลังโหลดรายการเอกสาร...');
             await fetchImageGroups(true);
 
-            // 5. Re-sort (xsort) - prepare order data
             if (imageGroups.value.length > 0) {
                 showLoading('กำลังจัดเรียงลำดับ...');
                 const orderData = imageGroups.value.map((group, index) => ({
@@ -408,7 +526,6 @@ const handleUngroup = async () => {
                 life: 3000
             });
 
-            // Clear selection
             selectedGroup.value = null;
             selectedImageDetail.value = null;
         } else {
@@ -432,13 +549,10 @@ const toggleSortMode = () => {
     if (isJobClosed.value) return;
     sortMode.value = !sortMode.value;
     if (sortMode.value) {
-        // Enter sort mode: copy current groups
         sortableGroups.value = [...imageGroups.value];
-        // Disable other modes
         multiSelectMode.value = false;
         selectedGroupsForMerge.value = [];
     } else {
-        // Exit sort mode: reset
         sortableGroups.value = [];
     }
 };
@@ -462,7 +576,6 @@ const saveSortOrder = async () => {
         await updateDocumentImageGroupsOrder(taskId.value, orderData);
 
         showLoading('กำลังโหลดรายการเอกสาร...');
-        // Exit sort mode and refresh
         sortMode.value = false;
         sortableGroups.value = [];
         await fetchImageGroups(true);
@@ -493,66 +606,8 @@ const cancelSortMode = () => {
     sortableGroups.value = [];
 };
 
-const handleDelete = async () => {
-    if (isJobClosed.value) return;
-    if (!selectedGroup.value?.guidfixed) return;
-
-    deleting.value = true;
-
-    try {
-        // 1. Delete the document group
-        showLoading('กำลังลบเอกสาร...');
-        const response = await deleteDocumentImageGroups([selectedGroup.value.guidfixed]);
-
-        if (response.data.success) {
-            // 2. Recount task documents
-            showLoading('กำลังนับจำนวนเอกสารใหม่...');
-            await recountTaskDocuments(taskId.value);
-
-            // 3. Refresh task data
-            showLoading('กำลังอัปเดตข้อมูลงาน...');
-            await fetchTaskDetail();
-
-            // 4. Refresh image groups
-            showLoading('กำลังโหลดรายการเอกสาร...');
-            await fetchImageGroups(true);
-
-            // 5. Re-sort (xsort) - prepare order data
-            if (imageGroups.value.length > 0) {
-                showLoading('กำลังจัดเรียงลำดับ...');
-                const orderData = imageGroups.value.map((group, index) => ({
-                    guidfixed: group.guidfixed,
-                    xorder: index
-                }));
-                await updateDocumentImageGroupsOrder(taskId.value, orderData);
-            }
-
-            hideLoading();
-            toast.add({
-                severity: 'success',
-                summary: 'สำเร็จ',
-                detail: 'ลบเอกสารเรียบร้อยแล้ว',
-                life: 3000
-            });
-
-            // Clear selection
-            selectedGroup.value = null;
-            selectedImageDetail.value = null;
-        } else {
-            throw new Error('Delete failed');
-        }
-    } catch (error) {
-        console.error('Delete error:', error);
-        hideLoading();
-        toast.add({
-            severity: 'error',
-            summary: 'ข้อผิดพลาด',
-            detail: 'ไม่สามารถลบเอกสารได้',
-            life: 3000
-        });
-    } finally {
-        deleting.value = false;
-    }
+const handleSearch = () => {
+    fetchImageGroups(true);
 };
 
 const generateRandomNumber = () => {
@@ -560,6 +615,16 @@ const generateRandomNumber = () => {
 };
 
 const openCloseJobDialog = () => {
+    // ตรวจสอบว่าบันทึกรายวันครบหรือไม่
+    if (!canCloseJob.value) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถปิดงานได้',
+            detail: 'ยังมีเอกสารที่ต้องบันทึกรายวันอยู่ กรุณาบันทึกให้ครบทุกรายการ',
+            life: 5000
+        });
+        return;
+    }
     randomNumber.value = generateRandomNumber();
     dialogJobClose.value = true;
 };
@@ -574,12 +639,13 @@ const confirmJobFalse = () => {
     });
 };
 
+// Close job - change status to 4
 const confirmCloseJob = async () => {
     closingJob.value = true;
 
     try {
         showLoading('กำลังปิดงาน...');
-        const response = await updateTaskStatus(taskId.value, { status: 1 });
+        const response = await updateTaskStatus(taskId.value, { status: 4 });
 
         if (response.data.success) {
             hideLoading();
@@ -592,10 +658,11 @@ const confirmCloseJob = async () => {
 
             dialogJobClose.value = false;
 
-            // กลับไปหน้า ImageUpload
             setTimeout(() => {
-                router.push({ name: 'image-upload' });
+                router.push({ name: 'journal-from-image' });
             }, 500);
+        } else {
+            throw new Error('Close job failed');
         }
     } catch (error) {
         console.error('Close job error:', error);
@@ -611,121 +678,88 @@ const confirmCloseJob = async () => {
     }
 };
 
-const handleSearch = () => {
-    fetchImageGroups(true);
-};
-
 const goBack = () => {
-    router.push({ name: 'image-upload' });
+    router.push({ name: 'journal-from-image' });
 };
 
-// ========== Drag & Drop Merge Handlers ==========
+// Navigate to journal form with documentref
+const handleCreateJournal = async () => {
+    if (!selectedGroup.value?.guidfixed) {
+        toast.add({
+            severity: 'warn',
+            summary: 'คำเตือน',
+            detail: 'กรุณาเลือกเอกสารก่อน',
+            life: 3000
+        });
+        return;
+    }
 
-// Use Case 1: รวมเอกสาร (สร้าง group ใหม่) - เปิด MergeDocumentDialog
-const handleDragMergeGroups = ({ sourceGroup, targetGroup }) => {
-    if (isJobClosed.value) return;
+    const currentSelectedDocref = getCurrentUserSelectedDocref();
+    const targetDocref = selectedGroup.value.guidfixed;
 
-    // เพิ่ม groups เข้า selectedGroupsForMerge แล้วเปิด dialog
-    // ให้ targetGroup อยู่ก่อน (ตำแหน่งแรก) เพราะจะใช้ตำแหน่งนี้ในการวาง
-    selectedGroupsForMerge.value = [targetGroup, sourceGroup];
-    mergeDialogVisible.value = true;
-};
+    // Case 1: User already selected the same docref - just navigate
+    if (currentSelectedDocref === targetDocref) {
+        router.push({
+            name: 'journal-from-image-form',
+            params: { taskId: taskId.value },
+            query: { documentref: targetDocref }
+        });
+        return;
+    }
 
-// Use Case 2: เพิ่มเอกสารเข้าในชุดที่มีอยู่แล้ว - ใช้ข้อมูลของชุดหลักเลย ไม่ต้องเปิด dialog
-const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
-    if (isJobClosed.value) return;
+    // Case 2: User has selected another docref - deselect first
+    if (currentSelectedDocref) {
+        await sendDeselectDocref(currentSelectedDocref);
+    }
 
-    try {
-        // บันทึกตำแหน่งของ target group ก่อนเริ่ม
-        const targetIndex = imageGroups.value.findIndex((g) => g.guidfixed === targetGroup.guidfixed);
-
-        showLoading('กำลังเพิ่มเอกสารเข้าชุด...');
-
-        // รวม imagereferences - เพิ่ม source เข้าไปใน target
-        const allImageReferences = [];
-        let xorder = 0;
-
-        // เพิ่มรูปจาก sourceGroup ก่อน (รูปที่ลากมา) - ให้อยู่ด้านหน้าเพื่อให้เห็นการเปลี่ยนแปลง
-        if (sourceGroup.imagereferences && sourceGroup.imagereferences.length > 0) {
-            for (const imgRef of sourceGroup.imagereferences) {
-                allImageReferences.push({
-                    ...imgRef,
-                    xorder: xorder++
-                });
-            }
-        }
-
-        // เพิ่มรูปจาก targetGroup ตาม (ชุดหลัก)
-        if (targetGroup.imagereferences && targetGroup.imagereferences.length > 0) {
-            for (const imgRef of targetGroup.imagereferences) {
-                allImageReferences.push({
-                    ...imgRef,
-                    xorder: xorder++
-                });
-            }
-        }
-
-        // 1. อัปเดต imagereferences ของ target group
-        const response = await updateDocumentImageGroupImages(targetGroup.guidfixed, allImageReferences);
-
-        if (response.data.success) {
-            // 2. Recount task documents
-            showLoading('กำลังนับจำนวนเอกสารใหม่...');
-            await recountTaskDocuments(taskId.value);
-
-            // 3. Refresh task data
-            showLoading('กำลังอัปเดตข้อมูลงาน...');
-            await fetchTaskDetail();
-
-            // 4. Refresh image groups
-            showLoading('กำลังโหลดรายการเอกสาร...');
-            await fetchImageGroups(true);
-
-            // 5. Re-position the updated target group to its original position if it moved
-            if (targetIndex !== -1) {
-                const currentIndex = imageGroups.value.findIndex((g) => g.guidfixed === targetGroup.guidfixed);
-
-                if (currentIndex !== -1 && currentIndex !== targetIndex) {
-                    // Move target group back to original position
-                    const movedGroup = imageGroups.value.splice(currentIndex, 1)[0];
-                    imageGroups.value.splice(targetIndex, 0, movedGroup);
-                }
-
-                // Re-sort with new order
-                showLoading('กำลังจัดเรียงลำดับ...');
-                const orderData = imageGroups.value.map((group, index) => ({
-                    guidfixed: group.guidfixed,
-                    xorder: index
-                }));
-                await updateDocumentImageGroupsOrder(taskId.value, orderData);
-            }
-
-            hideLoading();
-            toast.add({
-                severity: 'success',
-                summary: 'สำเร็จ',
-                detail: `เพิ่มเอกสารเข้าชุด "${targetGroup.title || 'ไม่มีชื่อ'}" แล้ว`,
-                life: 3000
-            });
-
-            // Auto-select the updated target group at its position
-            const updatedGroup = imageGroups.value.find((g) => g.guidfixed === targetGroup.guidfixed);
-            if (updatedGroup) {
-                selectedGroup.value = updatedGroup;
-                await handleSelectGroup(updatedGroup);
-            }
-        } else {
-            throw new Error('Add to group failed');
-        }
-    } catch (error) {
-        console.error('Drag add to group error:', error);
-        hideLoading();
+    // Case 3: Select new docref
+    const success = await sendSelectDocref(targetDocref);
+    if (!success) {
         toast.add({
             severity: 'error',
             summary: 'ข้อผิดพลาด',
-            detail: 'ไม่สามารถเพิ่มเอกสารเข้าชุดได้',
+            detail: 'ไม่สามารถเลือกเอกสารได้ กรุณาลองใหม่',
             life: 3000
         });
+        return;
+    }
+
+    // Navigate to journal from image form page
+    router.push({
+        name: 'journal-from-image-form',
+        params: { taskId: taskId.value },
+        query: { documentref: targetDocref }
+    });
+};
+
+const handleViewJournalDetail = async (reference) => {
+    if (!reference?.guidfixed) return;
+
+    try {
+        loadingJournal.value = true;
+        const response = await getJournalById(reference.guidfixed);
+
+        if (response.data.success) {
+            selectedJournal.value = response.data.data;
+            journalDetailDialog.value = true;
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'ข้อผิดพลาด',
+                detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching journal detail:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+            life: 3000
+        });
+    } finally {
+        loadingJournal.value = false;
     }
 };
 </script>
@@ -738,8 +772,8 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
             <Toolbar>
                 <template #start>
                     <Button icon="pi pi-arrow-left" class="mr-2" text @click="goBack" />
-                    <div class="font-semibold text-ml">งานอัพโหลด - {{ taskData?.name || taskId }}</div>
-                    <Tag v-if="isJobClosed" value="งานถูกปิดแล้ว" severity="danger" class="ml-3" />
+                    <div class="font-semibold text-ml">บันทึกรายการบัญชี - {{ taskData?.name || taskId }}</div>
+                    <Tag v-if="isJobClosed" value="งานเสร็จแล้ว" severity="success" class="ml-3" />
                 </template>
 
                 <template #center>
@@ -750,13 +784,6 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                             </InputIcon>
                             <InputText v-model="searchQuery" placeholder="ค้นหาเอกสาร..." @keyup.enter="handleSearch" />
                         </IconField>
-                        <!-- จำนวนเอกสารทั้งหมด -->
-                        <div class="flex items-center gap-2 text-sm bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-lg">
-                            <span class="flex items-center gap-1" title="ทั้งหมด">
-                                <i class="pi pi-file text-surface-500"></i>
-                                <span class="font-semibold">{{ imageGroups.length }}</span>
-                            </span>
-                        </div>
                     </div>
                 </template>
 
@@ -768,8 +795,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                     </template>
                     <!-- Normal Mode Actions -->
                     <template v-else>
-                        <Button v-if="!isJobClosed" label="Upload" icon="pi pi-cloud-upload" class="mr-2" @click="uploadDialogVisible = true" />
-                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="imageGroups.length === 0 ? 'ไม่มีเอกสารในงาน' : 'ปิดงาน'" outlined />
+                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="!canCloseJob ? 'ยังมีเอกสารที่ต้องบันทึกรายวันอยู่' : 'ปิดงาน'" />
                     </template>
                 </template>
             </Toolbar>
@@ -782,19 +808,11 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                         <!-- Toolbar ย่อย -->
                         <div class="flex-none flex items-center justify-between gap-2 px-4 py-2 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
                             <div class="flex items-center gap-2">
-                                <!-- Dropdown จัดการเอกสาร -->
-                                <Menu ref="documentMenu" :model="documentMenuItems" :popup="true" />
-                                <Button v-if="!sortMode && !isJobClosed" type="button" label="จัดการเอกสาร" icon="pi pi-file-edit" @click="toggleDocumentMenu" size="small" />
+                                <!-- ปุ่มเรียงลำดับเอกสาร -->
+                                <Button v-if="!sortMode && !isJobClosed" label="เรียงลำดับเอกสาร" icon="pi pi-sort-alt" @click="toggleSortMode" size="small" />
 
                                 <!-- ปุ่ม Refresh -->
                                 <Button v-if="!sortMode" icon="pi pi-refresh" size="small" @click="fetchImageGroups" :loading="loading" title="รีเฟรช" text />
-
-                                <!-- Context Actions สำหรับ Multi-select Mode -->
-                                <template v-if="multiSelectMode && !sortMode">
-                                    <Tag :value="`เลือกแล้ว ${selectedGroupsForMerge.length} รายการ`" severity="info" />
-                                    <Button v-if="selectedGroupsForMerge.length >= 2" label="รวมเอกสาร" icon="pi pi-plus-circle" severity="success" size="small" @click="openMergeDialog" />
-                                    <Button label="ยกเลิก" icon="pi pi-times" size="small" @click="toggleMultiSelectMode" outlined />
-                                </template>
 
                                 <!-- Context Actions สำหรับ Sort Mode -->
                                 <template v-if="sortMode">
@@ -816,35 +834,49 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                 :sort-mode="sortMode"
                                 :current-page="currentPage"
                                 :total-pages="totalPages"
+                                :show-status="false"
                                 :is-job-closed="isJobClosed"
+                                :selected-by-users="selectedByUsers"
+                                :disable-merge="true"
                                 @select-group="handleSelectGroup"
                                 @toggle-group-selection="toggleGroupSelection"
                                 @reorder="handleReorder"
                                 @load-more="loadMore"
-                                @merge-groups="handleDragMergeGroups"
-                                @add-to-group="handleDragAddToGroup"
                             />
                         </div>
                     </div>
                 </SplitterPanel>
                 <SplitterPanel :size="50" :minSize="30">
-                    <ImageDetailPanel
-                        :selected-group="selectedGroup"
-                        :selected-image-detail="selectedImageDetail"
-                        :loading-detail="loadingDetail"
-                        :is-job-closed="isJobClosed"
-                        @refresh-detail="handleRefreshDetail"
-                        @refresh-group="handleRefreshGroup"
-                    />
+                    <div class="h-full flex flex-col">
+                        <!-- Image Detail Panel -->
+                        <div class="flex-1 overflow-hidden">
+                            <ImageDetailPanel
+                                :selected-group="selectedGroup"
+                                :selected-image-detail="selectedImageDetail"
+                                :loading-detail="loadingDetail"
+                                :is-job-closed="isJobClosed"
+                                :is-review-mode="false"
+                                :updating-status="updatingStatus"
+                                :is-read-only="true"
+                                :show-journal-button="true"
+                                :is-selected-by-other="isSelectedByOther"
+                                :selected-by-username="selectedByUsername"
+                                @refresh-detail="handleRefreshDetail"
+                                @refresh-group="handleRefreshGroup"
+                                @create-journal="handleCreateJournal"
+                                @view-journal-detail="handleViewJournalDetail"
+                            />
+                        </div>
+                    </div>
                 </SplitterPanel>
             </Splitter>
         </div>
 
-        <!-- Upload Dialog -->
-        <ImageUploadDialog v-model:visible="uploadDialogVisible" :task-guid="taskId" :user-email="username" @upload-complete="handleUploadComplete" />
-
         <!-- Merge Dialog -->
-        <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="username" @merge-complete="handleMergeComplete" />
+        <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="currentUserEmail" @merge-complete="handleMergeComplete" />
+
+        <!-- Journal Detail Dialog -->
+        <JournalDetailDialog v-model:visible="journalDetailDialog" :journal="selectedJournal" :loading="loadingJournal" />
 
         <!-- Close Job Dialog -->
         <DialogApprove mode="close" title="ยืนยันการปิดงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />

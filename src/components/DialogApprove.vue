@@ -10,9 +10,13 @@ const props = defineProps({
         type: String,
         default: 'ยืนยัน'
     },
-    ramdomNumber: {
+    randomNumber: {
         type: Number,
         default: 0
+    },
+    loading: {
+        type: Boolean,
+        default: false
     },
     confirmDialog: {
         type: Boolean,
@@ -39,7 +43,7 @@ const handleClose = () => {
 };
 
 const handleConfirm = () => {
-    if (parseInt(inputNumber.value) === props.ramdomNumber) {
+    if (parseInt(inputNumber.value) === props.randomNumber) {
         inputNumber.value = '';
         emit('confirmJob');
     } else {
@@ -54,7 +58,15 @@ const getModeConfig = () => {
             icon: 'pi pi-trash',
             iconClass: 'text-red-500',
             buttonClass: 'p-button-danger',
-            buttonLabel: 'ลบ'
+            buttonLabel: 'ลบ (Enter)'
+        };
+    }
+    if (props.mode === 'close') {
+        return {
+            icon: 'pi pi-lock',
+            iconClass: 'text-primary-500',
+            buttonClass: '',
+            buttonLabel: 'ปิดงาน (Enter)'
         };
     }
     return {
@@ -74,18 +86,18 @@ const getModeConfig = () => {
                 <div class="text-center">
                     <p class="text-surface-700 dark:text-surface-300 mb-2">กรุณากรอกตัวเลขเพื่อยืนยัน</p>
                     <div class="inline-flex items-center justify-center px-6 py-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border-2 border-primary-500 dark:border-primary-400">
-                        <span class="text-4xl font-bold text-primary-600 dark:text-primary-400 tracking-wider">{{ ramdomNumber }}</span>
+                        <span class="text-4xl font-bold text-primary-600 dark:text-primary-400 tracking-wider">{{ randomNumber }}</span>
                     </div>
                 </div>
             </div>
             <div class="flex flex-col gap-2">
                 <label for="confirmNumber" class="font-medium text-surface-700 dark:text-surface-300">ตัวเลขยืนยัน</label>
-                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus class="text-center text-2xl" />
+                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus class="text-center text-2xl" @keyup.enter="handleConfirm" />
             </div>
         </div>
         <template #footer>
-            <Button label="ปิด" icon="pi pi-times" class="p-button-text" @click="handleClose" />
-            <Button :label="getModeConfig().buttonLabel" :icon="getModeConfig().icon" :class="getModeConfig().buttonClass" @click="handleConfirm" />
+            <Button label="ปิด" icon="pi pi-times" class="p-button-text" @click="handleClose" :disabled="loading" />
+            <Button :label="getModeConfig().buttonLabel" :icon="getModeConfig().icon" :class="getModeConfig().buttonClass" :loading="loading" :disabled="loading" @click="handleConfirm" />
         </template>
     </Dialog>
 </template>

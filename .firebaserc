@@ -1,0 +1,14 @@
+{
+    "projects": {
+        "default": "dedepos"
+    },
+    "targets": {
+        "dedepos": {
+            "hosting": {
+                "dede-account-dev": [
+                    "dede-account-dev"
+                ]
+            }
+        }
+    }
+}

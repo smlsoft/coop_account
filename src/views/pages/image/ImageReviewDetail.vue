@@ -2,12 +2,20 @@
 import DialogApprove from '@/components/DialogApprove.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageGridPanel from '@/components/image/ImageGridPanel.vue';
-import ImageUploadDialog from '@/components/image/ImageUploadDialog.vue';
 import MergeDocumentDialog from '@/components/image/MergeDocumentDialog.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
-import { deleteDocumentImageGroups, getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupImages, updateDocumentImageGroupsOrder } from '@/services/api/image';
+import {
+    getDocumentImageDetail,
+    getDocumentImageGroups,
+    recountTaskDocuments,
+    ungroupDocumentImageGroup,
+    updateAllDocumentImageGroupsStatus,
+    updateDocumentImageGroupImages,
+    updateDocumentImageGroupsOrder,
+    updateDocumentImageGroupStatus
+} from '@/services/api/image';
 import { getTask, updateTaskStatus } from '@/services/api/task';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -21,18 +29,13 @@ const { showLoading, hideLoading } = useLoading();
 
 const taskId = ref('');
 const taskData = ref(null);
-const uploadDialogVisible = ref(false);
 const mergeDialogVisible = ref(false);
 const multiSelectMode = ref(false);
 const selectedGroupsForMerge = ref([]);
 const ungrouping = ref(false);
-const deleting = ref(false);
 const sortMode = ref(false);
 const sortableGroups = ref([]);
 const savingOrder = ref(false);
-const dialogJobClose = ref(false);
-const randomNumber = ref(0);
-const closingJob = ref(false);
 const imageGroups = ref([]);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -43,9 +46,15 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const searchQuery = ref('');
 const searchTimeout = ref(null);
+const updatingStatus = ref(false);
+const updatingAllStatus = ref(false);
+const closingJob = ref(false);
+const dialogJobClose = ref(false);
+const randomNumber = ref(0);
 
 // Menu refs
 const documentMenu = ref(null);
+const statusMenu = ref(null);
 
 // Menu items
 const documentMenuItems = computed(() => [
@@ -69,12 +78,21 @@ const documentMenuItems = computed(() => [
         icon: 'pi pi-clone',
         command: () => handleUngroup(),
         disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1
+    }
+]);
+
+const statusMenuItems = computed(() => [
+    {
+        label: 'ผ่านทั้งหมด',
+        icon: 'pi pi-check-circle',
+        command: () => handleApproveAll(),
+        disabled: isJobClosed.value || updatingAllStatus.value
     },
     {
-        label: 'ลบเอกสาร',
-        icon: 'pi pi-trash',
-        command: () => handleDelete(),
-        disabled: isJobClosed.value || !selectedGroup.value
+        label: 'ยกเลิกผ่านทั้งหมด',
+        icon: 'pi pi-refresh',
+        command: () => handleResetAllStatus(),
+        disabled: isJobClosed.value || updatingAllStatus.value
     }
 ]);
 
@@ -83,46 +101,60 @@ const toggleDocumentMenu = (event) => {
     documentMenu.value.toggle(event);
 };
 
-// Computed: Check if job is closed (status !== 0)
+const toggleStatusMenu = (event) => {
+    statusMenu.value.toggle(event);
+};
+
+// Computed property to check if all documents are reviewed (no pending status=0)
+const hasPendingDocuments = computed(() => {
+    if (!taskData.value?.totaldocumentstatus) return true;
+    const pendingStatus = taskData.value.totaldocumentstatus.find((s) => s.status === 0);
+    return pendingStatus && pendingStatus.total > 0;
+});
+
+// Computed property to check if job is closed (status = 3)
 const isJobClosed = computed(() => {
-    return taskData.value?.status !== 0;
+    return taskData.value?.status === 3;
 });
 
-// Computed: Check if can close job
+// Computed property to check if job can be closed
 const canCloseJob = computed(() => {
-    return imageGroups.value.length > 0 && !isJobClosed.value;
+    // Cannot close if task status is already 3 (closed)
+    if (taskData.value?.status === 3) return false;
+    // Cannot close if there are pending documents
+    return !hasPendingDocuments.value;
 });
 
-// Watch searchQuery with debounce (1 seconds)
+// Computed properties สำหรับจำนวนเอกสารตามสถานะ
+const getStatusCount = (status) => {
+    if (!taskData.value?.totaldocumentstatus) return 0;
+    const statusData = taskData.value.totaldocumentstatus.find((s) => s.status === status);
+    return statusData?.total || 0;
+};
+
+const totalDocuments = computed(() => taskData.value?.totaldocument || 0);
+const pendingCount = computed(() => getStatusCount(0));
+const approvedCount = computed(() => getStatusCount(1));
+const rejectedCount = computed(() => getStatusCount(2));
+const notRecordedCount = computed(() => getStatusCount(3));
+
+// Watch searchQuery with debounce (1 second)
 watch(searchQuery, (newValue, oldValue) => {
-    // Clear existing timeout
     if (searchTimeout.value) {
         clearTimeout(searchTimeout.value);
     }
 
-    // Set new timeout for 3 seconds
     searchTimeout.value = setTimeout(() => {
         fetchImageGroups(true);
     }, 1000);
 });
 
-// Watch mergeDialogVisible
+// Watch mergeDialogVisible - เคลียร์ selectedGroupsForMerge เมื่อปิด dialog (ถ้าไม่ได้อยู่ใน multiSelectMode)
 watch(mergeDialogVisible, (newValue) => {
-    // Watch for merge dialog visibility changes
-});
-
-// Watch selectedGroupsForMerge
-watch(
-    selectedGroupsForMerge,
-    (newValue) => {
-        // Watch for selected groups changes
-    },
-    { deep: true }
-);
-
-// Watch multiSelectMode
-watch(multiSelectMode, (newValue) => {
-    // Watch for multi-select mode changes
+    if (!newValue && !multiSelectMode.value) {
+        // เมื่อปิด dialog และไม่ได้อยู่ใน multiSelectMode ให้เคลียร์ค่า
+        selectedGroupsForMerge.value = [];
+    }
 });
 
 const fetchTaskDetail = async () => {
@@ -158,7 +190,6 @@ const fetchImageGroups = async (reset = true) => {
             limit: 100
         };
 
-        // Add search query if exists
         if (searchQuery.value && searchQuery.value.trim()) {
             params.q = searchQuery.value.trim();
         }
@@ -196,7 +227,6 @@ const loadMore = async () => {
 const handleSelectGroup = async (group) => {
     selectedGroup.value = group;
 
-    // ดึงข้อมูล detail ของ image แรก
     if (group.imagereferences && group.imagereferences.length > 0) {
         const firstImageGuid = group.imagereferences[0].documentimageguid;
         if (firstImageGuid) {
@@ -240,11 +270,7 @@ const handleRefreshGroup = async () => {
 
     try {
         const selectedGuid = selectedGroup.value.guidfixed;
-
-        // Reset and reload all groups
         await fetchImageGroups(true);
-
-        // Find and reselect the updated group
         const updatedGroup = imageGroups.value.find((g) => g.guidfixed === selectedGuid);
         if (updatedGroup) {
             selectedGroup.value = updatedGroup;
@@ -259,11 +285,6 @@ onMounted(async () => {
     await fetchTaskDetail();
     await fetchImageGroups();
 });
-
-const handleUploadComplete = async () => {
-    // Refresh data after upload
-    await fetchImageGroups(true);
-};
 
 const toggleMultiSelectMode = () => {
     if (isJobClosed.value) return;
@@ -284,9 +305,7 @@ const toggleGroupSelection = (group) => {
 };
 
 const openMergeDialog = () => {
-    if (isJobClosed.value) {
-        return;
-    }
+    if (isJobClosed.value) return;
     if (selectedGroupsForMerge.value.length < 2) {
         toast.add({
             severity: 'warn',
@@ -296,7 +315,6 @@ const openMergeDialog = () => {
         });
         return;
     }
-
     mergeDialogVisible.value = true;
 };
 
@@ -371,26 +389,21 @@ const handleUngroup = async () => {
     ungrouping.value = true;
 
     try {
-        // 1. Ungroup the document
         showLoading('กำลังแยกเอกสาร...');
         const response = await ungroupDocumentImageGroup(selectedGroup.value.guidfixed);
 
         if (response.data.success) {
             const newGuids = response.data.data || [];
 
-            // 2. Recount task documents
             showLoading('กำลังนับจำนวนเอกสารใหม่...');
             await recountTaskDocuments(taskId.value);
 
-            // 3. Refresh task data
             showLoading('กำลังอัปเดตข้อมูลงาน...');
             await fetchTaskDetail();
 
-            // 4. Refresh image groups
             showLoading('กำลังโหลดรายการเอกสาร...');
             await fetchImageGroups(true);
 
-            // 5. Re-sort (xsort) - prepare order data
             if (imageGroups.value.length > 0) {
                 showLoading('กำลังจัดเรียงลำดับ...');
                 const orderData = imageGroups.value.map((group, index) => ({
@@ -408,7 +421,6 @@ const handleUngroup = async () => {
                 life: 3000
             });
 
-            // Clear selection
             selectedGroup.value = null;
             selectedImageDetail.value = null;
         } else {
@@ -432,13 +444,10 @@ const toggleSortMode = () => {
     if (isJobClosed.value) return;
     sortMode.value = !sortMode.value;
     if (sortMode.value) {
-        // Enter sort mode: copy current groups
         sortableGroups.value = [...imageGroups.value];
-        // Disable other modes
         multiSelectMode.value = false;
         selectedGroupsForMerge.value = [];
     } else {
-        // Exit sort mode: reset
         sortableGroups.value = [];
     }
 };
@@ -462,7 +471,6 @@ const saveSortOrder = async () => {
         await updateDocumentImageGroupsOrder(taskId.value, orderData);
 
         showLoading('กำลังโหลดรายการเอกสาร...');
-        // Exit sort mode and refresh
         sortMode.value = false;
         sortableGroups.value = [];
         await fetchImageGroups(true);
@@ -493,45 +501,95 @@ const cancelSortMode = () => {
     sortableGroups.value = [];
 };
 
-const handleDelete = async () => {
+// Update document image group status
+const handleUpdateStatus = async (guidfixed, status) => {
     if (isJobClosed.value) return;
-    if (!selectedGroup.value?.guidfixed) return;
+    if (updatingStatus.value) return;
 
-    deleting.value = true;
+    updatingStatus.value = true;
 
     try {
-        // 1. Delete the document group
-        showLoading('กำลังลบเอกสาร...');
-        const response = await deleteDocumentImageGroups([selectedGroup.value.guidfixed]);
+        const response = await updateDocumentImageGroupStatus(guidfixed, status);
 
         if (response.data.success) {
-            // 2. Recount task documents
+            // Recount task documents
+            await recountTaskDocuments(taskId.value);
+
+            // Refresh task detail
+            await fetchTaskDetail();
+
+            // Refresh image groups and reselect current group
+            const currentGuid = selectedGroup.value?.guidfixed;
+            await fetchImageGroups(true);
+
+            // Reselect the group
+            if (currentGuid) {
+                const updatedGroup = imageGroups.value.find((g) => g.guidfixed === currentGuid);
+                if (updatedGroup) {
+                    selectedGroup.value = updatedGroup;
+                }
+            }
+
+            const statusText = {
+                0: 'รอตรวจสอบ',
+                1: 'ผ่าน',
+                2: 'ไม่ผ่าน',
+                3: 'ไม่บันทึกรายวัน'
+            };
+
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: `อัปเดตสถานะเป็น "${statusText[status]}" แล้ว`,
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Update status error:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถอัปเดตสถานะได้',
+            life: 3000
+        });
+    } finally {
+        updatingStatus.value = false;
+    }
+};
+
+const handleSearch = () => {
+    fetchImageGroups(true);
+};
+
+// ผ่านทั้งหมด - เปลี่ยนสถานะเอกสารทั้งหมดเป็น status: 1
+const handleApproveAll = async () => {
+    if (isJobClosed.value) return;
+    if (updatingAllStatus.value) return;
+
+    updatingAllStatus.value = true;
+
+    try {
+        showLoading('กำลังอนุมัติเอกสารทั้งหมด...');
+        const response = await updateAllDocumentImageGroupsStatus(taskId.value, 1);
+
+        if (response.data.success) {
+            // Recount task documents
             showLoading('กำลังนับจำนวนเอกสารใหม่...');
             await recountTaskDocuments(taskId.value);
 
-            // 3. Refresh task data
+            // Refresh task detail
             showLoading('กำลังอัปเดตข้อมูลงาน...');
             await fetchTaskDetail();
 
-            // 4. Refresh image groups
+            // Refresh image groups
             showLoading('กำลังโหลดรายการเอกสาร...');
             await fetchImageGroups(true);
-
-            // 5. Re-sort (xsort) - prepare order data
-            if (imageGroups.value.length > 0) {
-                showLoading('กำลังจัดเรียงลำดับ...');
-                const orderData = imageGroups.value.map((group, index) => ({
-                    guidfixed: group.guidfixed,
-                    xorder: index
-                }));
-                await updateDocumentImageGroupsOrder(taskId.value, orderData);
-            }
 
             hideLoading();
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
-                detail: 'ลบเอกสารเรียบร้อยแล้ว',
+                detail: 'อนุมัติเอกสารทั้งหมดแล้ว',
                 life: 3000
             });
 
@@ -539,19 +597,71 @@ const handleDelete = async () => {
             selectedGroup.value = null;
             selectedImageDetail.value = null;
         } else {
-            throw new Error('Delete failed');
+            throw new Error('Approve all failed');
         }
     } catch (error) {
-        console.error('Delete error:', error);
+        console.error('Approve all error:', error);
         hideLoading();
         toast.add({
             severity: 'error',
             summary: 'ข้อผิดพลาด',
-            detail: 'ไม่สามารถลบเอกสารได้',
+            detail: 'ไม่สามารถอนุมัติเอกสารทั้งหมดได้',
             life: 3000
         });
     } finally {
-        deleting.value = false;
+        updatingAllStatus.value = false;
+    }
+};
+
+// ยกเลิกผ่านทั้งหมด - เปลี่ยนสถานะเอกสารทั้งหมดเป็น status: 0
+const handleResetAllStatus = async () => {
+    if (isJobClosed.value) return;
+    if (updatingAllStatus.value) return;
+
+    updatingAllStatus.value = true;
+
+    try {
+        showLoading('กำลังยกเลิกการอนุมัติทั้งหมด...');
+        const response = await updateAllDocumentImageGroupsStatus(taskId.value, 0);
+
+        if (response.data.success) {
+            // Recount task documents
+            showLoading('กำลังนับจำนวนเอกสารใหม่...');
+            await recountTaskDocuments(taskId.value);
+
+            // Refresh task detail
+            showLoading('กำลังอัปเดตข้อมูลงาน...');
+            await fetchTaskDetail();
+
+            // Refresh image groups
+            showLoading('กำลังโหลดรายการเอกสาร...');
+            await fetchImageGroups(true);
+
+            hideLoading();
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: 'ยกเลิกการอนุมัติทั้งหมดแล้ว',
+                life: 3000
+            });
+
+            // Clear selection
+            selectedGroup.value = null;
+            selectedImageDetail.value = null;
+        } else {
+            throw new Error('Reset all status failed');
+        }
+    } catch (error) {
+        console.error('Reset all status error:', error);
+        hideLoading();
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถยกเลิกการอนุมัติทั้งหมดได้',
+            life: 3000
+        });
+    } finally {
+        updatingAllStatus.value = false;
     }
 };
 
@@ -560,6 +670,16 @@ const generateRandomNumber = () => {
 };
 
 const openCloseJobDialog = () => {
+    // Check if there are pending documents
+    if (hasPendingDocuments.value) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถปิดงานได้',
+            detail: 'ยังมีเอกสารที่รอตรวจสอบอยู่ กรุณาตรวจสอบเอกสารให้ครบทุกรายการ',
+            life: 5000
+        });
+        return;
+    }
     randomNumber.value = generateRandomNumber();
     dialogJobClose.value = true;
 };
@@ -574,12 +694,13 @@ const confirmJobFalse = () => {
     });
 };
 
+// Close job function
 const confirmCloseJob = async () => {
     closingJob.value = true;
 
     try {
         showLoading('กำลังปิดงาน...');
-        const response = await updateTaskStatus(taskId.value, { status: 1 });
+        const response = await updateTaskStatus(taskId.value, { status: 3 });
 
         if (response.data.success) {
             hideLoading();
@@ -592,10 +713,12 @@ const confirmCloseJob = async () => {
 
             dialogJobClose.value = false;
 
-            // กลับไปหน้า ImageUpload
+            // Navigate back to review list
             setTimeout(() => {
-                router.push({ name: 'image-upload' });
+                router.push({ name: 'image-review' });
             }, 500);
+        } else {
+            throw new Error('Close job failed');
         }
     } catch (error) {
         console.error('Close job error:', error);
@@ -611,12 +734,8 @@ const confirmCloseJob = async () => {
     }
 };
 
-const handleSearch = () => {
-    fetchImageGroups(true);
-};
-
 const goBack = () => {
-    router.push({ name: 'image-upload' });
+    router.push({ name: 'image-review' });
 };
 
 // ========== Drag & Drop Merge Handlers ==========
@@ -738,7 +857,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
             <Toolbar>
                 <template #start>
                     <Button icon="pi pi-arrow-left" class="mr-2" text @click="goBack" />
-                    <div class="font-semibold text-ml">งานอัพโหลด - {{ taskData?.name || taskId }}</div>
+                    <div class="font-semibold text-ml">ตรวจสอบงาน - {{ taskData?.name || taskId }}</div>
                     <Tag v-if="isJobClosed" value="งานถูกปิดแล้ว" severity="danger" class="ml-3" />
                 </template>
 
@@ -750,11 +869,28 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                             </InputIcon>
                             <InputText v-model="searchQuery" placeholder="ค้นหาเอกสาร..." @keyup.enter="handleSearch" />
                         </IconField>
-                        <!-- จำนวนเอกสารทั้งหมด -->
-                        <div class="flex items-center gap-2 text-sm bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-lg">
+                        <!-- สรุปสถานะเอกสาร -->
+                        <div class="flex items-center gap-3 text-sm bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-lg">
                             <span class="flex items-center gap-1" title="ทั้งหมด">
                                 <i class="pi pi-file text-surface-500"></i>
-                                <span class="font-semibold">{{ imageGroups.length }}</span>
+                                <span class="font-semibold">{{ totalDocuments }}</span>
+                            </span>
+                            <span class="text-surface-300">|</span>
+                            <span class="flex items-center gap-1" title="รอตรวจสอบ">
+                                <i class="pi pi-clock text-gray-500"></i>
+                                <span class="font-semibold text-gray-600 dark:text-gray-400">{{ pendingCount }}</span>
+                            </span>
+                            <span class="flex items-center gap-1" title="ผ่าน">
+                                <i class="pi pi-check-circle text-green-500"></i>
+                                <span class="font-semibold text-green-600">{{ approvedCount }}</span>
+                            </span>
+                            <span class="flex items-center gap-1" title="ไม่ผ่าน">
+                                <i class="pi pi-times-circle text-red-500"></i>
+                                <span class="font-semibold text-red-600">{{ rejectedCount }}</span>
+                            </span>
+                            <span class="flex items-center gap-1" title="ไม่บันทึกรายวัน">
+                                <i class="pi pi-minus-circle text-orange-500"></i>
+                                <span class="font-semibold text-orange-600">{{ notRecordedCount }}</span>
                             </span>
                         </div>
                     </div>
@@ -768,8 +904,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                     </template>
                     <!-- Normal Mode Actions -->
                     <template v-else>
-                        <Button v-if="!isJobClosed" label="Upload" icon="pi pi-cloud-upload" class="mr-2" @click="uploadDialogVisible = true" />
-                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="imageGroups.length === 0 ? 'ไม่มีเอกสารในงาน' : 'ปิดงาน'" outlined />
+                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="hasPendingDocuments ? 'ยังมีเอกสารที่รอตรวจสอบอยู่' : 'ปิดงาน'" />
                     </template>
                 </template>
             </Toolbar>
@@ -786,13 +921,17 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                 <Menu ref="documentMenu" :model="documentMenuItems" :popup="true" />
                                 <Button v-if="!sortMode && !isJobClosed" type="button" label="จัดการเอกสาร" icon="pi pi-file-edit" @click="toggleDocumentMenu" size="small" />
 
+                                <!-- Dropdown จัดการสถานะ -->
+                                <Menu ref="statusMenu" :model="statusMenuItems" :popup="true" />
+                                <Button v-if="!sortMode && !multiSelectMode && !isJobClosed" type="button" label="จัดการสถานะ" icon="pi pi-check-square" @click="toggleStatusMenu" size="small" />
+
                                 <!-- ปุ่ม Refresh -->
                                 <Button v-if="!sortMode" icon="pi pi-refresh" size="small" @click="fetchImageGroups" :loading="loading" title="รีเฟรช" text />
 
                                 <!-- Context Actions สำหรับ Multi-select Mode -->
                                 <template v-if="multiSelectMode && !sortMode">
                                     <Tag :value="`เลือกแล้ว ${selectedGroupsForMerge.length} รายการ`" severity="info" />
-                                    <Button v-if="selectedGroupsForMerge.length >= 2" label="รวมเอกสาร" icon="pi pi-plus-circle" severity="success" size="small" @click="openMergeDialog" />
+                                    <Button v-if="selectedGroupsForMerge.length >= 2" label="รวมเอกสาร" icon="pi pi-plus-circle" size="small" @click="openMergeDialog" />
                                     <Button label="ยกเลิก" icon="pi pi-times" size="small" @click="toggleMultiSelectMode" outlined />
                                 </template>
 
@@ -816,6 +955,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                 :sort-mode="sortMode"
                                 :current-page="currentPage"
                                 :total-pages="totalPages"
+                                :show-status="true"
                                 :is-job-closed="isJobClosed"
                                 @select-group="handleSelectGroup"
                                 @toggle-group-selection="toggleGroupSelection"
@@ -833,15 +973,15 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                         :selected-image-detail="selectedImageDetail"
                         :loading-detail="loadingDetail"
                         :is-job-closed="isJobClosed"
+                        :is-review-mode="true"
+                        :updating-status="updatingStatus"
                         @refresh-detail="handleRefreshDetail"
                         @refresh-group="handleRefreshGroup"
+                        @update-status="handleUpdateStatus"
                     />
                 </SplitterPanel>
             </Splitter>
         </div>
-
-        <!-- Upload Dialog -->
-        <ImageUploadDialog v-model:visible="uploadDialogVisible" :task-guid="taskId" :user-email="username" @upload-complete="handleUploadComplete" />
 
         <!-- Merge Dialog -->
         <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="username" @merge-complete="handleMergeComplete" />

@@ -1,10 +1,11 @@
 <script setup>
 import DialogApprove from '@/components/DialogApprove.vue';
+import DialogConfigJob from '@/components/DialogConfigJob.vue';
 import DialogForm from '@/components/DialogForm.vue';
 import TaskDataTable from '@/components/TaskDataTable.vue';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -36,8 +37,6 @@ const savingJob = ref(false);
 // Config job dialog state
 const dialogConfigJob = ref(false);
 const dataConfigJob = ref({});
-const newDataConfigJobName = ref('');
-const newDataConfigJobDes = ref('');
 
 // Cancel/Delete job dialog state
 const randomNumber = ref(0);
@@ -207,6 +206,23 @@ const saveJob = async () => {
     }
 };
 
+// Handle Enter key for Create Job Dialog
+const handleCreateJobKeyPress = (event) => {
+    if (event.key === 'Enter' && dialogCreateJob.value && !savingJob.value) {
+        event.preventDefault();
+        saveJob();
+    }
+};
+
+// Watch Create Job Dialog visibility
+watch(dialogCreateJob, (newValue) => {
+    if (newValue) {
+        window.addEventListener('keypress', handleCreateJobKeyPress);
+    } else {
+        window.removeEventListener('keypress', handleCreateJobKeyPress);
+    }
+});
+
 // Navigate to detail page
 const goToDetail = () => {
     router.push({
@@ -227,23 +243,11 @@ const handleRowSelect = (data) => {
 const showDialogConfigJob = (data) => {
     dialogConfigJob.value = true;
     dataConfigJob.value = { ...data };
-    newDataConfigJobName.value = data.name;
-    newDataConfigJobDes.value = data.description;
 };
 
 // Update job data
-const updateDataJob = async () => {
-    if (newDataConfigJobName.value.trim() === '') {
-        toast.add({
-            severity: 'warn',
-            summary: 'คำเตือน',
-            detail: 'กรุณากรอกชื่องาน',
-            life: 3000
-        });
-        return;
-    }
-
-    if (newDataConfigJobName.value === dataConfigJob.value.name && newDataConfigJobDes.value === dataConfigJob.value.description) {
+const updateDataJob = async (data) => {
+    if (data.name === dataConfigJob.value.name && data.description === dataConfigJob.value.description) {
         dialogConfigJob.value = false;
         return;
     }
@@ -253,8 +257,8 @@ const updateDataJob = async () => {
     try {
         const updatedData = {
             ...dataConfigJob.value,
-            name: newDataConfigJobName.value.trim(),
-            description: newDataConfigJobDes.value.trim()
+            name: data.name,
+            description: data.description
         };
 
         const response = await api.updateTask(dataConfigJob.value.guidfixed, updatedData);
@@ -308,13 +312,13 @@ const confirmJobFalse = () => {
 const jobUpdateStatus = async (status) => {
     loading.value = true;
     try {
-        const response = await api.updateTaskStatus(dataConfigJob.value.guidfixed, { status });
+        const response = await api.updateTaskStatus(dataConfigJob.value.guidfixed, {
+            status
+        });
         if (response.data.success) {
             dialogJobCancel.value = false;
             dialogConfigJob.value = false;
             dataConfigJob.value = {};
-            newDataConfigJobName.value = '';
-            newDataConfigJobDes.value = '';
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
@@ -402,6 +406,10 @@ onMounted(() => {
 
     fetchTasks();
 });
+
+onUnmounted(() => {
+    window.removeEventListener('keypress', handleCreateJobKeyPress);
+});
 </script>
 
 <template>
@@ -475,70 +483,16 @@ onMounted(() => {
             <template #footer>
                 <div class="flex justify-end gap-2">
                     <Button label="ยกเลิก" severity="secondary" text @click="closeDialogCreateJob" :disabled="savingJob" />
-                    <Button label="สร้างงาน" icon="pi pi-check" @click="saveJob" :loading="savingJob" />
+                    <Button label="สร้างงาน (Enter)" icon="pi pi-check" @click="saveJob" :loading="savingJob" />
                 </div>
             </template>
         </Dialog>
 
         <!-- Config Job Dialog -->
-        <Dialog v-model:visible="dialogConfigJob" :style="{ width: '560px' }" :modal="true" :draggable="false">
-            <template #header>
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center">
-                        <i class="pi pi-cog text-surface-600 text-lg"></i>
-                    </div>
-                    <div>
-                        <p class="text-ml text-surface-500 m-0 font-mono">เลขที่งาน : {{ dataConfigJob.code }}</p>
-                    </div>
-                </div>
-            </template>
-
-            <div class="flex flex-col gap-4 py-2">
-                <!-- Info Cards -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                        <span class="text-xs text-surface-500">วันที่สร้าง</span>
-                        <span class="text-sm font-medium text-surface-700 dark:text-surface-300">{{ formatDate(dataConfigJob.ownerat) }}</span>
-                    </div>
-                    <div class="flex flex-col gap-1 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
-                        <span class="text-xs text-surface-500">จำนวนเอกสาร</span>
-                        <span class="text-sm font-medium text-surface-700 dark:text-surface-300">{{ dataConfigJob.totaldocument || 0 }} รายการ</span>
-                    </div>
-                </div>
-
-                <!-- Divider -->
-                <Divider class="my-0" />
-
-                <!-- Editable Fields -->
-                <div class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-surface-700 dark:text-surface-200">ชื่องาน</label>
-                        <InputText v-model="newDataConfigJobName" placeholder="ชื่องาน" />
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-surface-700 dark:text-surface-200">หมายเหตุ</label>
-                        <Textarea v-model="newDataConfigJobDes" placeholder="หมายเหตุ" :autoResize="true" rows="3" />
-                    </div>
-                </div>
-            </div>
-
-            <template #footer>
-                <div class="flex justify-between items-center w-full">
-                    <div class="flex gap-2">
-                        <Button v-if="canCancelJob" label="ยกเลิกงาน" icon="pi pi-ban" severity="warn" outlined @click="cancelJob" :loading="loading" />
-                        <Button v-if="canDeleteJob" label="ลบงาน" icon="pi pi-trash" severity="danger" outlined @click="deleteJob" :loading="loading" />
-                    </div>
-                    <div class="flex gap-2">
-                        <Button label="ปิด" severity="secondary" text @click="dialogConfigJob = false" />
-                        <Button label="บันทึก" icon="pi pi-check" @click="updateDataJob" :loading="loading" />
-                    </div>
-                </div>
-            </template>
-        </Dialog>
+        <DialogConfigJob v-model:visible="dialogConfigJob" :jobData="dataConfigJob" :loading="loading" @save="updateDataJob" @cancel="cancelJob" @delete="deleteJob" />
 
         <!-- Confirm Upload Dialog -->
-        <DialogForm :confirmDialog="modelConfirmUploadImage" :textContent="'ต้องการไปหน้าอัพโหลดเอกสารเลยหรือไม่?'" confirmLabel="ไปอัพโหลด" cancelLabel="ภายหลัง" @close="modelConfirmUploadImage = false" @confirm="goToDetail()" />
+        <DialogForm :confirmDialog="modelConfirmUploadImage" :textContent="'ต้องการไปหน้าอัพโหลดเอกสารเลยหรือไม่?'" confirmLabel="ไปอัพโหลด (Enter)" cancelLabel="ภายหลัง" @close="modelConfirmUploadImage = false" @confirm="goToDetail()" />
 
         <!-- Cancel Job Dialog -->
         <DialogApprove mode="cancel" title="ยืนยันการยกเลิกงาน" :ramdomNumber="randomNumber" :confirmDialog="dialogJobCancel" @close="dialogJobCancel = false" @confirmJob="jobUpdateStatus(5)" @confirmJobFalse="confirmJobFalse()" />

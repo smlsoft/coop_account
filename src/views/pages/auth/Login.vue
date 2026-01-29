@@ -34,7 +34,7 @@ const handleGoogleSignIn = async () => {
     }
 
     // Step 2: Send token to backend
-    const result = await loginGoogle(googleResult.token, googleResult.displayName);
+    const result = await loginGoogle(googleResult.token, googleResult.displayName, googleResult.email);
 
     hideLoading();
 

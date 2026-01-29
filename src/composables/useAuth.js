@@ -53,7 +53,7 @@ export function useAuth() {
     };
 
     // Login with Google function
-    const loginGoogle = async (googleToken, googleDisplayName) => {
+    const loginGoogle = async (googleToken, googleDisplayName, googleEmail) => {
         try {
             const response = await api.loginWithGoogle(googleToken);
 
@@ -62,14 +62,15 @@ export function useAuth() {
                 token.value = response.data.token;
                 isAuthenticated.value = true;
                 displayName.value = googleDisplayName;
+                // เก็บ email สำหรับ Google login
+                username.value = googleEmail || '';
 
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('refresh', response.data.refresh || '');
                 localStorage.setItem('isAuthenticated', 'true');
                 localStorage.setItem('displayName', googleDisplayName);
-                // Clear username เมื่อ login ด้วย Google
-                localStorage.removeItem('username');
-                username.value = '';
+                // เก็บ email ใน username field
+                localStorage.setItem('username', googleEmail || '');
 
                 return { success: true };
             }
