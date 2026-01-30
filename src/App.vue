@@ -104,24 +104,27 @@ function getPresetExt() {
     }
 }
 
-function initializeTheme() {
-    const presetValue = presets[layoutConfig.preset];
-    const surfacePalette = surfaces.find((s) => s.name === layoutConfig.surface)?.palette;
-
-    // ตั้งค่า dark mode จาก localStorage หรือค่าเริ่มต้น
-    const savedDarkTheme = localStorage.getItem('darkTheme');
-    if (savedDarkTheme !== null) {
-        layoutConfig.darkTheme = savedDarkTheme === 'true';
-    } else {
-        layoutConfig.darkTheme = true; // ค่าเริ่มต้นเป็น dark mode
-        localStorage.setItem('darkTheme', 'true');
-    }
-
-    if (layoutConfig.darkTheme) {
+function applyDarkMode(isDark) {
+    layoutConfig.darkTheme = isDark;
+    if (isDark) {
         document.documentElement.classList.add('app-dark');
     } else {
         document.documentElement.classList.remove('app-dark');
     }
+}
+
+function initializeTheme() {
+    const presetValue = presets[layoutConfig.preset];
+    const surfacePalette = surfaces.find((s) => s.name === layoutConfig.surface)?.palette;
+
+    // ตรวจจับ dark mode จากการตั้งค่าระบบ
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyDarkMode(systemPrefersDark);
+
+    // Listen การเปลี่ยนแปลงจากระบบ
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        applyDarkMode(e.matches);
+    });
 
     $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
 }

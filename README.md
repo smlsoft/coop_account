@@ -24,18 +24,24 @@ npm run build
 This project is deployed to Firebase Hosting.
 
 ### Live URL
-- **Production**: [https://dede-account-dev.web.app](https://dede-account-dev.web.app)
+- **Production**: [https://dede-account.web.app](https://dede-account.web.app)
+- **Development**: [https://dede-account-dev.web.app](https://dede-account-dev.web.app)
 
 ### Deploy to Firebase
 
 ```bash
-# Build and deploy
+# Build and deploy to Production
+npm run build && firebase deploy --only hosting:dede-account
+
+# Build and deploy to Development
 npm run build && firebase deploy --only hosting:dede-account-dev
 ```
 
 ### Firebase Configuration
 - **Project**: dedepos
-- **Hosting Site**: dede-account-dev
+- **Hosting Sites**: 
+  - Production: dede-account
+  - Development: dede-account-dev
 - **Account**: bos.catdog@gmail.com
 
 ### First Time Setup

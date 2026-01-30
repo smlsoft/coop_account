@@ -284,7 +284,7 @@ watch(
                                 </Column>
                                 <Column field="taxamount" header="ภาษีหัก ณ ที่จ่าย" style="width: 150px">
                                     <template #body="{ data }">
-                                        <InputNumber v-model="data.taxamount" :minFractionDigits="2" :maxFractionDigits="2" disabled class="w-full bg-surface-100 dark:bg-surface-700" />
+                                        <InputNumber v-model="data.taxamount" :minFractionDigits="2" :maxFractionDigits="2" class="w-full bg-surface-100 dark:bg-surface-700" />
                                     </template>
                                 </Column>
                                 <Column style="width: 60px">

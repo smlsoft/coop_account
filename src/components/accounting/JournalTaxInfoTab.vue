@@ -310,7 +310,7 @@ watch(
                         <!-- ยอดภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">ยอดภาษี</label>
-                            <InputNumber v-model="vat.vatamount" :minFractionDigits="2" :maxFractionDigits="2" disabled class="bg-surface-100 dark:bg-surface-700" />
+                            <InputNumber v-model="vat.vatamount" :minFractionDigits="2" :maxFractionDigits="2" class="bg-surface-100 dark:bg-surface-700" />
                         </div>
 
                         <!-- ยอดยกเว้นภาษี -->

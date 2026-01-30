@@ -1,14 +1,18 @@
 {
-    "projects": {
-        "default": "dedepos"
-    },
-    "targets": {
-        "dedepos": {
-            "hosting": {
-                "dede-account-dev": [
-                    "dede-account-dev"
-                ]
-            }
-        }
+  "projects": {
+    "default": "dedepos"
+  },
+  "targets": {
+    "dedepos": {
+      "hosting": {
+        "dede-account-dev": [
+          "dede-account-dev"
+        ],
+        "dede-account": [
+          "dede-account"
+        ]
+      }
     }
+  },
+  "etags": {}
 }

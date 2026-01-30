@@ -135,22 +135,6 @@ const getDebtorName = computed(() => {
     return '-';
 });
 
-const getCreditorAddress = computed(() => {
-    const address = props.journal?.creditor?.addressforbilling?.address;
-    if (address && address.length > 0) {
-        return address.join(' ');
-    }
-    return '-';
-});
-
-const getDebtorAddress = computed(() => {
-    const address = props.journal?.debtor?.addressforbilling?.address;
-    if (address && address.length > 0) {
-        return address.join(' ');
-    }
-    return '-';
-});
-
 // Get book name from masterdata
 const getBookName = (bookcode) => {
     if (!bookcode) return '-';
@@ -395,184 +379,168 @@ const isPDF = (uri) => {
                             <!-- Tab 0: ข้อมูลรายวัน (ตาม JournalDailyInfoTab) -->
                             <TabPanel value="0">
                                 <div class="p-4 overflow-auto" style="max-height: calc(90vh - 320px)">
-                                    <!-- ข้อมูลเอกสาร -->
-                                    <div class="mb-6">
-                                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-surface-900 dark:text-surface-0">
-                                            <i class="pi pi-file text-primary-500"></i>
-                                            ข้อมูลเอกสาร
-                                        </h3>
-                                        <div class="grid grid-cols-3 gap-4 mb-4">
-                                            <!-- วันที่เอกสาร -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">วันที่เอกสาร</label>
-                                                <div class="font-semibold text-surface-900 dark:text-surface-0">{{ formatDate(journal.docdate) }}</div>
+                                    <div class="grid grid-cols-12 gap-4">
+                                        <!-- Row 1 -->
+                                        <!-- วันที่เอกสาร -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">วันที่เอกสาร</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                {{ formatDate(journal.docdate) }}
                                             </div>
-                                            <!-- เลขที่เอกสาร -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">เลขที่เอกสาร</label>
-                                                <div class="font-bold text-lg text-primary-600 dark:text-primary-400">{{ journal.docno }}</div>
+                                        </div>
+
+                                        <!-- เลขที่เอกสาร -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-bold text-primary-600 dark:text-primary-400">
+                                                {{ journal.docno }}
                                             </div>
-                                            <!-- สมุดรายวัน -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">สมุดรายวัน</label>
-                                                <div class="font-semibold text-surface-900 dark:text-surface-0">
-                                                    <span class="font-mono text-sm text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
-                                                    <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
-                                                    <span>{{ getBookName(journal.bookcode) }}</span>
-                                                </div>
+                                        </div>
+
+                                        <!-- สมุดรายวัน -->
+                                        <div class="col-span-12 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                <span class="font-mono text-sm text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
+                                                <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
+                                                <span>{{ getBookName(journal.bookcode) }}</span>
                                             </div>
-                                            <!-- ประเภท (ลูกหนี้/เจ้าหนี้) -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">ประเภท</label>
+                                        </div>
+
+                                        <!-- Row 2 -->
+                                        <!-- ประเภท -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">ประเภท</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
                                                 <Tag :value="journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้'" :severity="journal.debtaccounttype === 1 ? 'warn' : 'info'" />
                                             </div>
-                                            <!-- ลูกหนี้/เจ้าหนี้ -->
-                                            <div class="col-span-2">
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">{{ journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้' }}</label>
-                                                <div v-if="hasCreditor || hasDebtor" class="font-semibold text-surface-900 dark:text-surface-0">
+                                        </div>
+
+                                        <!-- ลูกหนี้/เจ้าหนี้ -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-8">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">
+                                                {{ journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้' }}
+                                            </label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                <template v-if="hasCreditor || hasDebtor">
                                                     <span class="font-mono text-sm text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
                                                     <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                                                     <span>{{ hasCreditor ? getCreditorName : getDebtorName }}</span>
-                                                </div>
-                                                <div v-else class="text-surface-400">-</div>
+                                                </template>
+                                                <span v-else class="text-surface-400">-</span>
                                             </div>
-                                            <!-- วันที่เอกสารอ้างอิง -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">วันที่เอกสารอ้างอิง</label>
-                                                <div class="text-surface-900 dark:text-surface-0">{{ formatDate(journal.exdocrefdate) }}</div>
+                                        </div>
+
+                                        <!-- Row 3 -->
+                                        <!-- วันที่เอกสารอ้างอิง -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">วันที่เอกสารอ้างอิง</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
+                                                {{ formatDate(journal.exdocrefdate) }}
                                             </div>
-                                            <!-- เลขที่เอกสารอ้างอิง -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">เลขที่เอกสารอ้างอิง</label>
-                                                <div class="font-semibold text-surface-900 dark:text-surface-0">{{ journal.exdocrefno || '-' }}</div>
+                                        </div>
+
+                                        <!-- เลขที่เอกสารอ้างอิง -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">เลขที่เอกสารอ้างอิง</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                {{ journal.exdocrefno || '-' }}
                                             </div>
-                                            <!-- ประเภทรายการ -->
-                                            <div>
-                                                <label class="text-xs text-surface-500 dark:text-surface-400 block">ประเภทรายการ</label>
+                                        </div>
+
+                                        <!-- ประเภทรายการ -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">ประเภทรายการ</label>
+                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
                                                 <Tag :value="getJournalTypeName(journal.journaltype)" :severity="journal.journaltype === 0 ? 'secondary' : 'warn'" />
                                             </div>
                                         </div>
 
+                                        <!-- Row 4 -->
                                         <!-- คำอธิบาย -->
-                                        <div class="mb-4">
-                                            <label class="text-xs text-surface-500 block mb-2">คำอธิบาย</label>
-                                            <div class="bg-surface-100 dark:bg-surface-700 p-3 rounded-lg">{{ journal.accountdescription || '-' }}</div>
+                                        <div class="col-span-12">
+                                            <label class="block font-medium mb-2 text-surface-600 dark:text-surface-400">คำอธิบาย</label>
+                                            <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded min-h-[60px] text-surface-900 dark:text-surface-0">
+                                                {{ journal.accountdescription || '-' }}
+                                            </div>
                                         </div>
 
-                                        <!-- Creditor/Debtor Detail Cards -->
-                                        <div v-if="hasCreditor || hasDebtor" class="grid grid-cols-1 gap-4 mb-4">
-                                            <div v-if="hasCreditor" class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
-                                                <div class="flex items-center gap-2 mb-3">
-                                                    <i class="pi pi-building text-orange-500"></i>
-                                                    <Tag value="เจ้าหนี้" severity="warn" />
-                                                    <span class="font-mono text-sm">{{ journal.creditor.code }}</span>
-                                                </div>
-                                                <div class="text-lg font-bold mb-2">{{ getCreditorName }}</div>
-                                                <div class="text-sm space-y-1 text-surface-600 dark:text-surface-400">
-                                                    <div><i class="pi pi-id-card mr-2"></i>{{ journal.creditor.taxid || '-' }}</div>
-                                                    <div><i class="pi pi-map-marker mr-2"></i>{{ getCreditorAddress }}</div>
+                                        <!-- Row 5: รายละเอียดบัญชี -->
+                                        <div class="col-span-12 mt-4">
+                                            <div class="flex justify-between items-center mb-3">
+                                                <label class="font-medium text-lg text-surface-900 dark:text-surface-0">รายละเอียดบัญชี</label>
+                                                <div v-if="journal.docformat" class="text-sm">
+                                                    <span class="text-surface-500 dark:text-surface-400">รูปแบบ:</span>
+                                                    <Tag :value="journal.docformat" severity="info" class="ml-2" />
                                                 </div>
                                             </div>
 
-                                            <div v-if="hasDebtor" class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                                                <div class="flex items-center gap-2 mb-3">
-                                                    <i class="pi pi-user text-blue-500"></i>
-                                                    <Tag value="ลูกหนี้" severity="info" />
-                                                    <span class="font-mono text-sm">{{ journal.debtor.code }}</span>
-                                                </div>
-                                                <div class="text-lg font-bold mb-2">{{ getDebtorName }}</div>
-                                                <div class="text-sm space-y-1 text-surface-600 dark:text-surface-400">
-                                                    <div><i class="pi pi-id-card mr-2"></i>{{ journal.debtor.taxid || '-' }}</div>
-                                                    <div><i class="pi pi-map-marker mr-2"></i>{{ getDebtorAddress }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                            <DataTable :value="journal.journaldetail" size="small" showGridlines class="text-sm">
+                                                <Column header="#" style="width: 50px" bodyStyle="text-align: center">
+                                                    <template #body="{ index }">
+                                                        {{ index + 1 }}
+                                                    </template>
+                                                </Column>
+                                                <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
+                                                    <template #body="{ data }">
+                                                        <span class="font-mono font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
+                                                    </template>
+                                                </Column>
+                                                <Column field="accountname" header="ชื่อบัญชี" style="min-width: 200px">
+                                                    <template #body="{ data }">
+                                                        <span class="text-surface-600 dark:text-surface-400">{{ data.accountname || '-' }}</span>
+                                                    </template>
+                                                </Column>
+                                                <Column header="เดบิต" style="width: 130px">
+                                                    <template #body="{ data }">
+                                                        <div class="text-right">
+                                                            <span v-if="data.debitamount > 0" class="font-semibold text-primary-600 dark:text-primary-400">
+                                                                {{ formatCurrency(data.debitamount) }}
+                                                            </span>
+                                                            <span v-else class="text-surface-300">-</span>
+                                                        </div>
+                                                    </template>
+                                                </Column>
+                                                <Column header="เครดิต" style="width: 130px">
+                                                    <template #body="{ data }">
+                                                        <div class="text-right">
+                                                            <span v-if="data.creditamount > 0" class="font-semibold text-blue-600 dark:text-blue-400">
+                                                                {{ formatCurrency(data.creditamount) }}
+                                                            </span>
+                                                            <span v-else class="text-surface-300">-</span>
+                                                        </div>
+                                                    </template>
+                                                </Column>
 
-                                    <Divider />
+                                                <template #empty>
+                                                    <div class="text-center py-6 text-surface-500">
+                                                        <i class="pi pi-inbox text-3xl mb-2 block"></i>
+                                                        <p>ไม่มีรายการบัญชี</p>
+                                                    </div>
+                                                </template>
 
-                                    <!-- รายละเอียดบัญชี -->
-                                    <div class="mt-6">
-                                        <div class="flex justify-between items-center mb-4">
-                                            <h3 class="text-lg font-semibold flex items-center gap-2 text-surface-900 dark:text-surface-0">
-                                                <i class="pi pi-list text-primary-500"></i>
-                                                รายละเอียดบัญชี
-                                                <Badge :value="journal.journaldetail?.length || 0" severity="secondary" />
-                                            </h3>
-                                            <div v-if="journal.docformat" class="text-sm">
-                                                <span class="text-surface-500 dark:text-surface-400">รูปแบบ:</span>
-                                                <Tag :value="journal.docformat" severity="info" class="ml-2" />
-                                            </div>
+                                                <template #footer>
+                                                    <div class="flex justify-end gap-6 py-2 font-semibold">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-surface-600 dark:text-surface-400">รวมเดบิต:</span>
+                                                            <span class="text-primary-600 dark:text-primary-400">{{ formatCurrency(getTotalDebit) }}</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-surface-600 dark:text-surface-400">รวมเครดิต:</span>
+                                                            <span class="text-blue-600 dark:text-blue-400">{{ formatCurrency(getTotalCredit) }}</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-surface-600 dark:text-surface-400">ผลต่าง:</span>
+                                                            <span :class="isBalanced ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                                                                {{ formatCurrency(getTotalDebit - getTotalCredit) }}
+                                                            </span>
+                                                            <i v-if="isBalanced" class="pi pi-check-circle text-green-600 dark:text-green-400"></i>
+                                                            <i v-else class="pi pi-exclamation-triangle text-red-600 dark:text-red-400"></i>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </DataTable>
                                         </div>
-                                        <DataTable :value="journal.journaldetail" size="small" showGridlines stripedRows class="text-sm">
-                                            <Column header="#" style="width: 50px" bodyStyle="text-align: center">
-                                                <template #body="{ index }">
-                                                    {{ index + 1 }}
-                                                </template>
-                                            </Column>
-                                            <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
-                                                <template #body="{ data }">
-                                                    <span class="font-mono font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
-                                                </template>
-                                            </Column>
-                                            <Column field="accountname" header="ชื่อบัญชี">
-                                                <template #body="{ data }">
-                                                    <span v-tooltip.top="data.accountname" class="block truncate max-w-xs">{{ data.accountname }}</span>
-                                                </template>
-                                            </Column>
-                                            <Column field="debitamount" header="เดบิต" style="width: 130px">
-                                                <template #body="{ data }">
-                                                    <div class="text-right">
-                                                        <span v-if="data.debitamount > 0" class="font-semibold text-primary-600 dark:text-primary-400">
-                                                            {{ formatCurrency(data.debitamount) }}
-                                                        </span>
-                                                        <span v-else class="text-surface-300">-</span>
-                                                    </div>
-                                                </template>
-                                            </Column>
-                                            <Column field="creditamount" header="เครดิต" style="width: 130px">
-                                                <template #body="{ data }">
-                                                    <div class="text-right">
-                                                        <span v-if="data.creditamount > 0" class="font-semibold text-blue-600 dark:text-blue-400">
-                                                            {{ formatCurrency(data.creditamount) }}
-                                                        </span>
-                                                        <span v-else class="text-surface-300">-</span>
-                                                    </div>
-                                                </template>
-                                            </Column>
-                                            <template #footer>
-                                                <div class="flex justify-end gap-6 py-2 font-bold text-base">
-                                                    <div class="flex items-center gap-2">
-                                                        <span class="text-surface-600 dark:text-surface-400">รวมเดบิต:</span>
-                                                        <span class="text-primary-600 dark:text-primary-400">{{ formatCurrency(getTotalDebit) }}</span>
-                                                    </div>
-                                                    <div class="flex items-center gap-2">
-                                                        <span class="text-surface-600 dark:text-surface-400">รวมเครดิต:</span>
-                                                        <span class="text-blue-600 dark:text-blue-400">{{ formatCurrency(getTotalCredit) }}</span>
-                                                    </div>
-                                                    <div class="flex items-center gap-2">
-                                                        <span class="text-surface-600 dark:text-surface-400">ผลต่าง:</span>
-                                                        <span :class="isBalanced ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
-                                                            {{ formatCurrency(getTotalDebit - getTotalCredit) }}
-                                                        </span>
-                                                        <i v-if="isBalanced" class="pi pi-check-circle text-green-600 dark:text-green-400"></i>
-                                                        <i v-else class="pi pi-exclamation-triangle text-red-600 dark:text-red-400"></i>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </DataTable>
-                                    </div>
-
-                                    <!-- Meta Info -->
-                                    <div class="mt-6 flex items-center gap-6 text-sm text-surface-500 dark:text-surface-400">
-                                        <div>
-                                            <i class="pi pi-tag mr-2"></i>งวดบัญชี: <span class="text-surface-700 dark:text-surface-300 font-semibold">{{ journal.accountperiod }}/{{ journal.accountyear }}</span>
-                                        </div>
-                                        <div v-if="journal.appname"><i class="pi pi-desktop mr-2"></i>แอป: <Tag :value="journal.appname" severity="contrast" /></div>
-                                        <div>
-                                            <i class="pi pi-user mr-2"></i>สร้างโดย: <span class="text-surface-700 dark:text-surface-300">{{ journal.createdby }}</span>
-                                        </div>
-                                        <div><i class="pi pi-calendar mr-2"></i>{{ formatDate(journal.createdat) }}</div>
                                     </div>
                                 </div>
                             </TabPanel>
@@ -580,8 +548,13 @@ const isPDF = (uri) => {
                             <!-- Tab 1: ข้อมูลภาษี (ตาม JournalTaxInfoTab) -->
                             <TabPanel value="1">
                                 <div class="p-4 overflow-auto" style="max-height: calc(90vh - 320px)">
+                                    <!-- Header -->
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0">รายการภาษี</h3>
+                                    </div>
+
                                     <!-- Summary -->
-                                    <div v-if="hasVatData" class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700 mb-4">
+                                    <div v-if="hasVatData" class="p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-700 mb-4">
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             <div>
                                                 <div class="text-sm text-surface-600 dark:text-surface-400">จำนวนรายการ</div>
@@ -593,7 +566,7 @@ const isPDF = (uri) => {
                                             </div>
                                             <div>
                                                 <div class="text-sm text-surface-600 dark:text-surface-400">รวมยอดภาษี</div>
-                                                <div class="text-xl font-bold text-green-600 dark:text-green-400">{{ formatCurrency(getTotalVatAmount) }}</div>
+                                                <div class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatCurrency(getTotalVatAmount) }}</div>
                                             </div>
                                             <div>
                                                 <div class="text-sm text-surface-600 dark:text-surface-400">รวมยกเว้นภาษี</div>
@@ -602,73 +575,155 @@ const isPDF = (uri) => {
                                         </div>
                                     </div>
 
-                                    <!-- VAT Entries -->
-                                    <div v-if="hasVatData" class="space-y-4">
-                                        <div v-for="(vat, index) in journal.vats" :key="index" class="bg-surface-50 dark:bg-surface-800 rounded-xl p-4 border border-surface-200 dark:border-surface-700">
-                                            <div class="flex items-center justify-between mb-4">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">{{ index + 1 }}</div>
-                                                    <div>
-                                                        <div class="font-bold text-lg text-surface-900 dark:text-surface-0">{{ vat.vatdocno || '-' }}</div>
-                                                        <div class="text-sm text-surface-500 dark:text-surface-400">{{ formatDate(vat.vatdate) }}</div>
-                                                    </div>
-                                                </div>
-                                                <div class="text-right">
-                                                    <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ formatCurrency(vat.vatamount) }}</div>
-                                                    <div class="text-sm text-surface-500 dark:text-surface-400">ฐานภาษี {{ formatCurrency(vat.vatbase) }} x {{ vat.vatrate }}%</div>
-                                                </div>
-                                            </div>
-
-                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
-                                                <div>
-                                                    <span class="text-surface-500">ภาษี:</span>
-                                                    <Tag :value="getVatTypeName(vat.vattype)" :severity="vat.vattype === 0 ? 'info' : 'success'" class="ml-2" />
-                                                </div>
-                                                <div>
-                                                    <span class="text-surface-500">ประเภท:</span>
-                                                    <Tag :value="getVatModeName(vat.vatmode)" :severity="vat.vatmode === 0 ? 'secondary' : 'warn'" class="ml-2" />
-                                                </div>
-                                                <div>
-                                                    <span class="text-surface-500">งวด:</span>
-                                                    <span class="ml-2 font-semibold">{{ vat.vatperiod }}/{{ vat.vatyear }}</span>
-                                                </div>
-                                                <div>
-                                                    <span class="text-surface-500">สถานะ:</span>
-                                                    <Tag :value="vat.vatsubmit ? 'ยื่นเพิ่ม' : 'ปกติ'" :severity="vat.vatsubmit ? 'success' : 'secondary'" class="ml-2" />
-                                                </div>
-                                            </div>
-
-                                            <Divider class="my-3" />
-
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">ชื่อ</label>
-                                                    <div class="font-semibold text-surface-900 dark:text-surface-0">{{ vat.custname || '-' }}</div>
-                                                </div>
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">เลขประจำตัวผู้เสียภาษี</label>
-                                                    <div class="font-mono text-surface-900 dark:text-surface-0">{{ vat.custtaxid || '-' }}</div>
-                                                </div>
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">สถานประกอบการ</label>
-                                                    <div class="text-surface-900 dark:text-surface-0">{{ getOrganizationName(vat.organization) }} {{ vat.branchcode ? `(${vat.branchcode})` : '' }}</div>
-                                                </div>
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">ยอดยกเว้นภาษี</label>
-                                                    <div class="font-semibold text-surface-900 dark:text-surface-0">{{ formatCurrency(vat.exceptvat) }}</div>
-                                                </div>
-                                                <div v-if="vat.remark" class="md:col-span-2">
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">หมายเหตุ</label>
-                                                    <div class="bg-surface-100 dark:bg-surface-700 p-2 rounded text-surface-900 dark:text-surface-0">{{ vat.remark }}</div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <!-- Empty State -->
+                                    <div v-if="!hasVatData" class="flex flex-col items-center justify-center py-12 border-2 border-dashed border-surface-300 dark:border-surface-600 rounded-lg">
+                                        <i class="pi pi-file-edit text-6xl text-surface-400 dark:text-surface-600 mb-4"></i>
+                                        <h3 class="text-xl font-semibold mb-2 text-surface-700 dark:text-surface-300">ไม่มีรายการภาษี</h3>
+                                        <p class="text-surface-500 dark:text-surface-400">ไม่มีข้อมูลภาษีมูลค่าเพิ่มสำหรับรายการนี้</p>
                                     </div>
 
-                                    <!-- Empty State -->
-                                    <div v-else class="flex flex-col items-center justify-center py-12 text-surface-400">
-                                        <i class="pi pi-file-edit text-5xl mb-3"></i>
-                                        <span>ไม่มีข้อมูลภาษีมูลค่าเพิ่ม</span>
+                                    <!-- VAT Entries -->
+                                    <div v-else class="space-y-4">
+                                        <Card v-for="(vat, index) in journal.vats" :key="index" class="border border-surface-200 dark:border-surface-700">
+                                            <template #title>
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-base">รายการที่ {{ index + 1 }}</span>
+                                                    <div class="text-right">
+                                                        <div class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatCurrency(vat.vatamount) }}</div>
+                                                        <div class="text-xs text-surface-500 dark:text-surface-400">ฐานภาษี {{ formatCurrency(vat.vatbase) }} × {{ vat.vatrate }}%</div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template #content>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <!-- วันที่ใบกำกับ -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">วันที่ใบกำกับ</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ formatDate(vat.vatdate) }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- เลขที่ใบกำกับ -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขที่ใบกำกับ</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ vat.vatdocno || '-' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ชื่อ -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ชื่อ</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ vat.custname || '-' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- เลขประจำตัวผู้เสียภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขประจำตัวผู้เสียภาษี/เลขที่บัตรประชาชน</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-mono text-surface-900 dark:text-surface-0">
+                                                            {{ vat.custtaxid || '-' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- สถานประกอบการ -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">สถานประกอบการ</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
+                                                            {{ getOrganizationName(vat.organization) }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ลำดับที่สาขา -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ลำดับที่สาขา</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
+                                                            {{ vat.branchcode || '00000' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ปีภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ปีภาษี (พ.ศ.)</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ vat.vatyear || '-' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- เดือนภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เดือนภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ vat.vatperiod || '-' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ฐานภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ฐานภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ formatCurrency(vat.vatbase) }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- อัตราภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">อัตราภาษี (%)</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ vat.vatrate || 0 }} %
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
+                                                            <Tag :value="getVatTypeName(vat.vattype)" :severity="vat.vattype === 0 ? 'info' : 'success'" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ประเภทภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ประเภทภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
+                                                            <Tag :value="getVatModeName(vat.vatmode)" :severity="vat.vatmode === 0 ? 'secondary' : 'warn'" />
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ยอดภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ยอดภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-bold text-primary-600 dark:text-primary-400">
+                                                            {{ formatCurrency(vat.vatamount) }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ยอดยกเว้นภาษี -->
+                                                    <div class="flex flex-col gap-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ยอดยกเว้นภาษี</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                            {{ formatCurrency(vat.exceptvat) }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- หมายเหตุ (full width) -->
+                                                    <div v-if="vat.remark" class="flex flex-col gap-2 md:col-span-2">
+                                                        <label class="font-medium text-sm text-surface-600 dark:text-surface-400">หมายเหตุ</label>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
+                                                            {{ vat.remark }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- ยื่นเพิ่ม -->
+                                                    <div class="flex items-center gap-2 md:col-span-2">
+                                                        <i :class="vat.vatsubmit ? 'pi pi-check-circle text-green-500' : 'pi pi-circle text-surface-400'" class="text-lg"></i>
+                                                        <span class="font-medium text-sm text-surface-900 dark:text-surface-0">ยื่นเพิ่ม</span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </Card>
                                     </div>
                                 </div>
                             </TabPanel>
@@ -676,8 +731,13 @@ const isPDF = (uri) => {
                             <!-- Tab 2: ภาษีถูกหัก ณ ที่จ่าย (ตาม JournalWithholdingTaxTab) -->
                             <TabPanel value="2">
                                 <div class="p-4 overflow-auto" style="max-height: calc(90vh - 320px)">
+                                    <!-- Header -->
+                                    <div class="flex justify-between items-center mb-4">
+                                        <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0">ภาษีหัก ณ ที่จ่าย</h3>
+                                    </div>
+
                                     <!-- Summary -->
-                                    <div v-if="hasTaxData" class="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-700 mb-4">
+                                    <div v-if="hasTaxData" class="p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-700 mb-4">
                                         <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                             <div>
                                                 <div class="text-sm text-surface-600 dark:text-surface-400">จำนวนรายการ</div>
@@ -689,86 +749,145 @@ const isPDF = (uri) => {
                                             </div>
                                             <div>
                                                 <div class="text-sm text-surface-600 dark:text-surface-400">รวมภาษีหัก ณ ที่จ่าย</div>
-                                                <div class="text-xl font-bold text-orange-600 dark:text-orange-400">{{ formatCurrency(getTotalWhtAmount) }}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Tax Entries -->
-                                    <div v-if="hasTaxData" class="space-y-4">
-                                        <div v-for="(tax, taxIndex) in journal.taxes" :key="taxIndex" class="bg-surface-50 dark:bg-surface-800 rounded-xl p-4 border border-surface-200 dark:border-surface-700">
-                                            <div class="flex items-center justify-between mb-4">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">{{ taxIndex + 1 }}</div>
-                                                    <div>
-                                                        <div class="font-bold text-lg text-surface-900 dark:text-surface-0">{{ tax.taxdocno || '-' }}</div>
-                                                        <div class="text-sm text-surface-500 dark:text-surface-400">{{ formatDate(tax.taxdate) }}</div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex gap-2">
-                                                    <Tag :value="getTaxTypeName(tax.taxtype)" severity="warn" />
-                                                    <Tag :value="getCustomerTypeName(tax.custtype)" severity="secondary" />
-                                                </div>
-                                            </div>
-
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">ชื่อ</label>
-                                                    <div class="font-semibold text-lg text-surface-900 dark:text-surface-0">{{ tax.custname || '-' }}</div>
-                                                </div>
-                                                <div>
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">เลขประจำตัวผู้เสียภาษี</label>
-                                                    <div class="font-mono text-surface-900 dark:text-surface-0">{{ tax.custtaxid || '-' }}</div>
-                                                </div>
-                                                <div class="md:col-span-2">
-                                                    <label class="text-xs text-surface-500 dark:text-surface-400 block">ที่อยู่</label>
-                                                    <div class="text-surface-900 dark:text-surface-0">{{ tax.address || '-' }}</div>
-                                                </div>
-                                            </div>
-
-                                            <!-- Tax Details Table -->
-                                            <div v-if="tax.details && tax.details.length > 0">
-                                                <h4 class="font-semibold text-surface-900 dark:text-surface-0 mb-3">รายละเอียด</h4>
-                                                <DataTable :value="tax.details" size="small" showGridlines class="text-sm">
-                                                    <Column field="description" header="รายการ"></Column>
-                                                    <Column field="taxbase" header="ฐานภาษี" style="width: 130px">
-                                                        <template #body="{ data }">
-                                                            <div class="text-right font-semibold">{{ formatCurrency(data.taxbase) }}</div>
-                                                        </template>
-                                                    </Column>
-                                                    <Column field="taxrate" header="อัตรา (%)" style="width: 100px">
-                                                        <template #body="{ data }">
-                                                            <div class="text-center">{{ data.taxrate }}%</div>
-                                                        </template>
-                                                    </Column>
-                                                    <Column field="taxamount" header="ภาษีหัก ณ ที่จ่าย" style="width: 150px">
-                                                        <template #body="{ data }">
-                                                            <div class="text-right font-bold text-orange-600 dark:text-orange-400">{{ formatCurrency(data.taxamount) }}</div>
-                                                        </template>
-                                                    </Column>
-                                                </DataTable>
-
-                                                <!-- Detail Total -->
-                                                <div class="mt-3 p-3 bg-surface-100 dark:bg-surface-700 rounded-lg">
-                                                    <div class="flex justify-end gap-8">
-                                                        <div class="flex items-center gap-2">
-                                                            <span class="text-sm font-medium">รวมฐานภาษี:</span>
-                                                            <span class="text-lg font-bold">{{ formatCurrency(getTaxTotal(tax).base) }}</span>
-                                                        </div>
-                                                        <div class="flex items-center gap-2">
-                                                            <span class="text-sm font-medium">รวมภาษีหัก ณ ที่จ่าย:</span>
-                                                            <span class="text-lg font-bold text-orange-600 dark:text-orange-400">{{ formatCurrency(getTaxTotal(tax).amount) }}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <div class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatCurrency(getTotalWhtAmount) }}</div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <!-- Empty State -->
-                                    <div v-else class="flex flex-col items-center justify-center py-12 text-surface-400">
-                                        <i class="pi pi-percentage text-5xl mb-3"></i>
-                                        <span>ไม่มีข้อมูลภาษีหัก ณ ที่จ่าย</span>
+                                    <div v-if="!hasTaxData" class="flex flex-col items-center justify-center py-12 border-2 border-dashed border-surface-300 dark:border-surface-600 rounded-lg">
+                                        <i class="pi pi-percentage text-6xl text-surface-400 dark:text-surface-600 mb-4"></i>
+                                        <h3 class="text-xl font-semibold mb-2 text-surface-700 dark:text-surface-300">ไม่มีรายการภาษีหัก ณ ที่จ่าย</h3>
+                                        <p class="text-surface-500 dark:text-surface-400">ไม่มีข้อมูลภาษีหัก ณ ที่จ่ายสำหรับรายการนี้</p>
+                                    </div>
+
+                                    <!-- Tax Entries -->
+                                    <div v-else class="space-y-4">
+                                        <Card v-for="(tax, taxIndex) in journal.taxes" :key="taxIndex" class="border border-surface-200 dark:border-surface-700">
+                                            <template #title>
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-base">รายการที่ {{ taxIndex + 1 }}</span>
+                                                    <div class="text-right">
+                                                        <div class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatCurrency(getTaxTotal(tax).amount) }}</div>
+                                                        <div class="text-xs text-surface-500 dark:text-surface-400">ฐานภาษี {{ formatCurrency(getTaxTotal(tax).base) }}</div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template #content>
+                                                <div class="space-y-4">
+                                                    <!-- Tax Info -->
+                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <!-- ภาษี -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ภาษี</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
+                                                                <Tag :value="getTaxTypeName(tax.taxtype)" severity="warn" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- ประเภท -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ประเภท</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
+                                                                <Tag :value="getCustomerTypeName(tax.custtype)" severity="secondary" />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- วันที่หัก ณ ที่จ่าย -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">วันที่หัก ณ ที่จ่าย</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                                {{ formatDate(tax.taxdate) }}
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- เลขที่เอกสาร -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                                {{ tax.taxdocno || '-' }}
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- ชื่อ -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ชื่อ</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
+                                                                {{ tax.custname || '-' }}
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- เลขประจำตัวผู้เสียภาษี -->
+                                                        <div class="flex flex-col gap-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขประจำตัวผู้เสียภาษี/เลขที่บัตรประชาชน</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-mono text-surface-900 dark:text-surface-0">
+                                                                {{ tax.custtaxid || '-' }}
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- ที่อยู่ -->
+                                                        <div class="flex flex-col gap-2 md:col-span-2">
+                                                            <label class="font-medium text-sm text-surface-600 dark:text-surface-400">ที่อยู่</label>
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0 min-h-[40px]">
+                                                                {{ tax.address || '-' }}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Details Table -->
+                                                    <div v-if="tax.details && tax.details.length > 0" class="mt-4">
+                                                        <div class="flex justify-between items-center mb-3">
+                                                            <h4 class="font-semibold text-surface-900 dark:text-surface-0">รายละเอียด</h4>
+                                                        </div>
+
+                                                        <DataTable :value="tax.details" class="text-sm">
+                                                            <Column field="description" header="รายละเอียด">
+                                                                <template #body="{ data }">
+                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
+                                                                        {{ data.description || '-' }}
+                                                                    </div>
+                                                                </template>
+                                                            </Column>
+                                                            <Column field="taxbase" header="ฐานภาษี" style="width: 150px">
+                                                                <template #body="{ data }">
+                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-right font-semibold text-surface-900 dark:text-surface-0">
+                                                                        {{ formatCurrency(data.taxbase) }}
+                                                                    </div>
+                                                                </template>
+                                                            </Column>
+                                                            <Column field="taxrate" header="อัตรา (%)" style="width: 120px">
+                                                                <template #body="{ data }">
+                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-center text-surface-900 dark:text-surface-0">
+                                                                        {{ data.taxrate }} %
+                                                                    </div>
+                                                                </template>
+                                                            </Column>
+                                                            <Column field="taxamount" header="ภาษีหัก ณ ที่จ่าย" style="width: 150px">
+                                                                <template #body="{ data }">
+                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-right font-bold text-primary-600 dark:text-primary-400">
+                                                                        {{ formatCurrency(data.taxamount) }}
+                                                                    </div>
+                                                                </template>
+                                                            </Column>
+                                                        </DataTable>
+
+                                                        <!-- Detail Total -->
+                                                        <div class="mt-3 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+                                                            <div class="flex justify-end gap-8">
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="text-sm font-medium">รวมฐานภาษี:</span>
+                                                                    <span class="text-lg font-bold">{{ formatCurrency(getTaxTotal(tax).base) }}</span>
+                                                                </div>
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="text-sm font-medium">รวมภาษีหัก ณ ที่จ่าย:</span>
+                                                                    <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatCurrency(getTaxTotal(tax).amount) }}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </Card>
                                     </div>
                                 </div>
                             </TabPanel>

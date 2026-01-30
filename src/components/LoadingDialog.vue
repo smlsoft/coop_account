@@ -6,27 +6,30 @@ const { isLoading, loadingMessage } = useLoading();
 
 <template>
     <Dialog v-model:visible="isLoading" modal :closable="false" :draggable="false" :dismissableMask="false" :showHeader="false" class="loading-dialog" :pt="{ mask: { class: 'loading-mask' } }">
-        <div class="flex flex-col items-center justify-center p-6">
-            <!-- Modern Spinner -->
-            <div class="spinner-container mb-5">
-                <div class="spinner">
-                    <div class="spinner-ring"></div>
-                    <div class="spinner-ring"></div>
-                    <div class="spinner-ring"></div>
-                    <i class="pi pi-sync spinner-icon"></i>
-                </div>
+        <div class="flex flex-col items-center justify-center p-8 gap-6">
+            <!-- Logo Section -->
+            <div class="logo-wrapper">
+                <!-- Ripple effects -->
+                <div class="ripple ripple-1"></div>
+                <div class="ripple ripple-2"></div>
+                <div class="ripple ripple-3"></div>
+
+                <!-- Logo -->
+                <img src="/demo/images/dedeaccountlogo.svg" alt="DedeAccount" class="logo-image" />
             </div>
 
-            <!-- Loading Message -->
-            <p class="text-surface-900 dark:text-surface-0 text-base font-medium text-center">
-                {{ loadingMessage || 'กำลังโหลด...' }}
-            </p>
+            <!-- Text & Progress Section -->
+            <div class="flex flex-col items-center gap-4 w-full">
+                <h3 class="text-lg font-medium text-surface-700 dark:text-surface-200 text-center m-0">
+                    {{ loadingMessage || 'กำลังโหลด' }}
+                </h3>
 
-            <!-- Animated Dots -->
-            <div class="loading-dots mt-2">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
+                <!-- Progress Bar -->
+                <div class="w-full max-w-[200px]">
+                    <div class="h-1 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-primary-500 rounded-full progress-animation"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </Dialog>
@@ -34,124 +37,89 @@ const { isLoading, loadingMessage } = useLoading();
 
 <style scoped>
 .loading-dialog {
-    border-radius: 1rem;
+    border-radius: 1.5rem;
     overflow: hidden;
-    min-width: 280px;
-    max-width: 320px;
+    min-width: 320px;
+    max-width: 380px;
 }
 
 :deep(.loading-mask) {
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(12px);
     background: rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Spinner Container */
-.spinner-container {
-    position: relative;
-    width: 64px;
-    height: 64px;
+:deep(.p-dialog-content) {
+    padding: 0 !important;
 }
 
-.spinner {
+/* Logo Wrapper */
+.logo-wrapper {
     position: relative;
-    width: 100%;
-    height: 100%;
+    width: 160px;
+    height: 160px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.spinner-ring {
+/* Ripple Effects */
+.ripple {
     position: absolute;
-    width: 100%;
-    height: 100%;
     border-radius: 50%;
-    border: 3px solid transparent;
+    border: 2px solid var(--p-primary-400);
+    opacity: 0;
+    animation: ripple-expand 2.4s ease-out infinite;
 }
 
-.spinner-ring:nth-child(1) {
-    border-top-color: var(--p-primary-color);
-    animation: spin 1s linear infinite;
-}
-
-.spinner-ring:nth-child(2) {
-    width: 80%;
-    height: 80%;
-    border-right-color: var(--p-primary-400);
-    animation: spin 1.5s linear infinite reverse;
-}
-
-.spinner-ring:nth-child(3) {
-    width: 60%;
-    height: 60%;
-    border-bottom-color: var(--p-primary-300);
-    animation: spin 2s linear infinite;
-}
-
-.spinner-icon {
-    font-size: 1.25rem;
-    color: var(--p-primary-color);
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-/* Loading Dots */
-.loading-dots {
-    display: flex;
-    gap: 6px;
-}
-
-.dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: var(--p-primary-color);
-    animation: bounce 1.4s ease-in-out infinite;
-}
-
-.dot:nth-child(1) {
+.ripple-1 {
+    width: 100px;
+    height: 100px;
     animation-delay: 0s;
 }
 
-.dot:nth-child(2) {
-    animation-delay: 0.2s;
+.ripple-2 {
+    width: 100px;
+    height: 100px;
+    animation-delay: 0.8s;
 }
 
-.dot:nth-child(3) {
-    animation-delay: 0.4s;
+.ripple-3 {
+    width: 100px;
+    height: 100px;
+    animation-delay: 1.6s;
 }
 
-/* Animations */
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.logo-image {
+    width: 96px;
+    height: 96px;
+    object-fit: contain;
+    z-index: 2;
 }
 
-@keyframes pulse {
-    0%,
-    100% {
-        opacity: 1;
+/* Progress Animation */
+.progress-animation {
+    width: 30%;
+    animation: progress-slide 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Keyframes */
+@keyframes ripple-expand {
+    0% {
         transform: scale(1);
+        opacity: 0.6;
     }
-    50% {
-        opacity: 0.5;
-        transform: scale(0.9);
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
     }
 }
 
-@keyframes bounce {
-    0%,
-    80%,
-    100% {
-        transform: translateY(0);
-        opacity: 0.5;
+@keyframes progress-slide {
+    0% {
+        transform: translateX(-100%);
     }
-    40% {
-        transform: translateY(-8px);
-        opacity: 1;
+    100% {
+        transform: translateX(430%);
     }
 }
 </style>
