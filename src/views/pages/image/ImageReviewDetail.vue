@@ -1,5 +1,6 @@
 <script setup>
 import DialogApprove from '@/components/DialogApprove.vue';
+import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageGridPanel from '@/components/image/ImageGridPanel.vue';
 import MergeDocumentDialog from '@/components/image/MergeDocumentDialog.vue';
@@ -50,6 +51,7 @@ const updatingStatus = ref(false);
 const updatingAllStatus = ref(false);
 const closingJob = ref(false);
 const dialogJobClose = ref(false);
+const showUngroupDialog = ref(false);
 const randomNumber = ref(0);
 
 // Menu refs
@@ -371,7 +373,7 @@ const handleMergeComplete = async (newGroupGuid) => {
     }
 };
 
-const handleUngroup = async () => {
+const handleUngroup = () => {
     if (isJobClosed.value) return;
     if (!selectedGroup.value?.guidfixed) return;
 
@@ -385,6 +387,13 @@ const handleUngroup = async () => {
         });
         return;
     }
+
+    showUngroupDialog.value = true;
+};
+
+const confirmUngroup = async () => {
+    showUngroupDialog.value = false;
+    if (!selectedGroup.value?.guidfixed) return;
 
     ungrouping.value = true;
 
@@ -985,6 +994,9 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
 
         <!-- Merge Dialog -->
         <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="username" @merge-complete="handleMergeComplete" />
+
+        <!-- Ungroup Dialog -->
+        <DialogForm :confirmDialog="showUngroupDialog" textContent="คุณต้องการแยกเอกสารนี้หรือไม่?" confirmLabel="แยก (Enter)" cancelLabel="ยกเลิก" severity="warning" @close="showUngroupDialog = false" @confirm="confirmUngroup" />
 
         <!-- Close Job Dialog -->
         <DialogApprove mode="close" title="ยืนยันการปิดงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />

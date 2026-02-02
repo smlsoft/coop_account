@@ -30,6 +30,14 @@ export const getJournalById = (guidfixed) => {
 };
 
 /**
+ * Get journal entry by document number
+ * @param {string} docno - Document number
+ */
+export const getJournalByDocno = (docno) => {
+    return apiClient.get(`/gl/journal/docno/${docno}`);
+};
+
+/**
  * Delete a journal entry
  * @param {string} guidfixed - Journal GUID
  */

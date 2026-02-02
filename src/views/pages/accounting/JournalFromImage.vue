@@ -82,7 +82,7 @@ onMounted(() => {
 
 <template>
     <div class="card">
-        <h2 class="text-2xl font-bold mb-5 text-surface-900 dark:text-surface-0">บันทึกรายการบัญชีจากรูปภาพ</h2>
+        <div class="text-2xl font-bold mb-5 text-surface-900 dark:text-surface-0">บันทึกรายการบัญชีจากรูปภาพ</div>
 
         <TaskDataTable :modeMenu="3" :dataList="dataList" :loading="loading" :firstPage="firstPage" :totalItemsCount="totalItemsCount" :filters="filters" @onRowSelect="handleRowSelect" @search="handleSearch" @onPage="handlePage" />
     </div>

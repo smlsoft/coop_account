@@ -52,6 +52,89 @@ const model = ref([
         ]
     },
     {
+        label: 'Tax Reports',
+        path: '/tax-reports',
+        items: [
+            {
+                /// รายงานภาษีซื้อ
+                label: 'รายงานภาษีซื้อ',
+                icon: 'pi pi-fw pi-file',
+                to: '/tax-reports/purchase-tax',
+                path: '/purchase-tax'
+            }
+        ]
+    },
+    {
+        label: 'Master Data',
+        path: '/masterdata',
+        items: [
+            /// ตั้งค่ากิจการ
+            {
+                label: 'ตั้งค่ากิจการ',
+                icon: 'pi pi-fw pi-building',
+                to: '/masterdata/company',
+                path: '/company'
+            },
+            /// กำหนดรหัสบัญชี
+            {
+                label: 'กำหนดรหัสบัญชี',
+                icon: 'pi pi-fw pi-list',
+                to: '/masterdata/chart-of-accounts',
+                path: '/chart-of-accounts'
+            },
+            /// กำหนดสมุดรายวัน
+            {
+                label: 'กำหนดสมุดรายวัน',
+                icon: 'pi pi-fw pi-bookmark',
+                to: '/masterdata/journal-books',
+                path: '/journal-books'
+            },
+            /// กำหนดลูกหนี้ debtor
+            {
+                label: 'กำหนดลูกหนี้',
+                icon: 'pi pi-fw pi-users',
+                to: '/masterdata/debtors',
+                path: '/debtors'
+            },
+            /// กำหนดเจ้าหนี้ creditor
+            {
+                label: 'กำหนดเจ้าหนี้',
+                icon: 'pi pi-fw pi-users',
+                to: '/masterdata/creditors',
+                path: '/creditors'
+            },
+            /// กำหนดงวดบัญชี
+            {
+                label: 'กำหนดงวดบัญชี',
+                icon: 'pi pi-fw pi-calendar',
+                to: '/masterdata/accounting-periods',
+                path: '/accounting-periods'
+            },
+            /// กำหนดรายได้อื่น ๆ
+            {
+                label: 'กำหนดรายได้อื่น ๆ',
+                icon: 'pi pi-fw pi-money-bill',
+                to: '/masterdata/other-incomes',
+                path: '/other-incomes'
+            },
+            /// กำหนดค่าใช้จ่ายอื่น ๆ
+            {
+                label: 'กำหนดค่าใช้จ่ายอื่น ๆ',
+                icon: 'pi pi-fw pi-wallet',
+                to: '/masterdata/other-expenses',
+                path: '/other-expenses'
+            },
+            /// กำหนดผู้ใช้งานในระบบ
+            {
+                label: 'กำหนดผู้ใช้งานในระบบ',
+                icon: 'pi pi-fw pi-user',
+                to: '/masterdata/shop-users',
+                path: '/shop-users'
+            }
+        ]
+    },
+
+    {
         label: 'UI Components',
         path: '/uikit',
         items: [

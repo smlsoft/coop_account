@@ -1,5 +1,6 @@
 <script setup>
 import DialogApprove from '@/components/DialogApprove.vue';
+import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageGridPanel from '@/components/image/ImageGridPanel.vue';
 import ImageUploadDialog from '@/components/image/ImageUploadDialog.vue';
@@ -31,6 +32,8 @@ const sortMode = ref(false);
 const sortableGroups = ref([]);
 const savingOrder = ref(false);
 const dialogJobClose = ref(false);
+const showDeleteDialog = ref(false);
+const showUngroupDialog = ref(false);
 const randomNumber = ref(0);
 const closingJob = ref(false);
 const imageGroups = ref([]);
@@ -353,7 +356,7 @@ const handleMergeComplete = async (newGroupGuid) => {
     }
 };
 
-const handleUngroup = async () => {
+const handleUngroup = () => {
     if (isJobClosed.value) return;
     if (!selectedGroup.value?.guidfixed) return;
 
@@ -367,6 +370,13 @@ const handleUngroup = async () => {
         });
         return;
     }
+
+    showUngroupDialog.value = true;
+};
+
+const confirmUngroup = async () => {
+    showUngroupDialog.value = false;
+    if (!selectedGroup.value?.guidfixed) return;
 
     ungrouping.value = true;
 
@@ -493,8 +503,15 @@ const cancelSortMode = () => {
     sortableGroups.value = [];
 };
 
-const handleDelete = async () => {
+const handleDelete = () => {
     if (isJobClosed.value) return;
+    if (!selectedGroup.value?.guidfixed) return;
+
+    showDeleteDialog.value = true;
+};
+
+const confirmDelete = async () => {
+    showDeleteDialog.value = false;
     if (!selectedGroup.value?.guidfixed) return;
 
     deleting.value = true;
@@ -845,6 +862,12 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
 
         <!-- Merge Dialog -->
         <MergeDocumentDialog v-model:visible="mergeDialogVisible" :selected-groups="selectedGroupsForMerge" :task-guid="taskId" :user-email="username" @merge-complete="handleMergeComplete" />
+
+        <!-- Ungroup Dialog -->
+        <DialogForm :confirmDialog="showUngroupDialog" textContent="คุณต้องการแยกเอกสารนี้หรือไม่?" confirmLabel="แยก (Enter)" cancelLabel="ยกเลิก" severity="warning" @close="showUngroupDialog = false" @confirm="confirmUngroup" />
+
+        <!-- Delete Document Dialog -->
+        <DialogForm :confirmDialog="showDeleteDialog" textContent="คุณต้องการลบเอกสารนี้หรือไม่?" confirmLabel="ลบ (Enter)" cancelLabel="ยกเลิก" severity="danger" @close="showDeleteDialog = false" @confirm="confirmDelete" />
 
         <!-- Close Job Dialog -->
         <DialogApprove mode="close" title="ยืนยันการปิดงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />

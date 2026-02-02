@@ -325,7 +325,7 @@ onUnmounted(() => {
         <template #footer>
             <div class="flex justify-end gap-2">
                 <Button label="ยกเลิก" severity="secondary" @click="dialogVisible = false" :disabled="loading" />
-                <Button label="รวมเอกสาร (Enter)" icon="pi pi-check" @click="handleMerge" :loading="loading" :disabled="!title.trim() || loadingDetails" />
+                <Button label="รวมเอกสาร (Enter)" icon="pi pi-save" @click="handleMerge" :loading="loading" :disabled="!title.trim() || loadingDetails" />
             </div>
         </template>
     </Dialog>

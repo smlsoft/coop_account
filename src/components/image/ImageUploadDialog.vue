@@ -596,7 +596,7 @@ const handleDrop = async (event) => {
                 </div>
                 <div class="flex gap-2 w-full sm:w-auto">
                     <Button label="ยกเลิก" severity="secondary" @click="dialogVisible = false" :disabled="uploading || confirming" class="flex-1 sm:flex-initial" />
-                    <Button label="ยืนยัน" icon="pi pi-check-circle" @click="handleConfirm" :disabled="!allUploaded || !hasFiles || hasErrors || uploading" :loading="confirming" class="flex-1 sm:flex-initial" />
+                    <Button label="ยืนยัน" icon="pi pi-save" @click="handleConfirm" :disabled="!allUploaded || !hasFiles || hasErrors || uploading" :loading="confirming" class="flex-1 sm:flex-initial" />
                 </div>
             </div>
         </template>

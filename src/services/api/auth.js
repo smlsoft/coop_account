@@ -40,3 +40,7 @@ export const favoriteShop = (shopid, isfavorite) => {
         isfavorite
     });
 };
+
+export const createShop = (data) => {
+    return apiClient.post('create-shop', data);
+};

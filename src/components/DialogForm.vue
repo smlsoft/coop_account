@@ -27,6 +27,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'confirm']);
 
 const confirmButton = ref(null);
+let dialogOpenTime = 0;
 
 const handleClose = () => {
     emit('close');
@@ -36,9 +37,15 @@ const handleConfirm = () => {
     emit('confirm');
 };
 
-const handleKeyPress = (event) => {
+const handleKeyUp = (event) => {
     if (event.key === 'Enter' && props.confirmDialog) {
-        handleConfirm();
+        // ตรวจสอบว่า event เกิดหลังจาก dialog เปิดแล้วอย่างน้อย 300ms
+        const timeSinceOpen = Date.now() - dialogOpenTime;
+        if (timeSinceOpen > 300) {
+            event.preventDefault();
+            event.stopPropagation();
+            handleConfirm();
+        }
     }
 };
 
@@ -48,25 +55,25 @@ const getSeverityConfig = () => {
             return {
                 icon: 'pi pi-exclamation-triangle',
                 iconClass: 'text-red-500',
-                buttonClass: 'p-button-danger'
+                buttonSeverity: 'danger'
             };
         case 'success':
             return {
                 icon: 'pi pi-check-circle',
                 iconClass: 'text-green-500',
-                buttonClass: 'p-button-success'
+                buttonSeverity: 'success'
             };
         case 'warning':
             return {
                 icon: 'pi pi-exclamation-circle',
                 iconClass: 'text-orange-500',
-                buttonClass: 'p-button-warning'
+                buttonSeverity: 'warning'
             };
         default:
             return {
                 icon: 'pi pi-question-circle',
                 iconClass: 'text-primary-500',
-                buttonClass: ''
+                buttonSeverity: 'primary'
             };
     }
 };
@@ -75,9 +82,12 @@ watch(
     () => props.confirmDialog,
     (newValue) => {
         if (newValue) {
-            window.addEventListener('keypress', handleKeyPress);
+            // บันทึกเวลาที่ dialog เปิด
+            dialogOpenTime = Date.now();
+            // ใช้ keyup เพื่อหลีกเลี่ยง Enter event จาก form submit
+            window.addEventListener('keyup', handleKeyUp);
         } else {
-            window.removeEventListener('keypress', handleKeyPress);
+            window.removeEventListener('keyup', handleKeyUp);
         }
     }
 );
@@ -90,21 +100,19 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    window.removeEventListener('keypress', handleKeyPress);
+    window.removeEventListener('keyup', handleKeyUp);
 });
 </script>
 
 <template>
-    <Dialog :visible="confirmDialog" :style="{ width: '450px' }" header="ยืนยัน" :modal="true" @update:visible="handleClose">
-        <div class="flex flex-col gap-4">
-            <div class="flex flex-col items-center gap-3 p-4 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
-                <i :class="[getSeverityConfig().icon, 'text-5xl', getSeverityConfig().iconClass]"></i>
-                <p class="text-center text-surface-700 dark:text-surface-300 text-lg">{{ textContent }}</p>
-            </div>
+    <Dialog :visible="confirmDialog" :style="{ width: '450px' }" header="ยืนยันการทำรายการ" :modal="true" @update:visible="handleClose">
+        <div class="flex items-center justify-center">
+            <i :class="[getSeverityConfig().icon, 'mr-4']" style="font-size: 2rem"></i>
+            <span>{{ textContent }}</span>
         </div>
         <template #footer>
-            <Button :label="cancelLabel" icon="pi pi-times" class="p-button-text" @click="handleClose" />
-            <Button ref="confirmButton" :label="confirmLabel" icon="pi pi-check" :class="getSeverityConfig().buttonClass" @click="handleConfirm" @keyup.enter="handleConfirm" autofocus />
+            <Button :label="cancelLabel" icon="pi pi-times" @click="handleClose" text severity="secondary" />
+            <Button ref="confirmButton" :label="confirmLabel" icon="pi pi-save" :severity="getSeverityConfig().buttonSeverity" @click="handleConfirm" autofocus />
         </template>
     </Dialog>
 </template>

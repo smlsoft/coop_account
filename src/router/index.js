@@ -193,6 +193,162 @@ const router = createRouter({
                     name: 'journal-from-image-form',
                     meta: { title: 'บันทึกรายการบัญชีจากรูปภาพ' },
                     component: () => import('@/views/pages/accounting/JournalFromImageForm.vue')
+                },
+                {
+                    path: '/masterdata/company',
+                    name: 'company-settings',
+                    meta: { title: 'ตั้งค่ากิจการ' },
+                    component: () => import('@/views/pages/CompanySettings.vue')
+                },
+                {
+                    path: '/masterdata/chart-of-accounts',
+                    name: 'chart-of-accounts',
+                    meta: { title: 'กำหนดรหัสบัญชี' },
+                    component: () => import('@/views/pages/ChartOfAccounts.vue')
+                },
+                {
+                    path: '/masterdata/chart-of-accounts/create',
+                    name: 'chart-of-account-create',
+                    meta: { title: 'เพิ่มผังบัญชี' },
+                    component: () => import('@/views/pages/ChartOfAccountForm.vue')
+                },
+                {
+                    path: '/masterdata/chart-of-accounts/edit/:id',
+                    name: 'chart-of-account-edit',
+                    meta: { title: 'แก้ไขผังบัญชี' },
+                    component: () => import('@/views/pages/ChartOfAccountForm.vue')
+                },
+                {
+                    path: '/masterdata/journal-books',
+                    name: 'journal-books',
+                    meta: { title: 'กำหนดสมุดรายวัน' },
+                    component: () => import('@/views/pages/JournalBooks.vue')
+                },
+                {
+                    path: '/masterdata/journal-books/create',
+                    name: 'journal-book-create',
+                    meta: { title: 'เพิ่มสมุดรายวัน' },
+                    component: () => import('@/views/pages/JournalBookForm.vue')
+                },
+                {
+                    path: '/masterdata/journal-books/edit/:id',
+                    name: 'journal-book-edit',
+                    meta: { title: 'แก้ไขสมุดรายวัน' },
+                    component: () => import('@/views/pages/JournalBookForm.vue')
+                },
+                {
+                    path: '/masterdata/debtors',
+                    name: 'debtors',
+                    meta: { title: 'กำหนดลูกหนี้' },
+                    component: () => import('@/views/pages/Debtors.vue')
+                },
+                {
+                    path: '/masterdata/debtors/create',
+                    name: 'debtor-create',
+                    meta: { title: 'เพิ่มลูกหนี้' },
+                    component: () => import('@/views/pages/DebtorForm.vue')
+                },
+                {
+                    path: '/masterdata/debtors/edit/:id',
+                    name: 'debtor-edit',
+                    meta: { title: 'แก้ไขลูกหนี้' },
+                    component: () => import('@/views/pages/DebtorForm.vue')
+                },
+                {
+                    path: '/masterdata/creditors',
+                    name: 'creditors',
+                    meta: { title: 'กำหนดเจ้าหนี้' },
+                    component: () => import('@/views/pages/Creditors.vue')
+                },
+                {
+                    path: '/masterdata/creditors/create',
+                    name: 'creditor-create',
+                    meta: { title: 'เพิ่มเจ้าหนี้' },
+                    component: () => import('@/views/pages/CreditorForm.vue')
+                },
+                {
+                    path: '/masterdata/creditors/edit/:id',
+                    name: 'creditor-edit',
+                    meta: { title: 'แก้ไขเจ้าหนี้' },
+                    component: () => import('@/views/pages/CreditorForm.vue')
+                },
+                {
+                    path: '/masterdata/accounting-periods',
+                    name: 'accounting-periods',
+                    meta: { title: 'กำหนดงวดบัญชี' },
+                    component: () => import('@/views/pages/AccountingPeriods.vue')
+                },
+                {
+                    path: '/masterdata/accounting-periods/create',
+                    name: 'accounting-period-create',
+                    meta: { title: 'เพิ่มงวดบัญชี' },
+                    component: () => import('@/views/pages/AccountingPeriodForm.vue')
+                },
+                {
+                    path: '/masterdata/accounting-periods/edit/:id',
+                    name: 'accounting-period-edit',
+                    meta: { title: 'แก้ไขงวดบัญชี' },
+                    component: () => import('@/views/pages/AccountingPeriodForm.vue')
+                },
+                {
+                    path: '/masterdata/other-incomes',
+                    name: 'other-incomes',
+                    meta: { title: 'กำหนดรายได้อื่น ๆ' },
+                    component: () => import('@/views/pages/OtherIncomes.vue')
+                },
+                {
+                    path: '/masterdata/other-incomes/create',
+                    name: 'other-income-create',
+                    meta: { title: 'เพิ่มรายได้อื่น ๆ' },
+                    component: () => import('@/views/pages/OtherIncomeForm.vue')
+                },
+                {
+                    path: '/masterdata/other-incomes/edit/:id',
+                    name: 'other-income-edit',
+                    meta: { title: 'แก้ไขรายได้อื่น ๆ' },
+                    component: () => import('@/views/pages/OtherIncomeForm.vue')
+                },
+                {
+                    path: '/masterdata/other-expenses',
+                    name: 'other-expenses',
+                    meta: { title: 'กำหนดค่าใช้จ่ายอื่น ๆ' },
+                    component: () => import('@/views/pages/OtherExpenses.vue')
+                },
+                {
+                    path: '/masterdata/other-expenses/create',
+                    name: 'other-expense-create',
+                    meta: { title: 'เพิ่มค่าใช้จ่ายอื่น ๆ' },
+                    component: () => import('@/views/pages/OtherExpenseForm.vue')
+                },
+                {
+                    path: '/masterdata/other-expenses/edit/:id',
+                    name: 'other-expense-edit',
+                    meta: { title: 'แก้ไขค่าใช้จ่ายอื่น ๆ' },
+                    component: () => import('@/views/pages/OtherExpenseForm.vue')
+                },
+                {
+                    path: '/masterdata/shop-users',
+                    name: 'shop-users',
+                    meta: { title: 'กำหนดผู้ใช้งานในระบบ' },
+                    component: () => import('@/views/pages/ShopUsers.vue')
+                },
+                {
+                    path: '/masterdata/shop-users/create',
+                    name: 'shop-user-create',
+                    meta: { title: 'เพิ่มผู้ใช้งาน' },
+                    component: () => import('@/views/pages/ShopUserForm.vue')
+                },
+                {
+                    path: '/masterdata/shop-users/edit/:username',
+                    name: 'shop-user-edit',
+                    meta: { title: 'แก้ไขผู้ใช้งาน' },
+                    component: () => import('@/views/pages/ShopUserForm.vue')
+                },
+                {
+                    path: '/tax-reports/purchase-tax',
+                    name: 'purchase-tax-report',
+                    meta: { title: 'รายงานภาษีซื้อ' },
+                    component: () => import('@/views/pages/PurchaseTaxReport.vue')
                 }
             ]
         },

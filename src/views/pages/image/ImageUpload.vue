@@ -495,9 +495,9 @@ onUnmounted(() => {
         <DialogForm :confirmDialog="modelConfirmUploadImage" :textContent="'ต้องการไปหน้าอัพโหลดเอกสารเลยหรือไม่?'" confirmLabel="ไปอัพโหลด (Enter)" cancelLabel="ภายหลัง" @close="modelConfirmUploadImage = false" @confirm="goToDetail()" />
 
         <!-- Cancel Job Dialog -->
-        <DialogApprove mode="cancel" title="ยืนยันการยกเลิกงาน" :ramdomNumber="randomNumber" :confirmDialog="dialogJobCancel" @close="dialogJobCancel = false" @confirmJob="jobUpdateStatus(5)" @confirmJobFalse="confirmJobFalse()" />
+        <DialogApprove mode="cancel" title="ยืนยันการยกเลิกงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobCancel" @close="dialogJobCancel = false" @confirmJob="jobUpdateStatus(5)" @confirmJobFalse="confirmJobFalse()" />
 
         <!-- Delete Job Dialog -->
-        <DialogApprove mode="delete" title="ยืนยันการลบงาน" :ramdomNumber="randomNumber" :confirmDialog="dialogJobDelete" @close="dialogJobDelete = false" @confirmJob="jobDelete()" @confirmJobFalse="confirmJobFalse()" />
+        <DialogApprove mode="delete" title="ยืนยันการลบงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobDelete" @close="dialogJobDelete = false" @confirmJob="jobDelete()" @confirmJobFalse="confirmJobFalse()" />
     </div>
 </template>

@@ -1,13 +1,26 @@
 {
-    "hosting": {
-        "target": "dede-account",
-        "public": "dist",
-        "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ]
-    }
+    "hosting": [
+        {
+            "target": "dede-account",
+            "public": "dist",
+            "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        },
+        {
+            "target": "dede-account-dev",
+            "public": "dist",
+            "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        }
+    ]
 }

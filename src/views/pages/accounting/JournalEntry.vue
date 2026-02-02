@@ -561,23 +561,4 @@ onMounted(async () => {
     />
 </template>
 
-<style scoped>
-:deep(.journal-table .p-datatable-header) {
-    background: var(--surface-50);
-    border-top: 1px solid var(--surface-200);
-}
-
-:deep(.journal-table .p-datatable-tbody > tr:hover) {
-    background: var(--primary-50) !important;
-}
-
-/* Dark mode support */
-:deep(.dark .journal-table .p-datatable-header) {
-    background: var(--surface-800);
-    border-top: 1px solid var(--surface-700);
-}
-
-:deep(.dark .journal-table .p-datatable-tbody > tr:hover) {
-    background: var(--primary-900) !important;
-}
-</style>
+<style scoped></style>

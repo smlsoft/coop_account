@@ -31,10 +31,10 @@ This project is deployed to Firebase Hosting.
 
 ```bash
 # Build and deploy to Production
-npm run build && firebase deploy --only hosting:dede-account
+npm run build:prod && firebase deploy --only hosting:dede-account
 
 # Build and deploy to Development
-npm run build && firebase deploy --only hosting:dede-account-dev
+npm run build:dev && firebase deploy --only hosting:dede-account-dev
 ```
 
 ### Firebase Configuration

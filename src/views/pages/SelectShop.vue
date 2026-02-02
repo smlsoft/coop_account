@@ -30,6 +30,14 @@ const pagination = ref({
     totalPage: 1
 });
 
+// Create Shop Dialog
+const showCreateDialog = ref(false);
+const newShopForm = ref({
+    name: '',
+    telephone: ''
+});
+const isCreatingShop = ref(false);
+
 const fetchShops = async (page = 1) => {
     loading.value = true;
     showLoading('กำลังโหลดข้อมูลร้านค้า...');
@@ -183,6 +191,76 @@ const getShopName = (shop) => {
 
     return 'Unnamed Shop';
 };
+
+const openCreateDialog = () => {
+    newShopForm.value = {
+        name: '',
+        telephone: ''
+    };
+    showCreateDialog.value = true;
+};
+
+const closeCreateDialog = () => {
+    showCreateDialog.value = false;
+    newShopForm.value = {
+        name: '',
+        telephone: ''
+    };
+};
+
+const handleCreateShop = async () => {
+    if (!newShopForm.value.name.trim()) {
+        toast.add({
+            severity: 'warn',
+            summary: 'กรุณากรอกข้อมูล',
+            detail: 'กรุณากรอกชื่อร้านค้า',
+            life: 3000
+        });
+        return;
+    }
+
+    try {
+        isCreatingShop.value = true;
+        showLoading('กำลังสร้างร้านค้า...');
+
+        const payload = {
+            names: [
+                {
+                    code: 'th',
+                    name: newShopForm.value.name.trim()
+                }
+            ],
+            telephone: newShopForm.value.telephone.trim()
+        };
+
+        const response = await api.createShop(payload);
+
+        if (response.data.success) {
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: 'สร้างร้านค้าเรียบร้อยแล้ว',
+                life: 3000
+            });
+
+            closeCreateDialog();
+
+            // โหลดข้อมูลร้านค้าใหม่
+            await fetchShops(1);
+        }
+    } catch (error) {
+        console.error('Error creating shop:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'เกิดข้อผิดพลาด',
+            detail: error.response?.data?.message || 'ไม่สามารถสร้างร้านค้าได้',
+            life: 3000
+        });
+    } finally {
+        isCreatingShop.value = false;
+        hideLoading();
+    }
+};
 </script>
 
 <template>
@@ -191,7 +269,7 @@ const getShopName = (shop) => {
         <!-- Main Content -->
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <!-- Compact Header Bar -->
-            <div class="mb-6 flex items-center justify-between gap-4">
+            <div class="mb-2 flex items-center justify-between gap-4">
                 <!-- Left: Back Button -->
                 <div>
                     <Button v-if="currentShop.id" @click="goBack" icon="pi pi-arrow-left" text rounded severity="secondary" v-tooltip.bottom="'กลับ'" />
@@ -199,6 +277,8 @@ const getShopName = (shop) => {
 
                 <!-- Right: Welcome + Logout Button -->
                 <div class="flex items-center gap-2 text-sm">
+                    <Button @click="openCreateDialog" icon="pi pi-plus" label="สร้างร้านค้า" text />
+
                     <span v-if="getUserDisplayName()" class="text-surface-600 dark:text-surface-400">ยินดีต้อนรับ:</span>
                     <span v-if="getUserDisplayName()" class="font-semibold text-surface-900 dark:text-surface-0">{{ getUserDisplayName() }}</span>
                     <Button @click="logout" icon="pi pi-sign-out" text rounded severity="secondary" v-tooltip.bottom="'ออกจากระบบ'" />
@@ -401,6 +481,33 @@ const getShopName = (shop) => {
                 <p class="text-surface-500 dark:text-surface-400 text-sm mt-3">แสดง {{ shops.length }} จาก {{ pagination.total }} กิจการ</p>
             </div>
         </div>
+
+        <!-- Create Shop Dialog -->
+        <Dialog v-model:visible="showCreateDialog" modal header="สร้างร้านค้าใหม่" :style="{ width: '30rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+            <div class="flex flex-col gap-4 pt-4">
+                <!-- ชื่อร้านค้า -->
+                <div class="flex flex-col gap-2">
+                    <label for="shopName" class="font-semibold text-surface-900 dark:text-surface-0">
+                        ชื่อร้านค้า
+                        <span class="text-red-500">*</span>
+                    </label>
+                    <InputText id="shopName" v-model="newShopForm.name" placeholder="กรอกชื่อร้านค้า" autofocus />
+                </div>
+
+                <!-- เบอร์โทรศัพท์ -->
+                <div class="flex flex-col gap-2">
+                    <label for="shopTelephone" class="font-semibold text-surface-900 dark:text-surface-0"> เบอร์โทรศัพท์ </label>
+                    <InputText id="shopTelephone" v-model="newShopForm.telephone" placeholder="กรอกเบอร์โทรศัพท์" />
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex justify-end gap-2">
+                    <Button label="ยกเลิก" severity="secondary" outlined @click="closeCreateDialog" :disabled="isCreatingShop" />
+                    <Button label="สร้าง" icon="pi pi-check" @click="handleCreateShop" :loading="isCreatingShop" :disabled="!newShopForm.name.trim()" />
+                </div>
+            </template>
+        </Dialog>
     </div>
 </template>
 

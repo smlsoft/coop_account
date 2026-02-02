@@ -671,9 +671,7 @@ const isPDF = (uri) => {
                                                     <!-- อัตราภาษี -->
                                                     <div class="flex flex-col gap-2">
                                                         <label class="font-medium text-sm text-surface-600 dark:text-surface-400">อัตราภาษี (%)</label>
-                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">
-                                                            {{ vat.vatrate || 0 }} %
-                                                        </div>
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-surface-900 dark:text-surface-0">{{ vat.vatrate || 0 }} %</div>
                                                     </div>
 
                                                     <!-- ภาษี -->
@@ -857,9 +855,7 @@ const isPDF = (uri) => {
                                                             </Column>
                                                             <Column field="taxrate" header="อัตรา (%)" style="width: 120px">
                                                                 <template #body="{ data }">
-                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-center text-surface-900 dark:text-surface-0">
-                                                                        {{ data.taxrate }} %
-                                                                    </div>
+                                                                    <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-center text-surface-900 dark:text-surface-0">{{ data.taxrate }} %</div>
                                                                 </template>
                                                             </Column>
                                                             <Column field="taxamount" header="ภาษีหัก ณ ที่จ่าย" style="width: 150px">
