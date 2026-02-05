@@ -15,6 +15,26 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToast();
 
+// Helper function to convert date to local ISO string (without UTC conversion)
+const toLocalISOString = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+
+    // คำนวณ timezone offset (เช่น +07:00 สำหรับประเทศไทย)
+    const timezoneOffset = -d.getTimezoneOffset();
+    const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
+    const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
+    const offsetSign = timezoneOffset >= 0 ? '+' : '-';
+
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
+};
+
 // Route params
 const taskId = ref(route.params.taskId || '');
 const documentRef = ref(route.query.documentref || '');
@@ -35,6 +55,7 @@ const isBalanceInvalid = ref(false);
 // Confirm dialog state
 const showConfirmDialog = ref(false);
 const confirmMessage = ref('');
+const isSaving = ref(false); // ป้องกันการ save ซ้ำ
 
 // Flag to prevent duplicate deselect
 const hasDeselected = ref(false);
@@ -322,6 +343,12 @@ const handleDocumentChange = async (newDocumentRef) => {
 };
 
 const handleSave = () => {
+    // ป้องกันการกด save ซ้ำ
+    if (isSaving.value || showConfirmDialog.value) {
+        console.log('⚠️ Save already in progress, ignoring...');
+        return;
+    }
+
     const validationErrors = validateForm();
 
     if (validationErrors.length > 0) {
@@ -348,8 +375,15 @@ const handleSave = () => {
 };
 
 const submitForm = async () => {
-    loading.value = true;
+    // ป้องกันการ save ซ้ำ
+    if (isSaving.value) {
+        console.log('⚠️ Submit already in progress, ignoring...');
+        return;
+    }
+
     showConfirmDialog.value = false; // ปิด dialog ทันทีเมื่อเริ่มบันทึก
+    isSaving.value = true;
+    loading.value = true;
 
     try {
         const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.debitamount) || 0), 0);
@@ -367,7 +401,7 @@ const submitForm = async () => {
             documentref: formData.value.documentref || '',
             amount: amount,
             batchId: '',
-            docdate: formData.value.docdate ? new Date(formData.value.docdate).toISOString() : new Date().toISOString(),
+            docdate: toLocalISOString(formData.value.docdate) || toLocalISOString(new Date()),
             docno: formData.value.docno,
             bookcode: formData.value.bookcode?.code || '',
             appname: '',
@@ -383,7 +417,7 @@ const submitForm = async () => {
             parid: '0000000',
             vats: (formData.value.vats || []).map((vat) => ({
                 vatdocno: vat.vatdocno || '',
-                vatdate: vat.vatdate ? new Date(vat.vatdate).toISOString() : new Date().toISOString(),
+                vatdate: toLocalISOString(vat.vatdate) || toLocalISOString(new Date()),
                 vattype: vat.vattype || 0,
                 vatmode: vat.vatmode || 0,
                 vatperiod: vat.vatperiod || new Date().getMonth() + 1,
@@ -404,7 +438,7 @@ const submitForm = async () => {
             taxes: (formData.value.taxes || []).map((tax) => ({
                 taxtype: tax.taxtype || 0,
                 custtype: tax.custtype || 0,
-                taxdate: tax.taxdate ? new Date(tax.taxdate).toISOString() : new Date().toISOString(),
+                taxdate: toLocalISOString(tax.taxdate) || toLocalISOString(new Date()),
                 taxdocno: tax.taxdocno || '',
                 custname: tax.custname || '',
                 custtaxid: tax.custtaxid || '',
@@ -416,7 +450,7 @@ const submitForm = async () => {
                     taxamount: parseFloat(detail.taxamount) || 0
                 }))
             })),
-            exdocrefdate: formData.value.exdocrefdate ? new Date(formData.value.exdocrefdate).toISOString() : null,
+            exdocrefdate: toLocalISOString(formData.value.exdocrefdate),
             exdocrefno: formData.value.exdocrefno || ''
         };
 
@@ -488,6 +522,7 @@ const submitForm = async () => {
         });
     } finally {
         loading.value = false;
+        isSaving.value = false;
     }
 };
 
@@ -556,7 +591,7 @@ onBeforeUnmount(() => {
             </div>
             <template #footer>
                 <Button label="ยกเลิก" icon="pi pi-times" class="p-button-text" @click="showConfirmDialog = false" :disabled="loading" />
-                <Button label="ยืนยัน" icon="pi pi-check" @click="submitForm" :loading="loading" autofocus />
+                <Button label="ยืนยัน" icon="pi pi-save" @click="submitForm" :loading="loading" autofocus />
             </template>
         </Dialog>
 

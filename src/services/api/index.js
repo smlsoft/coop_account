@@ -5,6 +5,8 @@ import * as chartofaccountAPI from './chartofaccount';
 import * as creditorAPI from './creditor';
 import * as dashboardAPI from './dashboard';
 import * as debtorAPI from './debtor';
+import * as documentformatAPI from './documentformat';
+import * as journalAPI from './journal';
 import * as journalbookAPI from './journalbook';
 import * as masterexpenseAPI from './masterexpense';
 import * as masterincomeAPI from './masterincome';
@@ -48,6 +50,7 @@ export default {
     createChartOfAccount: chartofaccountAPI.createChartOfAccount,
     updateChartOfAccount: chartofaccountAPI.updateChartOfAccount,
     deleteChartOfAccount: chartofaccountAPI.deleteChartOfAccount,
+    importChartOfAccounts: chartofaccountAPI.importChartOfAccounts,
 
     // Journal Book APIs
     getJournalBooks: journalbookAPI.getJournalBooks,
@@ -56,12 +59,20 @@ export default {
     updateJournalBook: journalbookAPI.updateJournalBook,
     deleteJournalBook: journalbookAPI.deleteJournalBook,
 
+    // Journal APIs
+    getJournalEntries: journalAPI.getJournalEntries,
+    getJournalById: journalAPI.getJournalById,
+    getJournalByDocno: journalAPI.getJournalByDocno,
+    deleteJournalEntry: journalAPI.deleteJournalEntry,
+    importJournals: journalAPI.importJournals,
+
     // Debtor APIs
     getDebtors: debtorAPI.getDebtors,
     getDebtorById: debtorAPI.getDebtor,
     createDebtor: debtorAPI.createDebtor,
     updateDebtor: debtorAPI.updateDebtor,
     deleteDebtor: debtorAPI.deleteDebtor,
+    importDebtors: debtorAPI.importDebtors,
 
     // Creditor APIs
     getCreditors: creditorAPI.getCreditors,
@@ -69,6 +80,7 @@ export default {
     createCreditor: creditorAPI.createCreditor,
     updateCreditor: creditorAPI.updateCreditor,
     deleteCreditor: creditorAPI.deleteCreditor,
+    importCreditors: creditorAPI.importCreditors,
 
     // Account Period APIs
     getAccountPeriods: accountperiodAPI.getAccountPeriods,
@@ -96,13 +108,58 @@ export default {
 
     // Shop User APIs (ผู้ใช้งานในระบบ)
     getShopUsers: shopuserAPI.getShopUsers,
+    getShopUserByUsername: shopuserAPI.getShopUserByUsername,
     saveShopUserPermission: shopuserAPI.saveShopUserPermission,
     deleteShopUser: shopuserAPI.deleteShopUser,
 
     // Report APIs (รายงาน)
     getJournalVat: reportAPI.getJournalVat,
-    getJournalDetail: reportAPI.getJournalDetail
+    getJournalDetail: reportAPI.getJournalDetail,
+    generateJournalVatPDF: reportAPI.generateJournalVatPDF,
+    checkJournalVatPDFStatus: reportAPI.checkJournalVatPDFStatus,
+    getJournalVatPDFDownloadUrl: reportAPI.getJournalVatPDFDownloadUrl,
+    waitForPDFAndOpen: reportAPI.waitForPDFAndOpen,
+    generateAndOpenJournalVatPDF: reportAPI.generateAndOpenJournalVatPDF,
+
+    // Withholding Tax Report APIs (ภาษีหัก ณ ที่จ่าย)
+    getJournalTax: reportAPI.getJournalTax,
+    generateJournalTaxPDF: reportAPI.generateJournalTaxPDF,
+    checkJournalTaxPDFStatus: reportAPI.checkJournalTaxPDFStatus,
+    getJournalTaxPDFDownloadUrl: reportAPI.getJournalTaxPDFDownloadUrl,
+    waitForTaxPDFAndOpen: reportAPI.waitForTaxPDFAndOpen,
+    generateAndOpenJournalTaxPDF: reportAPI.generateAndOpenJournalTaxPDF,
+
+    // Withheld Tax Report APIs (ภาษีถูกหัก ณ ที่จ่าย)
+    getJournalTaxDeduct: reportAPI.getJournalTaxDeduct,
+    generateJournalTaxDeductPDF: reportAPI.generateJournalTaxDeductPDF,
+    checkJournalTaxDeductPDFStatus: reportAPI.checkJournalTaxDeductPDFStatus,
+    getJournalTaxDeductPDFDownloadUrl: reportAPI.getJournalTaxDeductPDFDownloadUrl,
+    waitForTaxDeductPDFAndOpen: reportAPI.waitForTaxDeductPDFAndOpen,
+    generateAndOpenJournalTaxDeductPDF: reportAPI.generateAndOpenJournalTaxDeductPDF,
+
+    // Document Format APIs (รูปแบบการบันทึกบัญชี)
+    getDocumentFormats: documentformatAPI.getDocumentFormats,
+    getDocumentFormatById: documentformatAPI.getDocumentFormat,
+    createDocumentFormat: documentformatAPI.createDocumentFormat,
+    updateDocumentFormat: documentformatAPI.updateDocumentFormat,
+    deleteDocumentFormat: documentformatAPI.deleteDocumentFormat,
+
+    // Accounts Payable Report APIs (รายงานสถานะเจ้าหนี้)
+    getAccountsPayable: reportAPI.getAccountsPayable,
+    generateAccountsPayablePDF: reportAPI.generateAccountsPayablePDF,
+    checkAccountsPayablePDFStatus: reportAPI.checkAccountsPayablePDFStatus,
+    getAccountsPayablePDFDownloadUrl: reportAPI.getAccountsPayablePDFDownloadUrl,
+    waitForAccountsPayablePDFAndOpen: reportAPI.waitForAccountsPayablePDFAndOpen,
+    generateAndOpenAccountsPayablePDF: reportAPI.generateAndOpenAccountsPayablePDF,
+
+    // Accounts Receivable Report APIs (รายงานสถานะลูกหนี้)
+    getAccountsReceivable: reportAPI.getAccountsReceivable,
+    generateAccountsReceivablePDF: reportAPI.generateAccountsReceivablePDF,
+    checkAccountsReceivablePDFStatus: reportAPI.checkAccountsReceivablePDFStatus,
+    getAccountsReceivablePDFDownloadUrl: reportAPI.getAccountsReceivablePDFDownloadUrl,
+    waitForAccountsReceivablePDFAndOpen: reportAPI.waitForAccountsReceivablePDFAndOpen,
+    generateAndOpenAccountsReceivablePDF: reportAPI.generateAndOpenAccountsReceivablePDF
 };
 
 // Also export modules separately for selective imports
-export { accountperiodAPI, authAPI, chartofaccountAPI, creditorAPI, dashboardAPI, debtorAPI, journalbookAPI, masterexpenseAPI, masterincomeAPI, shopAPI, shopuserAPI, taskAPI };
+export { accountperiodAPI, authAPI, chartofaccountAPI, creditorAPI, dashboardAPI, debtorAPI, documentformatAPI, journalAPI, journalbookAPI, masterexpenseAPI, masterincomeAPI, shopAPI, shopuserAPI, taskAPI };

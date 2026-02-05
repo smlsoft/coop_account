@@ -1,5 +1,6 @@
 <script setup>
 import DialogForm from '@/components/DialogForm.vue';
+import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
@@ -426,7 +427,7 @@ onMounted(() => {
                                         วันที่เริ่มต้น
                                         <span class="text-red-500">*</span>
                                     </label>
-                                    <DatePicker id="startdate" v-model="formData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isStartDateInvalid" class="w-full" fluid />
+                                    <ThaiDatePicker id="startdate" v-model="formData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isStartDateInvalid" class="w-full" fluid />
                                     <small v-if="isStartDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1">
                                         <i class="pi pi-exclamation-circle"></i>
                                         กรุณาเลือกวันที่เริ่มต้น
@@ -438,7 +439,7 @@ onMounted(() => {
                                         วันที่สิ้นสุด
                                         <span class="text-red-500">*</span>
                                     </label>
-                                    <DatePicker id="enddate" v-model="formData.enddate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่สิ้นสุด" showIcon :invalid="isEndDateInvalid" class="w-full" fluid />
+                                    <ThaiDatePicker id="enddate" v-model="formData.enddate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่สิ้นสุด" showIcon :invalid="isEndDateInvalid" class="w-full" fluid />
                                     <small v-if="isEndDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1">
                                         <i class="pi pi-exclamation-circle"></i>
                                         กรุณาเลือกวันที่สิ้นสุด
@@ -502,7 +503,7 @@ onMounted(() => {
                                         จากวันที่
                                         <span class="text-red-500">*</span>
                                     </label>
-                                    <DatePicker id="autoStartdate" v-model="autoFormData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isAutoStartDateInvalid" class="w-full" fluid />
+                                    <ThaiDatePicker id="autoStartdate" v-model="autoFormData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isAutoStartDateInvalid" class="w-full" fluid />
                                     <small v-if="isAutoStartDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1">
                                         <i class="pi pi-exclamation-circle"></i>
                                         กรุณาเลือกวันที่
@@ -569,7 +570,7 @@ onMounted(() => {
                                 วันที่เริ่มต้น
                                 <span class="text-red-500">*</span>
                             </label>
-                            <DatePicker id="startdate" v-model="formData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isStartDateInvalid" class="w-full" />
+                            <ThaiDatePicker id="startdate" v-model="formData.startdate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่เริ่มต้น" showIcon :invalid="isStartDateInvalid" class="w-full" />
                             <small v-if="isStartDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1">
                                 <i class="pi pi-exclamation-circle"></i>
                                 กรุณาเลือกวันที่เริ่มต้น
@@ -581,7 +582,7 @@ onMounted(() => {
                                 วันที่สิ้นสุด
                                 <span class="text-red-500">*</span>
                             </label>
-                            <DatePicker id="enddate" v-model="formData.enddate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่สิ้นสุด" showIcon :invalid="isEndDateInvalid" class="w-full" fluid />
+                            <ThaiDatePicker id="enddate" v-model="formData.enddate" dateFormat="dd/mm/yy" placeholder="เลือกวันที่สิ้นสุด" showIcon :invalid="isEndDateInvalid" class="w-full" fluid />
                             <small v-if="isEndDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1">
                                 <i class="pi pi-exclamation-circle"></i>
                                 กรุณาเลือกวันที่สิ้นสุด

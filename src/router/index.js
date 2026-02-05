@@ -349,6 +349,132 @@ const router = createRouter({
                     name: 'purchase-tax-report',
                     meta: { title: 'รายงานภาษีซื้อ' },
                     component: () => import('@/views/pages/PurchaseTaxReport.vue')
+                },
+                {
+                    path: '/tax-reports/sale-tax',
+                    name: 'sale-tax-report',
+                    meta: { title: 'รายงานภาษีขาย' },
+                    component: () => import('@/views/pages/SaleTaxReport.vue')
+                },
+                {
+                    path: '/tax-reports/withholding-tax-3',
+                    name: 'withholding-tax-pnd3-report',
+                    meta: { title: 'รายงานภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)' },
+                    component: () => import('@/views/pages/WithholdingTaxPnd3Report.vue')
+                },
+                {
+                    path: '/tax-reports/withholding-tax-53',
+                    name: 'withholding-tax-pnd53-report',
+                    meta: { title: 'รายงานภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)' },
+                    component: () => import('@/views/pages/WithholdingTaxPnd53Report.vue')
+                },
+                {
+                    path: '/tax-reports/withheld-tax',
+                    name: 'withheld-tax-report',
+                    meta: { title: 'รายงานภาษีถูกหัก ณ ที่จ่าย' },
+                    component: () => import('@/views/pages/WithheldTaxReport.vue')
+                },
+                {
+                    path: '/financial-reports/trial-balance',
+                    name: 'trial-balance-report',
+                    meta: { title: 'งบทดลอง' },
+                    component: () => import('@/views/pages/TrialBalanceReport.vue')
+                },
+                {
+                    path: '/financial-reports/income-statement',
+                    name: 'income-statement-report',
+                    meta: { title: 'งบกำไรขาดทุน' },
+                    component: () => import('@/views/pages/IncomeStatementReport.vue')
+                },
+                {
+                    path: '/financial-reports/income-statement-12-months',
+                    name: 'income-statement-12-months-report',
+                    meta: { title: 'งบกำไรขาดทุน 12 เดือน' },
+                    component: () => import('@/views/pages/IncomeStatement12MonthsReport.vue')
+                },
+                {
+                    path: '/financial-reports/balance-sheet',
+                    name: 'balance-sheet-report',
+                    meta: { title: 'งบแสดงฐานะการเงิน' },
+                    component: () => import('@/views/pages/BalanceSheetReport.vue')
+                },
+                {
+                    path: '/financial-reports/ledger-account',
+                    name: 'ledger-account-report',
+                    meta: { title: 'งบบัญชีแยกประเภท' },
+                    component: () => import('@/views/pages/LedgerAccountReport.vue')
+                },
+                {
+                    path: '/financial-reports/work-sheet',
+                    name: 'work-sheet-report',
+                    meta: { title: 'กระดาษทำการ' },
+                    component: () => import('@/views/pages/WorkSheetReport.vue')
+                },
+                {
+                    path: '/financial-reports/chart-of-accounts-report',
+                    name: 'chart-of-accounts-report',
+                    meta: { title: 'รายงานรหัสผังบัญชี' },
+                    component: () => import('@/views/pages/ChartOfAccountsReport.vue')
+                },
+                {
+                    path: '/financial-reports/journal-report',
+                    name: 'journal-report',
+                    meta: { title: 'รายงานข้อมูลรายวัน' },
+                    component: () => import('@/views/pages/JournalReport.vue')
+                },
+                {
+                    path: '/financial-reports/creditor-status-report',
+                    name: 'creditor-status-report',
+                    meta: { title: 'รายงานสถานะเจ้าหนี้' },
+                    component: () => import('@/views/pages/CreditorStatusReport.vue')
+                },
+                {
+                    path: '/financial-reports/debtor-status-report',
+                    name: 'debtor-status-report',
+                    meta: { title: 'รายงานสถานะลูกหนี้' },
+                    component: () => import('@/views/pages/DebtorStatusReport.vue')
+                },
+                {
+                    path: '/masterdata/document-formats',
+                    name: 'document-formats',
+                    meta: { title: 'กำหนดรูปแบบการบันทึกบัญชี' },
+                    component: () => import('@/views/pages/DocumentFormats.vue')
+                },
+                {
+                    path: '/masterdata/document-formats/create',
+                    name: 'document-format-create',
+                    meta: { title: 'เพิ่มรูปแบบการบันทึกบัญชี' },
+                    component: () => import('@/views/pages/DocumentFormatForm.vue')
+                },
+                {
+                    path: '/masterdata/document-formats/edit/:id',
+                    name: 'document-format-edit',
+                    meta: { title: 'แก้ไขรูปแบบการบันทึกบัญชี' },
+                    component: () => import('@/views/pages/DocumentFormatForm.vue')
+                },
+                {
+                    path: '/import-data/chart-of-accounts',
+                    name: 'import-chart-of-accounts',
+                    meta: { title: 'นำเข้าข้อมูลผังบัญชี' },
+                    component: () => import('@/views/pages/ImportChartOfAccounts.vue')
+                },
+                {
+                    path: '/import-data/debtors',
+                    name: 'import-debtors',
+                    meta: { title: 'นำเข้าข้อมูลลูกหนี้' },
+                    component: () => import('@/views/pages/ImportDebtors.vue')
+                },
+                {
+                    path: '/import-data/creditors',
+                    name: 'import-creditors',
+                    meta: { title: 'นำเข้าข้อมูลเจ้าหนี้' },
+                    component: () => import('@/views/pages/ImportCreditors.vue')
+                },
+                {
+                    path: '/import-data/accounting-entries',
+                    name: 'import-accounting-entries',
+                    meta: { title: 'นำเข้าข้อมูลการบันทึกบัญชี' },
+                    component: () => import('@/views/pages/ImportAccountingEntries.vue')
                 }
             ]
         },

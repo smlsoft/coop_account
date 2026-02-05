@@ -81,7 +81,7 @@ function load(index) {
                 <div class="font-semibold text-xl">Group</div>
                 <div class="flex flex-wrap gap-2">
                     <ButtonGroup>
-                        <Button label="Save" icon="pi pi-check" />
+                        <Button label="Save" icon="pi pi-save" />
                         <Button label="Delete" icon="pi pi-trash" />
                         <Button label="Cancel" icon="pi pi-times" />
                     </ButtonGroup>

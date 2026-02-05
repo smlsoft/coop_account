@@ -83,3 +83,18 @@ export const deleteDebtor = async (id) => {
         throw error;
     }
 };
+
+/**
+ * นำเข้าลูกหนี้แบบ bulk
+ * @param {array} data - รายการข้อมูลลูกหนี้
+ * @returns {Promise} ผลการนำเข้า
+ */
+export const importDebtors = async (data) => {
+    try {
+        const response = await apiClient.post('/debtaccount/debtor/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Error importing debtors:', error);
+        throw error;
+    }
+};

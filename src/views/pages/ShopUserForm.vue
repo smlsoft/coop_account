@@ -46,25 +46,22 @@ const fetchUserData = async () => {
         isLoading.value = true;
         showLoading('กำลังโหลดข้อมูล...');
 
-        // ดึงข้อมูลจาก API list แล้วหา user ที่ต้องการ
-        const response = await api.getShopUsers({ limit: 1000 });
+        // ดึงข้อมูลจาก API เฉพาะ username
+        const response = await api.getShopUserByUsername(route.params.username);
 
-        if (response.success) {
-            const user = response.data.find((u) => u.username === route.params.username);
-            if (user) {
-                formData.value = {
-                    username: user.username || '',
-                    role: user.role !== undefined ? user.role : 0
-                };
-            } else {
-                toast.add({
-                    severity: 'error',
-                    summary: 'เกิดข้อผิดพลาด',
-                    detail: 'ไม่พบข้อมูลผู้ใช้งาน',
-                    life: 3000
-                });
-                router.push({ name: 'shop-users' });
-            }
+        if (response.success && response.data) {
+            formData.value = {
+                username: response.data.username || '',
+                role: response.data.role !== undefined ? response.data.role : 0
+            };
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'เกิดข้อผิดพลาด',
+                detail: 'ไม่พบข้อมูลผู้ใช้งาน',
+                life: 3000
+            });
+            router.push({ name: 'shop-users' });
         }
     } catch (error) {
         console.error('Error fetching user data:', error);
@@ -120,7 +117,11 @@ const confirmSave = async () => {
         isSaving.value = true;
         showLoading(isEditMode.value ? 'กำลังบันทึกข้อมูล...' : 'กำลังเพิ่มผู้ใช้งาน...');
 
+        // ดึง shopid จาก localStorage
+        const shopId = localStorage.getItem('shopid') || '';
+
         const payload = {
+            shopid: shopId,
             username: formData.value.username.trim(),
             role: formData.value.role
         };

@@ -73,14 +73,14 @@ const handleLogout = () => {
 
             <div class="layout-topbar-menu hidden lg:block">
                 <div class="layout-topbar-menu-content">
-                    <button type="button" class="layout-topbar-action">
+                    <!-- <button type="button" class="layout-topbar-action">
                         <i class="pi pi-calendar"></i>
                         <span>Calendar</span>
                     </button>
                     <button type="button" class="layout-topbar-action">
                         <i class="pi pi-inbox"></i>
                         <span>Messages</span>
-                    </button>
+                    </button> -->
 
                     <!-- Welcome Message -->
                     <div v-if="getUserDisplayName()" class="flex items-center gap-2 px-4 text-sm border-l border-r border-surface-200 dark:border-surface-700">

@@ -175,7 +175,7 @@ onMounted(() => {
     <div>
         <Toolbar class="mb-6">
             <template #start>
-                <Button v-if="props.modeMenu === 1" label="สร้างงาน" icon="pi pi-plus" severity="secondary" @click="showDialogCreateJob" />
+                <Button v-if="props.modeMenu === 1" label="สร้างงาน" icon="pi pi-plus" @click="showDialogCreateJob" />
             </template>
 
             <template #end>

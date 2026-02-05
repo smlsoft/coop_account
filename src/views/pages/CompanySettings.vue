@@ -146,7 +146,7 @@ const confirmSave = async () => {
 
         // อัพเดต names
         const thNameIndex = payload.names?.findIndex((n) => n.code === 'th');
-        if (thNameIndex !== -1) {
+        if (thNameIndex !== undefined && thNameIndex !== -1) {
             payload.names[thNameIndex].name = formData.value.name;
         } else {
             if (!payload.names) payload.names = [];
@@ -160,7 +160,7 @@ const confirmSave = async () => {
 
         // อัพเดต address
         const thAddressIndex = payload.address?.findIndex((a) => a.code === 'th');
-        if (thAddressIndex !== -1) {
+        if (thAddressIndex !== undefined && thAddressIndex !== -1) {
             payload.address[thAddressIndex].name = formData.value.address;
         } else {
             if (!payload.address) payload.address = [];
@@ -195,43 +195,37 @@ const confirmSave = async () => {
 
             // ดึงข้อมูลใหม่หลังจากบันทึกสำเร็จ
             await fetchShopData();
+        } else if (response.success === false && response.message === 'permission denied') {
+            // แสดง toast permission denied
+            toast.add({
+                severity: 'warn',
+                summary: 'ไม่มีสิทธิ์',
+                detail: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลนี้',
+                life: 5000
+            });
         }
     } catch (error) {
         console.error('Error saving shop data:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'เกิดข้อผิดพลาด',
-            detail: error.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้',
-            life: 3000
-        });
+
+        // ตรวจสอบ response ว่าเป็น permission denied หรือไม่
+        if (error.response?.data?.message === 'permission denied') {
+            toast.add({
+                severity: 'warn',
+                summary: 'ไม่มีสิทธิ์',
+                detail: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลนี้',
+                life: 5000
+            });
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'เกิดข้อผิดพลาด',
+                detail: error.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้',
+                life: 3000
+            });
+        }
     } finally {
         isSaving.value = false;
         hideLoading();
-    }
-};
-
-/**
- * ยกเลิกการแก้ไข
- */
-const cancelEdit = () => {
-    if (originalData.value) {
-        const thName = originalData.value.names?.find((n) => n.code === 'th');
-        const thAddress = originalData.value.address?.find((a) => a.code === 'th');
-
-        formData.value = {
-            name: thName?.name || '',
-            taxId: originalData.value.settings?.taxid || '',
-            telephone: originalData.value.telephone || '',
-            address: thAddress?.name || '',
-            promptShopInfo: originalData.value.promptshopinfo || ''
-        };
-
-        toast.add({
-            severity: 'info',
-            summary: 'ยกเลิก',
-            detail: 'ยกเลิกการแก้ไขเรียบร้อยแล้ว',
-            life: 3000
-        });
     }
 };
 

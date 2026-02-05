@@ -151,3 +151,12 @@ export const selectDocref = (docref) => {
 export const deselectDocref = (docref) => {
     return apiClient.post('/gl/journal/docref/deselect', { docref });
 };
+
+/**
+ * Bulk import journal entries
+ * @param {Array} data - Array of journal entries
+ * @returns {Promise} Import result
+ */
+export const importJournals = (data) => {
+    return apiClient.post('/gl/journal/bulk', data);
+};

@@ -5,6 +5,7 @@ import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import PermissionDenied from './PermissionDenied.vue';
 
 const router = useRouter();
 const toast = useToast();
@@ -12,6 +13,9 @@ const { showLoading, hideLoading } = useLoading();
 
 // ข้อมูลผู้ใช้งาน
 const users = ref([]);
+
+// Permission check
+const hasPermission = ref(true);
 
 // Pagination
 const totalRecords = ref(0);
@@ -48,15 +52,25 @@ const fetchUsers = async (page = 1) => {
             users.value = response.data;
             totalRecords.value = response.pagination?.total || response.data.length;
             currentPage.value = response.pagination?.page || page;
+            hasPermission.value = true;
+        } else if (response.success === false && response.message === 'permission denied') {
+            // แสดงหน้า Permission Denied
+            hasPermission.value = false;
         }
     } catch (error) {
         console.error('Error fetching users:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'เกิดข้อผิดพลาด',
-            detail: 'ไม่สามารถโหลดข้อมูลได้',
-            life: 3000
-        });
+
+        // ตรวจสอบ response ว่าเป็น permission denied หรือไม่
+        if (error.response?.data?.message === 'permission denied') {
+            hasPermission.value = false;
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'เกิดข้อผิดพลาด',
+                detail: 'ไม่สามารถโหลดข้อมูลได้',
+                life: 3000
+            });
+        }
     } finally {
         isLoading.value = false;
         hideLoading();
@@ -99,7 +113,10 @@ const openCreateDialog = () => {
  * ไปหน้าแก้ไขผู้ใช้งาน
  */
 const navigateToEdit = (user) => {
-    router.push({ name: 'shop-user-edit', params: { username: user.username } });
+    router.push({
+        name: 'shop-user-edit',
+        params: { username: user.username }
+    });
 };
 
 /**
@@ -187,7 +204,11 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="card">
+    <!-- แสดงหน้า Permission Denied ถ้าไม่มีสิทธิ์ -->
+    <PermissionDenied v-if="!hasPermission" />
+
+    <!-- แสดงหน้าปกติถ้ามีสิทธิ์ -->
+    <div v-else class="card">
         <div class="flex flex-col gap-4">
             <!-- Header -->
             <div class="flex justify-between items-center pb-4 border-b border-surface">
@@ -248,12 +269,6 @@ onMounted(() => {
                 <Column field="username" header="ชื่อผู้ใช้" :sortable="false" style="min-width: 15rem">
                     <template #body="{ data }">
                         <span class="text-primary font-semibold">{{ data.username }}</span>
-                    </template>
-                </Column>
-
-                <Column field="userprofilename" header="ชื่อโปรไฟล์" :sortable="false" style="min-width: 15rem">
-                    <template #body="{ data }">
-                        <span class="text-surface-900 dark:text-surface-0">{{ data.userprofilename || '-' }}</span>
                     </template>
                 </Column>
 

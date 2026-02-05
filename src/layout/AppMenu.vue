@@ -37,17 +37,24 @@ const model = ref([
         items: [
             /// บันทึกรายการบัญชี
             {
-                label: 'บันทึกรายการบัญชี',
+                label: 'บันทึกบัญชี',
                 icon: 'pi pi-fw pi-book',
                 to: '/accounting/entry',
                 path: '/entry'
             },
             /// บันทึกรายการบัญชี จากรูปภาพเอกสาร
             {
-                label: 'บันทึกรายการบัญชี จากรูปภาพ',
+                label: 'บันทึกบัญชี จากรูปภาพ',
                 icon: 'pi pi-fw pi-image',
                 to: '/accounting/entry-from-image',
                 path: '/entry-from-image'
+            },
+            /// บันทึกรายการบัญชี จาก Statement ธนาคาร
+            {
+                label: 'บันทึกบัญชี Statement ธนาคาร',
+                icon: 'pi pi-fw pi-credit-card',
+                to: '/accounting/entry-from-bank-statement',
+                path: '/entry-from-bank-statement'
             }
         ]
     },
@@ -57,10 +64,115 @@ const model = ref([
         items: [
             {
                 /// รายงานภาษีซื้อ
-                label: 'รายงานภาษีซื้อ',
+                label: 'ภาษีซื้อ',
                 icon: 'pi pi-fw pi-file',
                 to: '/tax-reports/purchase-tax',
                 path: '/purchase-tax'
+            },
+            {
+                /// รายงานภาษีขาย
+                label: 'ภาษีขาย',
+                icon: 'pi pi-fw pi-file',
+                to: '/tax-reports/sale-tax',
+                path: '/sale-tax'
+            },
+            /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)
+            {
+                label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)',
+                icon: 'pi pi-fw pi-file',
+                to: '/tax-reports/withholding-tax-3',
+                path: '/withholding-tax-3'
+            },
+            /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)
+            {
+                label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)',
+                icon: 'pi pi-fw pi-file',
+                to: '/tax-reports/withholding-tax-53',
+                path: '/withholding-tax-53'
+            },
+            /// ภาษีถูกหัก ณ ที่จ่าย
+            {
+                label: 'ภาษีถูกหัก ณ ที่จ่าย',
+                icon: 'pi pi-fw pi-file',
+                to: '/tax-reports/withheld-tax',
+                path: '/withheld-tax'
+            }
+        ]
+    },
+    /// รายงานทางการเงิน
+    {
+        label: 'Financial Reports',
+        path: '/financial-reports',
+        items: [
+            /// งบทดลอง
+            {
+                label: 'งบทดลอง',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/trial-balance',
+                path: '/trial-balance'
+            },
+            /// งบกำไรขาดทุน
+            {
+                label: 'งบกำไรขาดทุน',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/income-statement',
+                path: '/income-statement'
+            },
+            /// งบกำไรขาดทุน 12 เดือน
+            {
+                label: 'งบกำไรขาดทุน 12 เดือน',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/income-statement-12-months',
+                path: '/income-statement-12-months'
+            },
+            /// งบแสดงฐานะการเงิน
+            {
+                label: 'งบแสดงฐานะการเงิน',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/balance-sheet',
+                path: '/balance-sheet'
+            },
+            /// งบบัญชีแยกประเภท
+            {
+                label: 'งบบัญชีแยกประเภท',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/ledger-account',
+                path: '/ledger-account'
+            },
+            /// งบกระดาษทำการ
+            {
+                label: 'งบกระดาษทำการ',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/work-sheet',
+                path: '/work-sheet'
+            },
+            /// รายงานรหัสผังบัญชี
+            {
+                label: 'รายงานรหัสผังบัญชี',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/chart-of-accounts-report',
+                path: '/chart-of-accounts-report'
+            },
+            /// รายงานข้อมูลรายวัน
+            {
+                label: 'รายงานข้อมูลรายวัน',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/journal-report',
+                path: '/journal-report'
+            },
+            /// รายงานสถานะเจ้าหนี้
+            {
+                label: 'รายงานสถานะเจ้าหนี้',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/creditor-status-report',
+                path: '/creditor-status-report'
+            },
+            /// รายงานสถานะลูกหนี้
+            {
+                label: 'รายงานสถานะลูกหนี้',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/debtor-status-report',
+                path: '/debtor-status-report'
             }
         ]
     },
@@ -124,6 +236,13 @@ const model = ref([
                 to: '/masterdata/other-expenses',
                 path: '/other-expenses'
             },
+            /// กำหนดรูปแบบการบันทึกบัญชี
+            {
+                label: 'กำหนดรูปแบบการบันทึกบัญชี',
+                icon: 'pi pi-fw pi-file-edit',
+                to: '/masterdata/document-formats',
+                path: '/document-formats'
+            },
             /// กำหนดผู้ใช้งานในระบบ
             {
                 label: 'กำหนดผู้ใช้งานในระบบ',
@@ -133,250 +252,285 @@ const model = ref([
             }
         ]
     },
-
+    /// import data
     {
-        label: 'UI Components',
-        path: '/uikit',
+        label: 'Import Data',
+        path: '/import-data',
         items: [
+            /// นำเข้าข้อมูลการบันทึกบัญชี
             {
-                label: 'Form Layout',
-                icon: 'pi pi-fw pi-id-card',
-                to: '/uikit/formlayout'
+                label: 'นำเข้าข้อมูลการบันทึกบัญชี',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/accounting-entries',
+                path: '/accounting-entries'
             },
+            /// นำเข้าข้อมูลผังบัญชี
             {
-                label: 'Input',
-                icon: 'pi pi-fw pi-check-square',
-                to: '/uikit/input'
+                label: 'นำเข้าข้อมูลผังบัญชี',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/chart-of-accounts',
+                path: '/chart-of-accounts'
             },
+            /// นำเข้าข้อมูลลูกหนี้
             {
-                label: 'Button',
-                icon: 'pi pi-fw pi-mobile',
-                to: '/uikit/button',
-                class: 'rotated-icon'
+                label: 'นำเข้าข้อมูลลูกหนี้',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/debtors',
+                path: '/debtors'
             },
+            /// นำเข้าข้อมูลเจ้าหนี้
             {
-                label: 'Table',
-                icon: 'pi pi-fw pi-table',
-                to: '/uikit/table'
-            },
-            {
-                label: 'List',
-                icon: 'pi pi-fw pi-list',
-                to: '/uikit/list'
-            },
-            {
-                label: 'Tree',
-                icon: 'pi pi-fw pi-share-alt',
-                to: '/uikit/tree'
-            },
-            {
-                label: 'Panel',
-                icon: 'pi pi-fw pi-tablet',
-                to: '/uikit/panel'
-            },
-            {
-                label: 'Overlay',
-                icon: 'pi pi-fw pi-clone',
-                to: '/uikit/overlay'
-            },
-            {
-                label: 'Media',
-                icon: 'pi pi-fw pi-image',
-                to: '/uikit/media'
-            },
-            {
-                label: 'Menu',
-                icon: 'pi pi-fw pi-bars',
-                to: '/uikit/menu'
-            },
-            {
-                label: 'Message',
-                icon: 'pi pi-fw pi-comment',
-                to: '/uikit/message'
-            },
-            {
-                label: 'File',
-                icon: 'pi pi-fw pi-file',
-                to: '/uikit/file'
-            },
-            {
-                label: 'Chart',
-                icon: 'pi pi-fw pi-chart-bar',
-                to: '/uikit/charts'
-            },
-            {
-                label: 'Timeline',
-                icon: 'pi pi-fw pi-calendar',
-                to: '/uikit/timeline'
-            },
-            {
-                label: 'Misc',
-                icon: 'pi pi-fw pi-circle',
-                to: '/uikit/misc'
-            }
-        ]
-    },
-    {
-        label: 'Prime Blocks',
-        icon: 'pi pi-fw pi-prime',
-        path: '/blocks',
-        items: [
-            {
-                label: 'Free Blocks',
-                icon: 'pi pi-fw pi-eye',
-                to: '/blocks/free'
-            },
-            {
-                label: 'All Blocks',
-                icon: 'pi pi-fw pi-globe',
-                url: 'https://blocks.primevue.org/',
-                target: '_blank'
-            }
-        ]
-    },
-    {
-        label: 'Pages',
-        icon: 'pi pi-fw pi-briefcase',
-        path: '/pages',
-        items: [
-            {
-                label: 'Landing',
-                icon: 'pi pi-fw pi-globe',
-                to: '/landing'
-            },
-            {
-                label: 'Auth',
-                icon: 'pi pi-fw pi-user',
-                path: '/auth',
-                items: [
-                    {
-                        label: 'Login',
-                        icon: 'pi pi-fw pi-sign-in',
-                        to: '/auth/login'
-                    },
-                    {
-                        label: 'Error',
-                        icon: 'pi pi-fw pi-times-circle',
-                        to: '/auth/error'
-                    },
-                    {
-                        label: 'Access Denied',
-                        icon: 'pi pi-fw pi-lock',
-                        to: '/auth/access'
-                    }
-                ]
-            },
-            {
-                label: 'Crud',
-                icon: 'pi pi-fw pi-pencil',
-                to: '/pages/crud'
-            },
-            {
-                label: 'Not Found',
-                icon: 'pi pi-fw pi-exclamation-circle',
-                to: '/pages/notfound'
-            },
-            {
-                label: 'Empty',
-                icon: 'pi pi-fw pi-circle-off',
-                to: '/pages/empty'
-            }
-        ]
-    },
-    {
-        label: 'Hierarchy',
-        icon: 'pi pi-fw pi-align-left',
-        path: '/hierarchy',
-        items: [
-            {
-                label: 'Submenu 1',
-                icon: 'pi pi-fw pi-align-left',
-                path: '/submenu_1',
-                items: [
-                    {
-                        label: 'Submenu 1.1',
-                        icon: 'pi pi-fw pi-align-left',
-                        path: '/submenu_1_1',
-                        items: [
-                            {
-                                label: 'Submenu 1.1.1',
-                                icon: 'pi pi-fw pi-align-left'
-                            },
-                            {
-                                label: 'Submenu 1.1.2',
-                                icon: 'pi pi-fw pi-align-left'
-                            },
-                            {
-                                label: 'Submenu 1.1.3',
-                                icon: 'pi pi-fw pi-align-left'
-                            }
-                        ]
-                    },
-                    {
-                        label: 'Submenu 1.2',
-                        icon: 'pi pi-fw pi-align-left',
-                        path: '/submenu_1_2',
-                        items: [
-                            {
-                                label: 'Submenu 1.2.1',
-                                icon: 'pi pi-fw pi-align-left'
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                label: 'Submenu 2',
-                icon: 'pi pi-fw pi-align-left',
-                path: '/submenu_2',
-                items: [
-                    {
-                        label: 'Submenu 2.1',
-                        icon: 'pi pi-fw pi-align-left',
-                        path: '/submenu_2_1',
-                        items: [
-                            {
-                                label: 'Submenu 2.1.1',
-                                icon: 'pi pi-fw pi-align-left'
-                            },
-                            {
-                                label: 'Submenu 2.1.2',
-                                icon: 'pi pi-fw pi-align-left'
-                            }
-                        ]
-                    },
-                    {
-                        label: 'Submenu 2.2',
-                        icon: 'pi pi-fw pi-align-left',
-                        path: '/submenu_2_2',
-                        items: [
-                            {
-                                label: 'Submenu 2.2.1',
-                                icon: 'pi pi-fw pi-align-left'
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    },
-    {
-        label: 'Get Started',
-        path: '/start',
-        items: [
-            {
-                label: 'Documentation',
-                icon: 'pi pi-fw pi-book',
-                to: '/start/documentation'
-            },
-            {
-                label: 'View Source',
-                icon: 'pi pi-fw pi-github',
-                url: 'https://github.com/primefaces/sakai-vue',
-                target: '_blank'
+                label: 'นำเข้าข้อมูลเจ้าหนี้',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/creditors',
+                path: '/creditors'
             }
         ]
     }
+
+    // {
+    //     label: 'UI Components',
+    //     path: '/uikit',
+    //     items: [
+    //         {
+    //             label: 'Form Layout',
+    //             icon: 'pi pi-fw pi-id-card',
+    //             to: '/uikit/formlayout'
+    //         },
+    //         {
+    //             label: 'Input',
+    //             icon: 'pi pi-fw pi-check-square',
+    //             to: '/uikit/input'
+    //         },
+    //         {
+    //             label: 'Button',
+    //             icon: 'pi pi-fw pi-mobile',
+    //             to: '/uikit/button',
+    //             class: 'rotated-icon'
+    //         },
+    //         {
+    //             label: 'Table',
+    //             icon: 'pi pi-fw pi-table',
+    //             to: '/uikit/table'
+    //         },
+    //         {
+    //             label: 'List',
+    //             icon: 'pi pi-fw pi-list',
+    //             to: '/uikit/list'
+    //         },
+    //         {
+    //             label: 'Tree',
+    //             icon: 'pi pi-fw pi-share-alt',
+    //             to: '/uikit/tree'
+    //         },
+    //         {
+    //             label: 'Panel',
+    //             icon: 'pi pi-fw pi-tablet',
+    //             to: '/uikit/panel'
+    //         },
+    //         {
+    //             label: 'Overlay',
+    //             icon: 'pi pi-fw pi-clone',
+    //             to: '/uikit/overlay'
+    //         },
+    //         {
+    //             label: 'Media',
+    //             icon: 'pi pi-fw pi-image',
+    //             to: '/uikit/media'
+    //         },
+    //         {
+    //             label: 'Menu',
+    //             icon: 'pi pi-fw pi-bars',
+    //             to: '/uikit/menu'
+    //         },
+    //         {
+    //             label: 'Message',
+    //             icon: 'pi pi-fw pi-comment',
+    //             to: '/uikit/message'
+    //         },
+    //         {
+    //             label: 'File',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/uikit/file'
+    //         },
+    //         {
+    //             label: 'Chart',
+    //             icon: 'pi pi-fw pi-chart-bar',
+    //             to: '/uikit/charts'
+    //         },
+    //         {
+    //             label: 'Timeline',
+    //             icon: 'pi pi-fw pi-calendar',
+    //             to: '/uikit/timeline'
+    //         },
+    //         {
+    //             label: 'Misc',
+    //             icon: 'pi pi-fw pi-circle',
+    //             to: '/uikit/misc'
+    //         }
+    //     ]
+    // },
+    // {
+    //     label: 'Prime Blocks',
+    //     icon: 'pi pi-fw pi-prime',
+    //     path: '/blocks',
+    //     items: [
+    //         {
+    //             label: 'Free Blocks',
+    //             icon: 'pi pi-fw pi-eye',
+    //             to: '/blocks/free'
+    //         },
+    //         {
+    //             label: 'All Blocks',
+    //             icon: 'pi pi-fw pi-globe',
+    //             url: 'https://blocks.primevue.org/',
+    //             target: '_blank'
+    //         }
+    //     ]
+    // },
+    // {
+    //     label: 'Pages',
+    //     icon: 'pi pi-fw pi-briefcase',
+    //     path: '/pages',
+    //     items: [
+    //         {
+    //             label: 'Landing',
+    //             icon: 'pi pi-fw pi-globe',
+    //             to: '/landing'
+    //         },
+    //         {
+    //             label: 'Auth',
+    //             icon: 'pi pi-fw pi-user',
+    //             path: '/auth',
+    //             items: [
+    //                 {
+    //                     label: 'Login',
+    //                     icon: 'pi pi-fw pi-sign-in',
+    //                     to: '/auth/login'
+    //                 },
+    //                 {
+    //                     label: 'Error',
+    //                     icon: 'pi pi-fw pi-times-circle',
+    //                     to: '/auth/error'
+    //                 },
+    //                 {
+    //                     label: 'Access Denied',
+    //                     icon: 'pi pi-fw pi-lock',
+    //                     to: '/auth/access'
+    //                 }
+    //             ]
+    //         },
+    //         {
+    //             label: 'Crud',
+    //             icon: 'pi pi-fw pi-pencil',
+    //             to: '/pages/crud'
+    //         },
+    //         {
+    //             label: 'Not Found',
+    //             icon: 'pi pi-fw pi-exclamation-circle',
+    //             to: '/pages/notfound'
+    //         },
+    //         {
+    //             label: 'Empty',
+    //             icon: 'pi pi-fw pi-circle-off',
+    //             to: '/pages/empty'
+    //         }
+    //     ]
+    // },
+    // {
+    //     label: 'Hierarchy',
+    //     icon: 'pi pi-fw pi-align-left',
+    //     path: '/hierarchy',
+    //     items: [
+    //         {
+    //             label: 'Submenu 1',
+    //             icon: 'pi pi-fw pi-align-left',
+    //             path: '/submenu_1',
+    //             items: [
+    //                 {
+    //                     label: 'Submenu 1.1',
+    //                     icon: 'pi pi-fw pi-align-left',
+    //                     path: '/submenu_1_1',
+    //                     items: [
+    //                         {
+    //                             label: 'Submenu 1.1.1',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         },
+    //                         {
+    //                             label: 'Submenu 1.1.2',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         },
+    //                         {
+    //                             label: 'Submenu 1.1.3',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         }
+    //                     ]
+    //                 },
+    //                 {
+    //                     label: 'Submenu 1.2',
+    //                     icon: 'pi pi-fw pi-align-left',
+    //                     path: '/submenu_1_2',
+    //                     items: [
+    //                         {
+    //                             label: 'Submenu 1.2.1',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         }
+    //                     ]
+    //                 }
+    //             ]
+    //         },
+    //         {
+    //             label: 'Submenu 2',
+    //             icon: 'pi pi-fw pi-align-left',
+    //             path: '/submenu_2',
+    //             items: [
+    //                 {
+    //                     label: 'Submenu 2.1',
+    //                     icon: 'pi pi-fw pi-align-left',
+    //                     path: '/submenu_2_1',
+    //                     items: [
+    //                         {
+    //                             label: 'Submenu 2.1.1',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         },
+    //                         {
+    //                             label: 'Submenu 2.1.2',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         }
+    //                     ]
+    //                 },
+    //                 {
+    //                     label: 'Submenu 2.2',
+    //                     icon: 'pi pi-fw pi-align-left',
+    //                     path: '/submenu_2_2',
+    //                     items: [
+    //                         {
+    //                             label: 'Submenu 2.2.1',
+    //                             icon: 'pi pi-fw pi-align-left'
+    //                         }
+    //                     ]
+    //                 }
+    //             ]
+    //         }
+    //     ]
+    // },
+    // {
+    //     label: 'Get Started',
+    //     path: '/start',
+    //     items: [
+    //         {
+    //             label: 'Documentation',
+    //             icon: 'pi pi-fw pi-book',
+    //             to: '/start/documentation'
+    //         },
+    //         {
+    //             label: 'View Source',
+    //             icon: 'pi pi-fw pi-github',
+    //             url: 'https://github.com/primefaces/sakai-vue',
+    //             target: '_blank'
+    //         }
+    //     ]
+    // }
 ]);
 </script>
 

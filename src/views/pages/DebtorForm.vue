@@ -6,9 +6,10 @@ import InputText from 'primevue/inputtext';
 import SelectButton from 'primevue/selectbutton';
 import Textarea from 'primevue/textarea';
 import { computed, onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
+const router = useRouter();
 
 // ใช้ composable สำหรับ Debtor
 const { config, personalTypeOptions, customerTypeOptions, fetchAccountById, createAccount, updateAccount } = useDebtAccount('debtor');
@@ -196,10 +197,11 @@ const handleSave = async () => {
 };
 
 /**
- * ยกเลิกการบันทึก
+ * ยกเลิกและกลับไปหน้าก่อนหน้า
  */
 const handleCancel = () => {
     showConfirmDialog.value = false;
+    router.push(config.route);
 };
 
 // โหลดข้อมูลเมื่อเป็น edit mode

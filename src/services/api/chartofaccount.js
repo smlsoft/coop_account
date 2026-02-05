@@ -83,3 +83,18 @@ export const deleteChartOfAccount = async (id) => {
         throw error;
     }
 };
+
+/**
+ * นำเข้าผังบัญชีแบบ bulk
+ * @param {Array} data - รายการผังบัญชีที่ต้องการนำเข้า
+ * @returns {Promise} ผลการนำเข้า
+ */
+export const importChartOfAccounts = async (data) => {
+    try {
+        const response = await apiClient.post('/gl/chartofaccount/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Error importing chart of accounts:', error);
+        throw error;
+    }
+};

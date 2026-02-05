@@ -1,6 +1,7 @@
 <script setup>
 import AlertDialog from '@/components/AlertDialog.vue';
 import DialogApprove from '@/components/DialogApprove.vue';
+import DialogForm from '@/components/DialogForm.vue';
 import JournalDailyInfoTab from '@/components/accounting/JournalDailyInfoTab.vue';
 import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
 import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
@@ -32,7 +33,7 @@ const isBalanceInvalid = ref(false);
 
 // Confirm dialog state
 const showConfirmDialog = ref(false);
-const confirmMessage = ref('');
+const isSaving = ref(false); // ป้องกันการ save ซ้ำ
 
 // Cancel image confirm dialog
 const showCancelImageDialog = ref(false);
@@ -72,6 +73,27 @@ const uploadingImage = ref(false);
 const getCurrentUserEmail = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     return user.email || 'unknown@user.com';
+};
+
+// แปลงวันที่เป็น ISO string โดยใช้ local timezone (ไม่ใช่ UTC)
+// เพื่อป้องกันปัญหาวันที่เลื่อนไป 1 วัน เมื่อแปลงจาก local time เป็น UTC
+const toLocalISOString = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+
+    // คำนวณ timezone offset (เช่น +07:00 สำหรับประเทศไทย)
+    const timezoneOffset = -d.getTimezoneOffset();
+    const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
+    const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
+    const offsetSign = timezoneOffset >= 0 ? '+' : '-';
+
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
 };
 
 // Trigger file input
@@ -498,6 +520,12 @@ const loadDocumentImages = async (documentRef) => {
 };
 
 const handleSave = () => {
+    // ป้องกันการกด save ซ้ำ
+    if (isSaving.value || showConfirmDialog.value) {
+        console.log('⚠️ Save already in progress, ignoring...');
+        return;
+    }
+
     // ตรวจสอบข้อมูลก่อนบันทึก
     const validationErrors = validateForm();
 
@@ -522,11 +550,20 @@ const handleSave = () => {
     }
 
     // แสดง dialog ยืนยันการบันทึก
-    confirmMessage.value = 'คุณต้องการบันทึกเอกสารรายวัน ใช่หรือไม่ ?';
     showConfirmDialog.value = true;
 };
 
 const submitForm = async () => {
+    // ป้องกันการ save ซ้ำ
+    if (isSaving.value) {
+        console.log('⚠️ Submit already in progress, ignoring...');
+        return;
+    }
+
+    // ปิด dialog ก่อน
+    showConfirmDialog.value = false;
+    isSaving.value = true;
+
     loading.value = true;
     try {
         // คำนวณ amount จาก journaldetail
@@ -546,7 +583,7 @@ const submitForm = async () => {
             documentref: formData.value.documentref || '',
             amount: amount,
             batchId: '',
-            docdate: formData.value.docdate ? new Date(formData.value.docdate).toISOString() : new Date().toISOString(),
+            docdate: formData.value.docdate ? toLocalISOString(formData.value.docdate) : toLocalISOString(new Date()),
             docno: formData.value.docno,
             bookcode: formData.value.bookcode?.code || '',
             appname: '',
@@ -562,7 +599,7 @@ const submitForm = async () => {
             parid: '0000000',
             vats: (formData.value.vats || []).map((vat) => ({
                 vatdocno: vat.vatdocno || '',
-                vatdate: vat.vatdate ? new Date(vat.vatdate).toISOString() : new Date().toISOString(),
+                vatdate: vat.vatdate ? toLocalISOString(vat.vatdate) : toLocalISOString(new Date()),
                 vattype: vat.vattype || 0,
                 vatmode: vat.vatmode || 0,
                 vatperiod: vat.vatperiod || new Date().getMonth() + 1,
@@ -583,7 +620,7 @@ const submitForm = async () => {
             taxes: (formData.value.taxes || []).map((tax) => ({
                 taxtype: tax.taxtype || 0,
                 custtype: tax.custtype || 0,
-                taxdate: tax.taxdate ? new Date(tax.taxdate).toISOString() : new Date().toISOString(),
+                taxdate: tax.taxdate ? toLocalISOString(tax.taxdate) : toLocalISOString(new Date()),
                 taxdocno: tax.taxdocno || '',
                 custname: tax.custname || '',
                 custtaxid: tax.custtaxid || '',
@@ -595,7 +632,7 @@ const submitForm = async () => {
                     taxamount: parseFloat(detail.taxamount) || 0
                 }))
             })),
-            exdocrefdate: formData.value.exdocrefdate ? new Date(formData.value.exdocrefdate).toISOString() : null,
+            exdocrefdate: formData.value.exdocrefdate ? toLocalISOString(formData.value.exdocrefdate) : null,
             exdocrefno: formData.value.exdocrefno || ''
         };
 
@@ -637,6 +674,7 @@ const submitForm = async () => {
         });
     } finally {
         loading.value = false;
+        isSaving.value = false;
     }
 };
 
@@ -779,16 +817,7 @@ onUnmounted(() => {
         <AlertDialog v-model:visible="showValidationAlert" header="ข้อมูลไม่ครบถ้วน" :message="validationMessage" severity="warning" icon="pi-exclamation-triangle" />
 
         <!-- Confirm Dialog -->
-        <Dialog v-model:visible="showConfirmDialog" :style="{ width: '450px' }" header="ยืนยันการบันทึก" :modal="true">
-            <div class="flex items-start gap-3">
-                <i class="pi pi-question-circle text-4xl text-primary-500"></i>
-                <p class="text-lg">{{ confirmMessage }}</p>
-            </div>
-            <template #footer>
-                <Button label="ยกเลิก" icon="pi pi-times" class="p-button-text" @click="showConfirmDialog = false" :disabled="loading" />
-                <Button label="ยืนยัน" icon="pi pi-check" @click="submitForm" :loading="loading" autofocus />
-            </template>
-        </Dialog>
+        <DialogForm :confirmDialog="showConfirmDialog" textContent="คุณต้องการบันทึกเอกสารรายวัน ใช่หรือไม่ ?" @close="showConfirmDialog = false" @confirm="submitForm" />
 
         <!-- Cancel Image Confirm Dialog -->
         <DialogApprove

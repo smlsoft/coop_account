@@ -1,6 +1,7 @@
 <script setup>
 import DialogApprove from '@/components/DialogApprove.vue';
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
+import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { deleteJournalEntry, getJournalEntries } from '@/services/api/journal';
 import { FilterMatchMode } from '@primevue/core/api';
 import { useToast } from 'primevue/usetoast';
@@ -38,6 +39,7 @@ const filters = ref({
     docno: { value: null, matchMode: FilterMatchMode.CONTAINS },
     docdate: { value: null, matchMode: FilterMatchMode.DATE_IS },
     accountperiod: { value: null, matchMode: FilterMatchMode.EQUALS },
+    contactname: { value: null, matchMode: FilterMatchMode.CONTAINS },
     amount: { value: null, matchMode: FilterMatchMode.EQUALS },
     accountdescription: { value: null, matchMode: FilterMatchMode.CONTAINS },
     createdby: { value: null, matchMode: FilterMatchMode.CONTAINS }
@@ -55,11 +57,12 @@ const availableColumns = [
     { field: 'docno', header: 'เลขที่เอกสาร', visible: true },
     { field: 'docdate', header: 'วันที่เอกสาร', visible: true },
     { field: 'accountperiod', header: 'งวด/ปี', visible: true },
+    { field: 'contactname', header: 'ชื่อ', visible: true },
     { field: 'amount', header: 'จำนวนเงิน', visible: true },
     { field: 'accountdescription', header: 'คำอธิบาย', visible: true },
     { field: 'createdby', header: 'สร้างโดย', visible: true }
 ];
-const selectedColumns = ref([...availableColumns]);
+const selectedColumns = ref(availableColumns.filter((col) => col.field !== 'accountperiod'));
 const isColumnVisible = (field) => selectedColumns.value.some((col) => col.field === field);
 
 // Watch filters with debounce
@@ -95,8 +98,13 @@ const fetchJournals = async () => {
         // Add active filters (exclude global)
         Object.entries(filters.value).forEach(([key, filter]) => {
             if (key !== 'global' && filter.value !== null && filter.value !== '') {
+                // Special handling for contactname - send to both creditorname and debtorname
+                if (key === 'contactname') {
+                    params.creditorname = filter.value;
+                    params.debtorname = filter.value;
+                }
                 // Format date to yyyy-MM-dd
-                if (filter.value instanceof Date) {
+                else if (filter.value instanceof Date) {
                     const year = filter.value.getFullYear();
                     const month = String(filter.value.getMonth() + 1).padStart(2, '0');
                     const day = String(filter.value.getDate()).padStart(2, '0');
@@ -259,6 +267,26 @@ const getTotalCredit = (journal) => {
     return journal.journaldetail?.reduce((sum, item) => sum + (item.creditamount || 0), 0) || 0;
 };
 
+// เพิ่มฟังก์ชันสำหรับดึงชื่อลูกหนี้/เจ้าหนี้
+const getContactName = (data) => {
+    if (data.debtaccounttype === 0) {
+        // ลูกหนี้
+        if (data.debtor && data.debtor.names && data.debtor.names.length > 0) {
+            const thaiName = data.debtor.names.find((n) => n.code === 'th');
+            return thaiName ? thaiName.name : '-';
+        }
+        return '-';
+    } else if (data.debtaccounttype === 1) {
+        // เจ้าหนี้
+        if (data.creditor && data.creditor.names && data.creditor.names.length > 0) {
+            const thaiName = data.creditor.names.find((n) => n.code === 'th');
+            return thaiName ? thaiName.name : '-';
+        }
+        return '-';
+    }
+    return '-';
+};
+
 const hasActiveFilter = computed(() => {
     return Object.values(filters.value).some((f) => f.value !== null && f.value !== '');
 });
@@ -419,8 +447,18 @@ onMounted(async () => {
                 <!-- Expander Column -->
                 <Column expander style="width: 50px" />
 
+                <!-- Document Date -->
+                <Column v-if="isColumnVisible('docdate')" field="docdate" header="วันที่" sortable dataType="date" style="width: 120px" :showFilterMatchModes="false">
+                    <template #body="{ data }">
+                        {{ formatDate(data.docdate) }}
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <ThaiDatePicker v-model="filterModel.value" dateFormat="dd/mm/yy" placeholder="เลือกวันที่" />
+                    </template>
+                </Column>
+
                 <!-- Document Number -->
-                <Column v-if="isColumnVisible('docno')" field="docno" header="เลขที่เอกสาร" sortable style="width: 160px">
+                <Column v-if="isColumnVisible('docno')" field="docno" header="เลขที่เอกสาร" sortable style="width: 150px" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <div class="font-semibold text-primary-600 dark:text-primary-400">{{ data.docno }}</div>
                     </template>
@@ -429,18 +467,8 @@ onMounted(async () => {
                     </template>
                 </Column>
 
-                <!-- Document Date -->
-                <Column v-if="isColumnVisible('docdate')" field="docdate" header="วันที่" sortable dataType="date" style="width: 110px">
-                    <template #body="{ data }">
-                        {{ formatDate(data.docdate) }}
-                    </template>
-                    <template #filter="{ filterModel }">
-                        <DatePicker v-model="filterModel.value" dateFormat="yy-mm-dd" placeholder="เลือกวันที่" />
-                    </template>
-                </Column>
-
                 <!-- Account Period -->
-                <Column v-if="isColumnVisible('accountperiod')" field="accountperiod" header="งวด/ปี" sortable style="width: 90px">
+                <Column v-if="isColumnVisible('accountperiod')" field="accountperiod" header="งวด/ปี" sortable style="width: 100px" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <Tag :value="`${data.accountperiod}/${data.accountyear}`" severity="secondary" />
                     </template>
@@ -449,8 +477,20 @@ onMounted(async () => {
                     </template>
                 </Column>
 
+                <!-- Contact Name (ชื่อลูกหนี้/เจ้าหนี้) -->
+                <Column v-if="isColumnVisible('contactname')" field="contactname" header="ชื่อ" style="width: 180px" :showFilterMatchModes="false">
+                    <template #body="{ data }">
+                        <div v-tooltip.top="getContactName(data)" class="truncate">
+                            {{ getContactName(data) }}
+                        </div>
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <InputText v-model="filterModel.value" type="text" placeholder="ค้นหาชื่อ..." />
+                    </template>
+                </Column>
+
                 <!-- Amount -->
-                <Column v-if="isColumnVisible('amount')" field="amount" header="จำนวนเงิน" sortable dataType="numeric" style="width: 120px">
+                <Column v-if="isColumnVisible('amount')" field="amount" header="จำนวนเงิน" sortable dataType="numeric" style="width: 130px" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <div class="text-right font-semibold text-green-600 dark:text-green-400">
                             {{ formatCurrency(data.amount) }}
@@ -462,7 +502,7 @@ onMounted(async () => {
                 </Column>
 
                 <!-- Description -->
-                <Column v-if="isColumnVisible('accountdescription')" field="accountdescription" header="คำอธิบาย" style="min-width: 100px; max-width: 200px; width: 150px">
+                <Column v-if="isColumnVisible('accountdescription')" field="accountdescription" header="คำอธิบาย" style="width: 200px" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <div v-tooltip.top="data.accountdescription" class="truncate">
                             {{ data.accountdescription || '-' }}
@@ -474,7 +514,7 @@ onMounted(async () => {
                 </Column>
 
                 <!-- Created By -->
-                <Column v-if="isColumnVisible('createdby')" field="createdby" header="ผู้สร้าง" sortable style="width: 150px">
+                <Column v-if="isColumnVisible('createdby')" field="createdby" header="ผู้สร้าง" sortable style="width: 150px" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <div class="text-sm">
                             <div class="text-surface-900 dark:text-surface-0 truncate">{{ data.createdby }}</div>
@@ -487,7 +527,7 @@ onMounted(async () => {
                 </Column>
 
                 <!-- Actions Column -->
-                <Column header="จัดการ" style="width: 120px" frozen alignFrozen="right">
+                <Column header="จัดการ" style="width: 130px" frozen alignFrozen="right">
                     <template #body="{ data }">
                         <div class="flex gap-1 justify-end">
                             <Button icon="pi pi-eye" severity="info" text rounded @click="viewDetail(data)" v-tooltip.top="'ดูรายละเอียด'" />

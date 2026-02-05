@@ -1,5 +1,6 @@
 <script setup>
 import { computed, watch } from 'vue';
+import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 
 const props = defineProps({
     modelValue: {
@@ -228,7 +229,7 @@ watch(
                             <!-- วันที่หัก ณ ที่จ่าย -->
                             <div class="flex flex-col gap-2">
                                 <label class="font-medium text-sm">วันที่หัก ณ ที่จ่าย</label>
-                                <DatePicker v-model="tax.taxdate" dateFormat="dd/mm/yy" showIcon fluid />
+                                <ThaiDatePicker v-model="tax.taxdate" dateFormat="dd/mm/yy" showIcon fluid />
                             </div>
 
                             <!-- เลขที่เอกสาร -->

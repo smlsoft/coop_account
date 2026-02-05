@@ -504,7 +504,7 @@ const handleCreateShop = async () => {
             <template #footer>
                 <div class="flex justify-end gap-2">
                     <Button label="ยกเลิก" severity="secondary" outlined @click="closeCreateDialog" :disabled="isCreatingShop" />
-                    <Button label="สร้าง" icon="pi pi-check" @click="handleCreateShop" :loading="isCreatingShop" :disabled="!newShopForm.name.trim()" />
+                    <Button label="สร้าง" icon="pi pi-save" @click="handleCreateShop" :loading="isCreatingShop" :disabled="!newShopForm.name.trim()" />
                 </div>
             </template>
         </Dialog>

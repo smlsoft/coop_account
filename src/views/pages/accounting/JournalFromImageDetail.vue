@@ -790,7 +790,7 @@ const handleViewJournalDetail = async (reference) => {
                 <template #end>
                     <!-- Sort Mode Actions -->
                     <template v-if="sortMode">
-                        <Button label="บันทึกการเรียง" icon="pi pi-check" class="mr-2" @click="saveSortOrder" :loading="savingOrder" />
+                        <Button label="บันทึกการเรียง" icon="pi pi-save" class="mr-2" @click="saveSortOrder" :loading="savingOrder" />
                         <Button label="ยกเลิก" icon="pi pi-times" @click="cancelSortMode" outlined />
                     </template>
                     <!-- Normal Mode Actions -->

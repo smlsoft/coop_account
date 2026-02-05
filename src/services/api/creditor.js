@@ -83,3 +83,18 @@ export const deleteCreditor = async (id) => {
         throw error;
     }
 };
+
+/**
+ * นำเข้าเจ้าหนี้แบบ bulk
+ * @param {array} data - รายการข้อมูลเจ้าหนี้
+ * @returns {Promise} ผลการนำเข้า
+ */
+export const importCreditors = async (data) => {
+    try {
+        const response = await apiClient.post('/debtaccount/creditor/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Error importing creditors:', error);
+        throw error;
+    }
+};

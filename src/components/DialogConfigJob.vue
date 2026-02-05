@@ -150,7 +150,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex gap-2">
                     <Button label="ปิด" severity="secondary" text @click="handleClose" />
-                    <Button label="บันทึก (Enter)" icon="pi pi-check" @click="handleSave" :loading="loading" />
+                    <Button label="บันทึก (Enter)" icon="pi pi-save" @click="handleSave" :loading="loading" />
                 </div>
             </div>
         </template>

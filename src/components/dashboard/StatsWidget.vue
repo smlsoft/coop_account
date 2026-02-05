@@ -1,4 +1,5 @@
 <script setup>
+import DuplicateDocnoDialog from '@/components/dashboard/DuplicateDocnoDialog.vue';
 import api from '@/services/api';
 import { onMounted, ref } from 'vue';
 
@@ -9,6 +10,8 @@ const stats = ref({
     documentImages: 0,
     duplicateDocs: 0
 });
+const duplicateDocnos = ref([]);
+const duplicateDialogVisible = ref(false);
 
 const fetchStats = async () => {
     loading.value = true;
@@ -20,17 +23,30 @@ const fetchStats = async () => {
             api.getDuplicateDocNos()
         ]);
 
+        // Store duplicate docnos data
+        duplicateDocnos.value = duplicateDocsRes.data.data || [];
+
         stats.value = {
             chartOfAccount: chartOfAccountRes.data.pagination?.total || 0,
             journals: journalsRes.data.pagination?.total || 0,
             documentImages: documentImagesRes.data.pagination?.total || 0,
-            duplicateDocs: duplicateDocsRes.data.data?.length || 0
+            duplicateDocs: duplicateDocnos.value.length
         };
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);
     } finally {
         loading.value = false;
     }
+};
+
+const openDuplicateDialog = () => {
+    if (stats.value.duplicateDocs > 0) {
+        duplicateDialogVisible.value = true;
+    }
+};
+
+const handleRefresh = () => {
+    fetchStats();
 };
 
 onMounted(() => {
@@ -142,9 +158,27 @@ onMounted(() => {
                         <i class="pi text-xl!" :class="stats.duplicateDocs > 0 ? 'pi-exclamation-triangle text-red-500' : 'pi-check-circle text-green-500'"></i>
                     </div>
                 </div>
-                <span v-if="stats.duplicateDocs > 0" class="text-red-500 font-medium">ต้องตรวจสอบ</span>
-                <span v-else class="text-green-500 font-medium">ไม่มีเอกสารซ้ำ</span>
+                <div class="flex justify-between items-center">
+                    <span v-if="stats.duplicateDocs > 0" class="text-red-500 font-medium">ต้องตรวจสอบ</span>
+                    <span v-else class="text-green-500 font-medium">ไม่มีเอกสารซ้ำ</span>
+                    <Button
+                        v-if="stats.duplicateDocs > 0"
+                        label="ดูรายละเอียด"
+                        icon="pi pi-eye"
+                        severity="danger"
+                        text
+                        size="small"
+                        @click="openDuplicateDialog"
+                    />
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Duplicate Docno Dialog -->
+    <DuplicateDocnoDialog
+        v-model:visible="duplicateDialogVisible"
+        :duplicateDocnos="duplicateDocnos"
+        @refresh="handleRefresh"
+    />
 </template>

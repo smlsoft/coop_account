@@ -160,18 +160,18 @@ const getJournalTypeName = (journaltype) => {
     return '-';
 };
 
-// VAT type: 0=ภาษีซื้อ, 1=ภาษีขาย
+// VAT type: 0=ปกติ, 1=ขอคืนไม่ได้, 2=ไม่ถึงกำหนดชำระ
 const getVatTypeName = (vattype) => {
-    if (vattype === 0) return 'ภาษีซื้อ';
-    if (vattype === 1) return 'ภาษีขาย';
+    if (vattype === 0) return 'ปกติ';
+    if (vattype === 1) return 'ขอคืนไม่ได้';
+    if (vattype === 2) return 'ไม่ถึงกำหนดชำระ';
     return '-';
 };
 
-// VAT mode: 0=ปกติ, 1=ขอคืนไม่ได้, 2=ไม่ถึงกำหนดชำระ
+// VAT mode: 0=ภาษีซื้อ, 1=ภาษีขาย
 const getVatModeName = (vatmode) => {
-    if (vatmode === 0) return 'ปกติ';
-    if (vatmode === 1) return 'ขอคืนไม่ได้';
-    if (vatmode === 2) return 'ไม่ถึงกำหนดชำระ';
+    if (vatmode === 0) return 'ภาษีซื้อ';
+    if (vatmode === 1) return 'ภาษีขาย';
     return '-';
 };
 
@@ -278,8 +278,8 @@ const isPDF = (uri) => {
 
         <!-- Content -->
         <div v-else-if="journal" class="panel-container flex gap-4">
-            <!-- Left Panel: Document Image -->
-            <div class="w-2/5 flex flex-col bg-surface-50 dark:bg-surface-900 rounded-lg overflow-hidden">
+            <!-- Left Panel: Document Image (แสดงเฉพาะเมื่อกำลังโหลดหรือมีรูป) -->
+            <div v-if="loadingImages || documentImages.length > 0" class="w-2/5 flex flex-col bg-surface-50 dark:bg-surface-900 rounded-lg overflow-hidden">
                 <div class="flex-1 p-3 flex flex-col">
                     <div v-if="loadingImages" class="flex items-center justify-center flex-1">
                         <ProgressSpinner style="width: 40px; height: 40px" />
@@ -297,22 +297,18 @@ const isPDF = (uri) => {
                             </template>
                         </div>
                     </div>
-
-                    <div v-else class="flex flex-col items-center justify-center flex-1 text-surface-400">
-                        <i class="pi pi-image text-5xl mb-3"></i>
-                        <span>ไม่พบรูปภาพเอกสาร</span>
-                    </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Details -->
-            <div class="w-3/5 flex flex-col overflow-hidden">
+            <!-- Right Panel: Details (ขยายเต็มความกว้างเมื่อไม่มีรูป) -->
+            <div :class="[loadingImages || documentImages.length > 0 ? 'w-3/5' : 'w-full px-6', 'flex flex-col overflow-hidden']">
                 <!-- Summary Cards -->
                 <div class="mb-3">
                     <div class="grid grid-cols-4 gap-2">
-                        <div class="bg-gradient-to-br from-primary-500 to-primary-600 text-white p-3 rounded-lg">
-                            <div class="text-xs opacity-80">ยอดรวม</div>
-                            <div class="text-lg font-bold">{{ formatCurrency(journal.amount) }}</div>
+                        <div class="bg-primary-50 dark:bg-primary-900/30 p-4 rounded-xl border border-primary-200 dark:border-primary-700">
+                            <div class="text-sm text-primary-600 dark:text-primary-400">ยอดรวม</div>
+                            <div class="text-2xl font-bold text-primary-700 dark:text-primary-300">{{ formatCurrency(journal.amount) }}</div>
+                            <div class="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1">{{ journal.docformat || '-' }}</div>
                         </div>
 
                         <div class="bg-surface-100 dark:bg-surface-700 p-3 rounded-lg">
@@ -368,22 +364,22 @@ const isPDF = (uri) => {
                                     <div class="grid grid-cols-12 gap-3">
                                         <!-- Row 1 -->
                                         <div class="col-span-4">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">วันที่เอกสาร</label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-sm font-semibold">
+                                            <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">วันที่เอกสาร</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm font-semibold">
                                                 {{ formatDate(journal.docdate) }}
                                             </div>
                                         </div>
 
                                         <div class="col-span-4">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-sm font-bold text-primary-600 dark:text-primary-400">
+                                            <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm font-bold text-primary-600 dark:text-primary-400">
                                                 {{ journal.docno }}
                                             </div>
                                         </div>
 
                                         <div class="col-span-4">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-sm">
+                                            <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm">
                                                 <span class="font-mono text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
                                                 <span class="text-surface-400 mx-1">~</span>
                                                 <span>{{ getBookName(journal.bookcode) }}</span>
@@ -392,17 +388,17 @@ const isPDF = (uri) => {
 
                                         <!-- Row 2 -->
                                         <div class="col-span-4">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">ประเภท</label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded">
+                                            <label class="block font-medium mb-2 text-sm text-surface-600 dark:text-surface-400">ประเภท</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded">
                                                 <Tag :value="journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้'" :severity="journal.debtaccounttype === 1 ? 'warn' : 'info'" />
                                             </div>
                                         </div>
 
                                         <div class="col-span-8">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">
+                                            <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">
                                                 {{ journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้' }}
                                             </label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-sm">
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm">
                                                 <template v-if="hasCreditor || hasDebtor">
                                                     <span class="font-mono text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
                                                     <span class="text-surface-400 mx-1">~</span>
@@ -414,17 +410,17 @@ const isPDF = (uri) => {
 
                                         <!-- Row 3 -->
                                         <div class="col-span-12">
-                                            <label class="block text-xs font-medium mb-1 text-surface-600 dark:text-surface-400">คำอธิบาย</label>
-                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-sm min-h-[40px]">
+                                            <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">คำอธิบาย</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm min-h-[50px]">
                                                 {{ journal.accountdescription || '-' }}
                                             </div>
                                         </div>
 
                                         <!-- Row 4: รายละเอียดบัญชี -->
                                         <div class="col-span-12 mt-2">
-                                            <label class="block text-sm font-medium mb-2 text-surface-900 dark:text-surface-0">รายละเอียดบัญชี</label>
+                                            <label class="block text-base font-medium mb-2 text-surface-900 dark:text-surface-0">รายละเอียดบัญชี</label>
 
-                                            <DataTable :value="journal.journaldetail" size="small" showGridlines class="text-xs">
+                                            <DataTable :value="journal.journaldetail" showGridlines class="text-sm">
                                                 <Column header="#" style="width: 40px" bodyStyle="text-align: center">
                                                     <template #body="{ index }">
                                                         {{ index + 1 }}

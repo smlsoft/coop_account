@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { getAccountPeriodByDate, getChartOfAccounts, getCreditors, getDebtors, getDocumentFormats, getJournalBooks } from '@/services/api/journal';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -63,12 +64,17 @@ const journalTypes = ref([
     { label: 'ปิดบัญชี', value: 1 }
 ]);
 
-// Generate document number
+// Generate document number - ใช้วันที่จาก docdate และปี พ.ศ.
 const generateDocNo = () => {
+    // ใช้วันที่จาก docdate ถ้ามี ไม่งั้นใช้วันที่ปัจจุบัน
+    const docDate = props.modelValue.docdate ? new Date(props.modelValue.docdate) : new Date();
     const now = new Date();
-    const yy = String(now.getFullYear()).slice(-2);
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
+
+    // แปลงปี ค.ศ. เป็น พ.ศ. และใช้ 2 หลักสุดท้าย
+    const buddhistYear = docDate.getFullYear() + 543;
+    const yy = String(buddhistYear).slice(-2);
+    const mm = String(docDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(docDate.getDate()).padStart(2, '0');
     const hh = String(now.getHours()).padStart(2, '0');
     const min = String(now.getMinutes()).padStart(2, '0');
     const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
@@ -343,10 +349,13 @@ const loadAllChartOfAccounts = async () => {
 
             // Debug: ดูข้อมูลที่ได้จาก API
             console.log('📊 Total accounts from API:', accounts.length);
-            console.log('📊 Account levels distribution:', accounts.reduce((acc, item) => {
-                acc[item.accountlevel] = (acc[item.accountlevel] || 0) + 1;
-                return acc;
-            }, {}));
+            console.log(
+                '📊 Account levels distribution:',
+                accounts.reduce((acc, item) => {
+                    acc[item.accountlevel] = (acc[item.accountlevel] || 0) + 1;
+                    return acc;
+                }, {})
+            );
 
             // แปลงเป็น flat list โดย Level 1, 2 เป็น disabled items (headers)
             const flatList = accounts.map((item) => {
@@ -430,6 +439,38 @@ const updateRow = (index, field, value) => {
     updateField('journaldetail', newDetails);
 };
 
+// Format number for display (with commas and 2 decimals)
+const formatAmountDisplay = (value) => {
+    const num = parseFloat(value) || 0;
+    if (num === 0) return '';
+    return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Parse formatted string back to number
+const parseAmountInput = (value) => {
+    if (!value || value === '') return 0;
+    // Remove commas and parse
+    const cleaned = String(value).replace(/,/g, '');
+    return parseFloat(cleaned) || 0;
+};
+
+// Handle amount input change (for debit/credit)
+const handleAmountChange = (index, field, event) => {
+    const value = parseAmountInput(event.target.value);
+    updateRow(index, field, value);
+};
+
+// Handle amount blur (format the display)
+const handleAmountBlur = (event) => {
+    const value = parseAmountInput(event.target.value);
+    event.target.value = formatAmountDisplay(value);
+};
+
+// Handle amount focus (select all text for easy editing)
+const handleAmountFocus = (event) => {
+    event.target.select();
+};
+
 const onAccountSelect = (index, selectedAccount) => {
     if (selectedAccount) {
         const newDetails = [...journalDetails.value];
@@ -449,6 +490,12 @@ const onAccountSelect = (index, selectedAccount) => {
         };
         updateField('journaldetail', newDetails);
     }
+};
+
+// Get selected account object from accountcode
+const getSelectedAccount = (accountcode) => {
+    if (!accountcode) return null;
+    return chartOfAccounts.value.find((item) => item.accountcode === accountcode) || null;
 };
 
 // Summary calculations
@@ -661,6 +708,169 @@ const removeRowAndFocus = (index) => {
     });
 };
 
+// ตรวจสอบว่าอยู่ในช่องเครดิตหรือไม่
+const isInCreditColumn = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    // หา input ทั้งหมดในแถว (ไม่รวม Select)
+    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputArray = Array.from(inputs);
+    const currentIndex = inputArray.indexOf(activeElement);
+
+    // ช่องเครดิตคือ input ตัวสุดท้าย (index 1 = เครดิต, index 0 = เดบิต)
+    return currentIndex === inputArray.length - 1;
+};
+
+// ย้ายไปแถวถัดไปในคอลัมน์เดียวกัน
+const moveToNextRow = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    const tbody = row.closest('tbody');
+    if (!tbody) return false;
+
+    const rows = Array.from(tbody.querySelectorAll('tr[data-pc-section="bodyrow"]'));
+    const currentRowIndex = rows.indexOf(row);
+
+    // หา column index ของ input ปัจจุบัน
+    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputArray = Array.from(inputs);
+    const columnIndex = inputArray.indexOf(activeElement);
+
+    // ถ้ามีแถวถัดไป
+    if (currentRowIndex < rows.length - 1) {
+        const nextRow = rows[currentRowIndex + 1];
+        const nextInputs = nextRow.querySelectorAll('input[type="text"]:not([readonly])');
+        const nextInputArray = Array.from(nextInputs);
+        if (nextInputArray[columnIndex]) {
+            nextInputArray[columnIndex].focus();
+            nextInputArray[columnIndex].select();
+            return true;
+        }
+    }
+    return false;
+};
+
+// ย้ายไปแถวก่อนหน้าในคอลัมน์เดียวกัน
+const moveToPreviousRow = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    const tbody = row.closest('tbody');
+    if (!tbody) return false;
+
+    const rows = Array.from(tbody.querySelectorAll('tr[data-pc-section="bodyrow"]'));
+    const currentRowIndex = rows.indexOf(row);
+
+    // หา column index ของ input ปัจจุบัน
+    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputArray = Array.from(inputs);
+    const columnIndex = inputArray.indexOf(activeElement);
+
+    // ถ้ามีแถวก่อนหน้า
+    if (currentRowIndex > 0) {
+        const prevRow = rows[currentRowIndex - 1];
+        const prevInputs = prevRow.querySelectorAll('input[type="text"]:not([readonly])');
+        const prevInputArray = Array.from(prevInputs);
+        if (prevInputArray[columnIndex]) {
+            prevInputArray[columnIndex].focus();
+            prevInputArray[columnIndex].select();
+            return true;
+        }
+    }
+    return false;
+};
+
+// ย้ายไปช่องถัดไปในแถวเดียวกัน (ซ้าย/ขวา)
+const moveToNextColumn = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputArray = Array.from(inputs);
+    const currentIndex = inputArray.indexOf(activeElement);
+
+    if (currentIndex < inputArray.length - 1) {
+        inputArray[currentIndex + 1].focus();
+        inputArray[currentIndex + 1].select();
+        return true;
+    }
+    return false;
+};
+
+// ย้ายไปช่องก่อนหน้าในแถวเดียวกัน (ซ้าย/ขวา)
+const moveToPreviousColumn = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputArray = Array.from(inputs);
+    const currentIndex = inputArray.indexOf(activeElement);
+
+    if (currentIndex > 0) {
+        inputArray[currentIndex - 1].focus();
+        inputArray[currentIndex - 1].select();
+        return true;
+    }
+    return false;
+};
+
+// Handler สำหรับ keydown ใน InputText (เดบิต/เครดิต)
+const handleAmountKeydown = (event) => {
+    const key = event.key?.toLowerCase() || '';
+
+    // ArrowUp - ย้ายไปแถวก่อนหน้า
+    if (key === 'arrowup') {
+        event.preventDefault();
+        moveToPreviousRow();
+        return;
+    }
+
+    // ArrowDown - ย้ายไปแถวถัดไป
+    if (key === 'arrowdown') {
+        event.preventDefault();
+        moveToNextRow();
+        return;
+    }
+
+    // ArrowLeft ที่ต้นบรรทัด - ย้ายไปช่องก่อนหน้า
+    if (key === 'arrowleft' && event.target.selectionStart === 0) {
+        event.preventDefault();
+        moveToPreviousColumn();
+        return;
+    }
+
+    // ArrowRight ที่ท้ายบรรทัด - ย้ายไปช่องถัดไป
+    if (key === 'arrowright' && event.target.selectionStart === event.target.value.length) {
+        event.preventDefault();
+        moveToNextColumn();
+        return;
+    }
+
+    // Enter/Tab ในช่องเครดิต แถวสุดท้าย → ขึ้นแถวใหม่
+    if ((key === 'enter' || (key === 'tab' && !event.shiftKey)) && isInCreditColumn() && isInLastRowOfTable()) {
+        event.preventDefault();
+        addRowAndFocus();
+        return;
+    }
+};
+
 // Load initial journal books
 onMounted(async () => {
     await searchJournalBooks({ query: '' });
@@ -683,7 +893,7 @@ onUnmounted(() => {
         <!-- Document Date -->
         <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label for="docdate" class="block font-medium mb-2">วันที่เอกสาร <span class="text-red-500">*</span></label>
-            <DatePicker id="docdate" :modelValue="formData.docdate" @update:modelValue="handleDocDateChange" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่" :invalid="isDocDateInvalid" fluid />
+            <ThaiDatePicker id="docdate" :modelValue="formData.docdate" @update:modelValue="handleDocDateChange" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่" :invalid="isDocDateInvalid" fluid />
             <small v-if="isDocDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1 mt-1">
                 <i class="pi pi-exclamation-circle"></i>
                 วันที่ไม่อยู่ในงวดบัญชีที่เปิดใช้งาน
@@ -762,7 +972,7 @@ onUnmounted(() => {
         <!-- Reference Document Date -->
         <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label for="exdocrefdate" class="block font-medium mb-2">วันที่เอกสารอ้างอิง</label>
-            <DatePicker id="exdocrefdate" :modelValue="formData.exdocrefdate" @update:modelValue="updateField('exdocrefdate', $event)" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่" fluid />
+            <ThaiDatePicker id="exdocrefdate" :modelValue="formData.exdocrefdate" @update:modelValue="updateField('exdocrefdate', $event)" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่" fluid />
         </div>
 
         <!-- Reference Document Number -->
@@ -827,16 +1037,19 @@ onUnmounted(() => {
                     <Column header="รหัสบัญชี" style="width: 250px">
                         <template #body="{ data, index }">
                             <Select
-                                :modelValue="data.accountcode ? chartOfAccounts.find((item) => item.accountcode === data.accountcode) : null"
+                                :modelValue="getSelectedAccount(data.accountcode)"
                                 @update:modelValue="onAccountSelect(index, $event)"
                                 :options="chartOfAccounts"
                                 optionLabel="displayLabel"
                                 optionDisabled="disabled"
                                 placeholder="เลือกรหัสบัญชี..."
                                 filter
+                                filterPlaceholder="พิมพ์ค้นหา..."
+                                :filterFields="['accountcode', 'accountname']"
+                                resetFilterOnHide
+                                autoFilterFocus
                                 showClear
-                                class="account-select"
-                                :inputStyle="{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }"
+                                class="account-select w-full"
                                 fluid
                             >
                                 <template #option="slotProps">
@@ -844,7 +1057,7 @@ onUnmounted(() => {
                                         :class="{
                                             'font-semibold text-primary-700 dark:text-primary-300': slotProps.option.accountlevel === 1,
                                             'font-semibold text-primary-600 dark:text-primary-400': slotProps.option.accountlevel === 2,
-                                            'text-surface-700 dark:text-surface-300': !slotProps.option.disabled
+                                            'text-surface-700 dark:text-surface-300': slotProps.option.accountlevel >= 3
                                         }"
                                     >
                                         {{ slotProps.option.displayLabel }}
@@ -862,22 +1075,38 @@ onUnmounted(() => {
 
                     <Column header="เดบิต" style="width: 150px; min-width: 150px">
                         <template #body="{ data, index }">
-                            <InputNumber :modelValue="data.debitamount" @update:modelValue="updateRow(index, 'debitamount', $event)" mode="decimal" :minFractionDigits="2" :maxFractionDigits="2" fluid />
+                            <InputText
+                                :value="formatAmountDisplay(data.debitamount)"
+                                @change="handleAmountChange(index, 'debitamount', $event)"
+                                @blur="handleAmountBlur"
+                                @focus="handleAmountFocus"
+                                @keydown="handleAmountKeydown"
+                                class="text-right w-full"
+                                placeholder="0.00"
+                            />
                         </template>
                     </Column>
 
                     <Column header="เครดิต" style="width: 150px; min-width: 150px">
                         <template #body="{ data, index }">
-                            <InputNumber :modelValue="data.creditamount" @update:modelValue="updateRow(index, 'creditamount', $event)" mode="decimal" :minFractionDigits="2" :maxFractionDigits="2" fluid />
+                            <InputText
+                                :value="formatAmountDisplay(data.creditamount)"
+                                @change="handleAmountChange(index, 'creditamount', $event)"
+                                @blur="handleAmountBlur"
+                                @focus="handleAmountFocus"
+                                @keydown="handleAmountKeydown"
+                                class="text-right w-full"
+                                placeholder="0.00"
+                            />
                         </template>
                     </Column>
 
                     <Column header="จัดการ" style="width: 120px">
                         <template #body="{ index }">
                             <div class="flex gap-1 justify-center">
-                                <Button icon="pi pi-arrow-up" severity="secondary" text size="small" @click="moveRowUp(index)" :disabled="index === 0" v-tooltip.top="'ย้ายขึ้น'" />
-                                <Button icon="pi pi-arrow-down" severity="secondary" text size="small" @click="moveRowDown(index)" :disabled="index === journalDetails.length - 1" v-tooltip.top="'ย้ายลง'" />
-                                <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeRow(index)" v-tooltip.top="'ลบ'" />
+                                <Button icon="pi pi-arrow-up" severity="secondary" text size="small" @click="moveRowUp(index)" :disabled="index === 0" v-tooltip.top="'ย้ายขึ้น'" :tabindex="-1" />
+                                <Button icon="pi pi-arrow-down" severity="secondary" text size="small" @click="moveRowDown(index)" :disabled="index === journalDetails.length - 1" v-tooltip.top="'ย้ายลง'" :tabindex="-1" />
+                                <Button icon="pi pi-trash" severity="danger" text size="small" @click="removeRow(index)" v-tooltip.top="'ลบ'" :tabindex="-1" />
                             </div>
                         </template>
                     </Column>

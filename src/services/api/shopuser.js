@@ -23,6 +23,21 @@ export const getShopUsers = async (params = {}) => {
 };
 
 /**
+ * ดึงข้อมูลผู้ใช้งานเฉพาะคน
+ * @param {string} username - ชื่อผู้ใช้
+ * @returns {Promise} ข้อมูลผู้ใช้งาน
+ */
+export const getShopUserByUsername = async (username) => {
+    try {
+        const response = await apiClient.get(`/shop/permission/${username}`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching shop user by username:', error);
+        throw error;
+    }
+};
+
+/**
  * เพิ่ม/แก้ไขสิทธิ์ผู้ใช้งาน
  * @param {object} data - ข้อมูลผู้ใช้ { shopid, username, role }
  * @returns {Promise} ผลการบันทึก
