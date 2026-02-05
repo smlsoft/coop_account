@@ -466,7 +466,7 @@ onMounted(async () => {
                 <template #body="{ data }">
                     <span v-if="data.rowType === 'balance-forward'" class="font-semibold text-surface-600 dark:text-surface-400"> ยกมา </span>
                     <span v-else-if="data.rowType === 'account-footer'" class="font-semibold text-surface-600 dark:text-surface-400"> ยกไป </span>
-                    <span v-else-if="data.rowType === 'detail' && data.docno" class="font-mono text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline" @click="onDetailRowClick(data.docno)">
+                    <span v-else-if="data.rowType === 'detail' && data.docno" class="text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline" @click="onDetailRowClick(data.docno)">
                         {{ data.docno }}
                     </span>
                 </template>

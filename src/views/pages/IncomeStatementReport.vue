@@ -402,7 +402,7 @@ onMounted(() => {
                     </div>
                     <div v-else-if="data.rowType === 'item'" :style="getIndentStyle(data.accountlevel)">
                         <span class="text-surface-700 dark:text-surface-300">{{ data.accountname }}</span>
-                        <span v-if="data.accountcode" class="ml-2 text-xs font-mono text-surface-500 dark:text-surface-400">({{ data.accountcode }})</span>
+                        <span v-if="data.accountcode" class="ml-2 text-xs text-surface-500 dark:text-surface-400">({{ data.accountcode }})</span>
                     </div>
                     <div v-else-if="data.rowType === 'total' || data.rowType === 'profit-loss'" class="text-right font-bold">
                         {{ data.accountname }}
@@ -447,7 +447,7 @@ onMounted(() => {
                             </Column>
                             <Column field="docno" header="เลขที่เอกสาร" style="width: 180px" :pt="{ headerCell: { style: 'text-align: center' } }">
                                 <template #body="{ data: detail }">
-                                    <span class="font-mono text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
+                                    <span class="text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
                                 </template>
                             </Column>
                             <Column field="accountdescription" header="รายละเอียด" style="min-width: 250px" :pt="{ headerCell: { style: 'text-align: center' } }">

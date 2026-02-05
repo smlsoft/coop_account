@@ -430,7 +430,7 @@ const isPDF = (uri) => {
                                         <div class="col-span-12 md:col-span-4">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-base text-surface-900 dark:text-surface-0">
-                                                <span class="font-mono text-base text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
+                                                <span class="text-base text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
                                                 <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                                                 <span>{{ getBookName(journal.bookcode) }}</span>
                                             </div>
@@ -452,7 +452,7 @@ const isPDF = (uri) => {
                                             </label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-base text-surface-900 dark:text-surface-0">
                                                 <template v-if="hasCreditor || hasDebtor">
-                                                    <span class="font-mono text-base text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
+                                                    <span class="text-base text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
                                                     <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                                                     <span>{{ hasCreditor ? getCreditorName : getDebtorName }}</span>
                                                 </template>
@@ -512,7 +512,7 @@ const isPDF = (uri) => {
                                                 </Column>
                                                 <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
                                                     <template #body="{ data }">
-                                                        <span class="font-mono font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
+                                                        <span class="font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
                                                     </template>
                                                 </Column>
                                                 <Column field="accountname" header="ชื่อบัญชี" style="min-width: 200px">
@@ -652,7 +652,7 @@ const isPDF = (uri) => {
                                                     <!-- เลขประจำตัวผู้เสียภาษี -->
                                                     <div class="flex flex-col gap-2">
                                                         <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขประจำตัวผู้เสียภาษี/เลขที่บัตรประชาชน</label>
-                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-mono text-surface-900 dark:text-surface-0">
+                                                        <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
                                                             {{ vat.custtaxid || '-' }}
                                                         </div>
                                                     </div>
@@ -847,7 +847,7 @@ const isPDF = (uri) => {
                                                         <!-- เลขประจำตัวผู้เสียภาษี -->
                                                         <div class="flex flex-col gap-2">
                                                             <label class="font-medium text-sm text-surface-600 dark:text-surface-400">เลขประจำตัวผู้เสียภาษี/เลขที่บัตรประชาชน</label>
-                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded font-mono text-surface-900 dark:text-surface-0">
+                                                            <div class="p-2 bg-surface-100 dark:bg-surface-700 rounded text-surface-900 dark:text-surface-0">
                                                                 {{ tax.custtaxid || '-' }}
                                                             </div>
                                                         </div>

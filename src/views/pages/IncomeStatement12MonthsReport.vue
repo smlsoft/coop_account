@@ -412,7 +412,7 @@ onMounted(() => {
                 <Column field="accountcode" header="รหัสบัญชี" style="width: 120px" frozen>
                     <template #body="{ data }">
                         <div class="text-center">
-                            <span v-if="data.rowType === 'item'" class="font-mono font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
+                            <span v-if="data.rowType === 'item'" class="font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
                         </div>
                     </template>
                 </Column>
@@ -467,7 +467,7 @@ onMounted(() => {
                                 </Column>
                                 <Column field="docno" class="cursor-pointer" header="เลขที่เอกสาร" style="width: 180px" :pt="{ headerCell: { style: 'text-align: center' } }">
                                     <template #body="{ data: detail }">
-                                        <span class="font-mono text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
+                                        <span class="text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
                                     </template>
                                 </Column>
                                 <Column field="accountdescription" class="cursor-pointer" header="รายละเอียด" style="min-width: 250px" :pt="{ headerCell: { style: 'text-align: center' } }">

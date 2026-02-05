@@ -544,7 +544,7 @@ onMounted(async () => {
                         <DataTable v-if="slotProps.data.journaldetail && slotProps.data.journaldetail.length > 0" :value="slotProps.data.journaldetail" size="small">
                             <Column field="accountcode" header="รหัสบัญชี" :style="{ width: '150px' }">
                                 <template #body="slotProps">
-                                    <span class="font-mono font-semibold">{{ slotProps.data.accountcode }}</span>
+                                    <span class="font-semibold">{{ slotProps.data.accountcode }}</span>
                                 </template>
                             </Column>
                             <Column field="accountname" header="ชื่อบัญชี"></Column>

@@ -107,7 +107,7 @@ onUnmounted(() => {
                     <i class="pi pi-cog text-surface-600 text-lg"></i>
                 </div>
                 <div>
-                    <p class="text-ml text-surface-500 m-0 font-mono">เลขที่งาน : {{ jobData.code }}</p>
+                    <p class="text-ml text-surface-500 m-0">เลขที่งาน : {{ jobData.code }}</p>
                 </div>
             </div>
         </template>

@@ -423,7 +423,7 @@ onMounted(() => {
                     </div>
                     <div v-else-if="data.rowType === 'item'" :style="getIndentStyle(data.accountLevel)">
                         <span class="text-surface-700 dark:text-surface-300">{{ data.accountName }}</span>
-                        <span v-if="data.accountCode" class="ml-2 text-xs font-mono text-surface-500 dark:text-surface-400">({{ data.accountCode }})</span>
+                        <span v-if="data.accountCode" class="ml-2 text-xs text-surface-500 dark:text-surface-400">({{ data.accountCode }})</span>
                     </div>
                     <div v-else-if="data.rowType === 'section-total' || data.rowType === 'grand-total'" class="text-right font-bold">
                         {{ data.label }}
@@ -468,7 +468,7 @@ onMounted(() => {
                             </Column>
                             <Column field="docno" header="เลขที่เอกสาร" style="width: 180px" :pt="{ headerCell: { style: 'text-align: center' } }">
                                 <template #body="{ data: detail }">
-                                    <span class="font-mono text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
+                                    <span class="text-sm cursor-pointer text-primary-600 dark:text-primary-400 hover:underline">{{ detail.docno }}</span>
                                 </template>
                             </Column>
                             <Column field="accountdescription" header="รายละเอียด" style="min-width: 250px" :pt="{ headerCell: { style: 'text-align: center' } }">

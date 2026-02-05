@@ -403,7 +403,7 @@ onMounted(() => {
                                 </Column>
                                 <Column field="docno" header="เลขที่เอกสาร" style="width: 180px" :pt="{ headerCell: { style: 'text-align: center' } }">
                                     <template #body="{ data: detail }">
-                                        <span class="font-mono text-sm">{{ detail.docno }}</span>
+                                        <span class="text-sm">{{ detail.docno }}</span>
                                     </template>
                                 </Column>
                                 <Column field="accountdescription" header="รายละเอียด" style="min-width: 250px" :pt="{ headerCell: { style: 'text-align: center' } }">

@@ -462,7 +462,7 @@ onUnmounted(() => {
                     <label class="text-sm font-medium text-surface-700 dark:text-surface-200">เลขที่งาน</label>
                     <div class="flex items-center gap-2 px-3 py-2.5 bg-surface-100 dark:bg-surface-800 rounded-lg">
                         <i class="pi pi-hashtag text-surface-500"></i>
-                        <span class="text-surface-700 dark:text-surface-300 font-mono">{{ jobId || 'กำลังสร้าง...' }}</span>
+                        <span class="text-surface-700 dark:text-surface-300">{{ jobId || 'กำลังสร้าง...' }}</span>
                     </div>
                 </div>
 

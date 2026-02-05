@@ -380,7 +380,7 @@ const isPDF = (uri) => {
                                         <div class="col-span-4">
                                             <label class="block text-sm font-medium mb-1 text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
                                             <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm">
-                                                <span class="font-mono text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
+                                                <span class="text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
                                                 <span class="text-surface-400 mx-1">~</span>
                                                 <span>{{ getBookName(journal.bookcode) }}</span>
                                             </div>
@@ -400,7 +400,7 @@ const isPDF = (uri) => {
                                             </label>
                                             <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded text-sm">
                                                 <template v-if="hasCreditor || hasDebtor">
-                                                    <span class="font-mono text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
+                                                    <span class="text-primary-600 dark:text-primary-400">{{ hasCreditor ? journal.creditor.code : journal.debtor.code }}</span>
                                                     <span class="text-surface-400 mx-1">~</span>
                                                     <span>{{ hasCreditor ? getCreditorName : getDebtorName }}</span>
                                                 </template>
@@ -428,7 +428,7 @@ const isPDF = (uri) => {
                                                 </Column>
                                                 <Column field="accountcode" header="รหัสบัญชี" style="width: 100px">
                                                     <template #body="{ data }">
-                                                        <span class="font-mono font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
+                                                        <span class="font-bold text-primary-600 dark:text-primary-400">{{ data.accountcode }}</span>
                                                     </template>
                                                 </Column>
                                                 <Column field="accountname" header="ชื่อบัญชี" style="min-width: 150px">
@@ -530,7 +530,7 @@ const isPDF = (uri) => {
                                                 </div>
                                                 <div>
                                                     <label class="text-surface-500">เลขประจำตัวผู้เสียภาษี</label>
-                                                    <div class="font-mono">{{ vat.custtaxid || '-' }}</div>
+                                                    <div>{{ vat.custtaxid || '-' }}</div>
                                                 </div>
                                                 <div>
                                                     <label class="text-surface-500">ภาษี</label>
@@ -613,7 +613,7 @@ const isPDF = (uri) => {
                                                 </div>
                                                 <div class="col-span-2">
                                                     <label class="text-surface-500">เลขประจำตัวผู้เสียภาษี</label>
-                                                    <div class="font-mono">{{ tax.custtaxid || '-' }}</div>
+                                                    <div>{{ tax.custtaxid || '-' }}</div>
                                                 </div>
                                             </div>
 

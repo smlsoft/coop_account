@@ -675,7 +675,7 @@ const hasErrors = computed(() => errorMessages.value.length > 0);
 
                 <Column field="import_daily.bookcode" header="สมุดรายวัน" style="width: 180px">
                     <template #body="{ data }">
-                        <span class="font-mono text-sm text-primary-600 dark:text-primary-400">{{ data.import_daily.bookcode }}</span>
+                        <span class="text-sm text-primary-600 dark:text-primary-400">{{ data.import_daily.bookcode }}</span>
                         <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                         <span>{{ getBookName(data.import_daily.bookcode) }}</span>
                     </template>

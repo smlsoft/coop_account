@@ -610,37 +610,37 @@ onBeforeUnmount(() => {
                             <div class="space-y-2 text-sm">
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>บันทึก</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ ctrlKey }} + S</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + S</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>เพิ่มแถวใหม่</span>
                                     <div class="flex gap-1">
-                                        <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ altKey }} + N</kbd>
+                                        <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + N</kbd>
                                         <span class="text-surface-400" v-if="isMac">หรือ</span>
-                                        <kbd v-if="isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">Help (Ins)</kbd>
+                                        <kbd v-if="isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Help (Ins)</kbd>
                                         <span class="text-surface-400" v-if="!isMac">หรือ</span>
-                                        <kbd v-if="!isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">Insert</kbd>
+                                        <kbd v-if="!isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Insert</kbd>
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>สร้างเลขที่เอกสาร</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ altKey }} + G</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + G</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>ย้ายแถวขึ้น</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ altKey }} + ↑</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↑</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>ย้ายแถวลง</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ altKey }} + ↓</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↓</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
                                     <span>ลบแถวปัจจุบัน</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">{{ ctrlKey }} + Del</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + Del</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1">
                                     <span>ไปช่องถัดไป</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs font-mono">Tab</kbd>
+                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Tab</kbd>
                                 </div>
                             </div>
                         </div>
