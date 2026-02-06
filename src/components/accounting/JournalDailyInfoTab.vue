@@ -347,16 +347,6 @@ const loadAllChartOfAccounts = async () => {
         if (response.data.success) {
             const accounts = response.data.data;
 
-            // Debug: ดูข้อมูลที่ได้จาก API
-            console.log('📊 Total accounts from API:', accounts.length);
-            console.log(
-                '📊 Account levels distribution:',
-                accounts.reduce((acc, item) => {
-                    acc[item.accountlevel] = (acc[item.accountlevel] || 0) + 1;
-                    return acc;
-                }, {})
-            );
-
             // แปลงเป็น flat list โดย Level 1, 2 เป็น disabled items (headers)
             const flatList = accounts.map((item) => {
                 if (item.accountlevel === 1) {
@@ -386,11 +376,6 @@ const loadAllChartOfAccounts = async () => {
                     };
                 }
             });
-
-            // Debug: ดูผลลัพธ์
-            console.log('📊 Total items:', flatList.length);
-            console.log('📊 Selectable items:', flatList.filter((i) => !i.disabled).length);
-            console.log('📊 Header items:', flatList.filter((i) => i.disabled).length);
 
             chartOfAccounts.value = flatList;
         }
@@ -439,11 +424,23 @@ const updateRow = (index, field, value) => {
     updateField('journaldetail', newDetails);
 };
 
+// Track which input is currently being edited
+const editingAmountCell = ref(null); // { index, field }
+const editingValue = ref('');
+
 // Format number for display (with commas and 2 decimals)
 const formatAmountDisplay = (value) => {
     const num = parseFloat(value) || 0;
     if (num === 0) return '';
     return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Get display value - show raw value when editing, formatted when not
+const getAmountDisplayValue = (index, field, value) => {
+    if (editingAmountCell.value?.index === index && editingAmountCell.value?.field === field) {
+        return editingValue.value;
+    }
+    return formatAmountDisplay(value);
 };
 
 // Parse formatted string back to number
@@ -455,20 +452,28 @@ const parseAmountInput = (value) => {
 };
 
 // Handle amount input change (for debit/credit)
-const handleAmountChange = (index, field, event) => {
-    const value = parseAmountInput(event.target.value);
-    updateRow(index, field, value);
+const handleAmountInput = (index, field, event) => {
+    editingValue.value = event.target.value;
 };
 
-// Handle amount blur (format the display)
-const handleAmountBlur = (event) => {
+// Handle amount blur (format the display and save)
+const handleAmountBlur = (index, field, event) => {
     const value = parseAmountInput(event.target.value);
-    event.target.value = formatAmountDisplay(value);
+    updateRow(index, field, value);
+    editingAmountCell.value = null;
+    editingValue.value = '';
 };
 
 // Handle amount focus (select all text for easy editing)
-const handleAmountFocus = (event) => {
-    event.target.select();
+const handleAmountFocus = (index, field, event) => {
+    editingAmountCell.value = { index, field };
+    // Show raw number value when focusing (without commas)
+    const currentValue = journalDetails.value[index]?.[field] || 0;
+    editingValue.value = currentValue === 0 ? '' : String(currentValue);
+    nextTick(() => {
+        event.target.value = editingValue.value;
+        event.target.select();
+    });
 };
 
 const onAccountSelect = (index, selectedAccount) => {
@@ -480,6 +485,9 @@ const onAccountSelect = (index, selectedAccount) => {
             accountname: selectedAccount.accountname
         };
         updateField('journaldetail', newDetails);
+
+        // Focus ไปที่ช่องเดบิตหลังจากเลือกรหัสบัญชี
+        focusDebitInputAtRow(index);
     } else {
         // เมื่อ clear ให้ลบข้อมูลบัญชี
         const newDetails = [...journalDetails.value];
@@ -490,6 +498,29 @@ const onAccountSelect = (index, selectedAccount) => {
         };
         updateField('journaldetail', newDetails);
     }
+};
+
+// Focus ที่ช่องเดบิตของแถวที่กำหนด
+const focusDebitInputAtRow = (rowIndex) => {
+    // ใช้ setTimeout เพื่อรอให้ Select dropdown ปิดสมบูรณ์ก่อน
+    setTimeout(() => {
+        const table = journalTableRef.value?.$el || document.querySelector('.journal-detail-table');
+        if (table) {
+            const rows = table.querySelectorAll('tbody tr[data-pc-section="bodyrow"]');
+            const targetRow = rows[rowIndex];
+            if (targetRow) {
+                // หา td ที่ 4 (index 3) ซึ่งเป็นคอลัมน์เดบิต แล้วหา input ข้างใน
+                const cells = targetRow.querySelectorAll('td');
+                if (cells[3]) {
+                    const debitInput = cells[3].querySelector('input');
+                    if (debitInput) {
+                        debitInput.focus();
+                        debitInput.select();
+                    }
+                }
+            }
+        }
+    }, 100);
 };
 
 // Get selected account object from accountcode
@@ -541,13 +572,15 @@ const isInLastInputOfRow = () => {
     const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
     if (!row) return false;
 
-    // หา input ทั้งหมดในแถว
-    const inputs = row.querySelectorAll('input:not([disabled])');
-    const inputArray = Array.from(inputs);
-    const currentIndex = inputArray.indexOf(activeElement);
+    // ตรวจสอบว่า input อยู่ใน cell ที่ 4 (credit column) หรือไม่
+    // cells[0]=ลำดับ, cells[1]=รหัสบัญชี, cells[2]=ชื่อบัญชี, cells[3]=เดบิต, cells[4]=เครดิต
+    const cells = row.querySelectorAll('td');
+    const creditCell = cells[4];
 
-    // ถ้าเป็น input สุดท้าย (เครดิต)
-    return currentIndex === inputArray.length - 1;
+    if (!creditCell) return false;
+
+    // ตรวจสอบว่า activeElement อยู่ภายใน credit cell หรือไม่
+    return creditCell.contains(activeElement);
 };
 
 // Keyboard shortcuts handler
@@ -673,20 +706,55 @@ const getCurrentRowFromFocus = () => {
     return rows.indexOf(row);
 };
 
-// Add row and focus on the new row's first input
+// Add row and focus on the new row's account select
 const addRowAndFocus = () => {
     addRow();
+    nextTick(() => {
+        focusAccountSelectAtRow(journalDetails.value.length - 1);
+    });
+};
+
+// Focus ที่ Select รหัสบัญชีของแถวที่กำหนด
+const focusAccountSelectAtRow = (rowIndex) => {
     nextTick(() => {
         const table = journalTableRef.value?.$el || document.querySelector('.journal-detail-table');
         if (table) {
             const rows = table.querySelectorAll('tbody tr[data-pc-section="bodyrow"]');
-            const lastRow = rows[rows.length - 1];
-            if (lastRow) {
-                const input = lastRow.querySelector('input');
-                input?.focus();
+            const targetRow = rows[rowIndex];
+            if (targetRow) {
+                // หา Select component (PrimeVue Select จะมี class p-select)
+                const select = targetRow.querySelector('.p-select');
+                if (select) {
+                    select.click(); // เปิด dropdown
+                }
             }
         }
     });
+};
+
+// Focus ที่ Select รหัสบัญชีของแถวถัดไป
+const focusNextRowAccountSelect = () => {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
+    if (!row) return false;
+
+    const tbody = row.closest('tbody');
+    if (!tbody) return false;
+
+    const rows = Array.from(tbody.querySelectorAll('tr[data-pc-section="bodyrow"]'));
+    const currentRowIndex = rows.indexOf(row);
+
+    if (currentRowIndex < rows.length - 1) {
+        const nextRow = rows[currentRowIndex + 1];
+        const select = nextRow.querySelector('.p-select');
+        if (select) {
+            select.click();
+            return true;
+        }
+    }
+    return false;
 };
 
 // Remove row and focus on adjacent row
@@ -708,23 +776,6 @@ const removeRowAndFocus = (index) => {
     });
 };
 
-// ตรวจสอบว่าอยู่ในช่องเครดิตหรือไม่
-const isInCreditColumn = () => {
-    const activeElement = document.activeElement;
-    if (!activeElement) return false;
-
-    const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
-    if (!row) return false;
-
-    // หา input ทั้งหมดในแถว (ไม่รวม Select)
-    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
-    const inputArray = Array.from(inputs);
-    const currentIndex = inputArray.indexOf(activeElement);
-
-    // ช่องเครดิตคือ input ตัวสุดท้าย (index 1 = เครดิต, index 0 = เดบิต)
-    return currentIndex === inputArray.length - 1;
-};
-
 // ย้ายไปแถวถัดไปในคอลัมน์เดียวกัน
 const moveToNextRow = () => {
     const activeElement = document.activeElement;
@@ -739,15 +790,15 @@ const moveToNextRow = () => {
     const rows = Array.from(tbody.querySelectorAll('tr[data-pc-section="bodyrow"]'));
     const currentRowIndex = rows.indexOf(row);
 
-    // หา column index ของ input ปัจจุบัน
-    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    // หา column index ของ input ปัจจุบัน (เฉพาะ amount-input)
+    const inputs = row.querySelectorAll('.amount-input');
     const inputArray = Array.from(inputs);
     const columnIndex = inputArray.indexOf(activeElement);
 
     // ถ้ามีแถวถัดไป
-    if (currentRowIndex < rows.length - 1) {
+    if (columnIndex >= 0 && currentRowIndex < rows.length - 1) {
         const nextRow = rows[currentRowIndex + 1];
-        const nextInputs = nextRow.querySelectorAll('input[type="text"]:not([readonly])');
+        const nextInputs = nextRow.querySelectorAll('.amount-input');
         const nextInputArray = Array.from(nextInputs);
         if (nextInputArray[columnIndex]) {
             nextInputArray[columnIndex].focus();
@@ -772,15 +823,15 @@ const moveToPreviousRow = () => {
     const rows = Array.from(tbody.querySelectorAll('tr[data-pc-section="bodyrow"]'));
     const currentRowIndex = rows.indexOf(row);
 
-    // หา column index ของ input ปัจจุบัน
-    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    // หา column index ของ input ปัจจุบัน (เฉพาะ amount-input)
+    const inputs = row.querySelectorAll('.amount-input');
     const inputArray = Array.from(inputs);
     const columnIndex = inputArray.indexOf(activeElement);
 
     // ถ้ามีแถวก่อนหน้า
-    if (currentRowIndex > 0) {
+    if (columnIndex >= 0 && currentRowIndex > 0) {
         const prevRow = rows[currentRowIndex - 1];
-        const prevInputs = prevRow.querySelectorAll('input[type="text"]:not([readonly])');
+        const prevInputs = prevRow.querySelectorAll('.amount-input');
         const prevInputArray = Array.from(prevInputs);
         if (prevInputArray[columnIndex]) {
             prevInputArray[columnIndex].focus();
@@ -791,7 +842,7 @@ const moveToPreviousRow = () => {
     return false;
 };
 
-// ย้ายไปช่องถัดไปในแถวเดียวกัน (ซ้าย/ขวา)
+// ย้ายไปช่องถัดไปในแถวเดียวกัน (เดบิต → เครดิต)
 const moveToNextColumn = () => {
     const activeElement = document.activeElement;
     if (!activeElement) return false;
@@ -799,19 +850,27 @@ const moveToNextColumn = () => {
     const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
     if (!row) return false;
 
-    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
-    const inputArray = Array.from(inputs);
-    const currentIndex = inputArray.indexOf(activeElement);
+    const cells = row.querySelectorAll('td');
+    // td[3] = เดบิต, td[4] = เครดิต
+    const debitCell = cells[3];
+    const creditCell = cells[4];
 
-    if (currentIndex < inputArray.length - 1) {
-        inputArray[currentIndex + 1].focus();
-        inputArray[currentIndex + 1].select();
+    if (!debitCell || !creditCell) return false;
+
+    const debitInput = debitCell.querySelector('input');
+    const creditInput = creditCell.querySelector('input');
+
+    // ถ้าอยู่ที่ช่องเดบิต → ย้ายไปเครดิต
+    if (activeElement === debitInput && creditInput) {
+        creditInput.focus();
+        creditInput.select();
         return true;
     }
+
     return false;
 };
 
-// ย้ายไปช่องก่อนหน้าในแถวเดียวกัน (ซ้าย/ขวา)
+// ย้ายไปช่องก่อนหน้าในแถวเดียวกัน (เครดิต → เดบิต)
 const moveToPreviousColumn = () => {
     const activeElement = document.activeElement;
     if (!activeElement) return false;
@@ -819,7 +878,7 @@ const moveToPreviousColumn = () => {
     const row = activeElement.closest('tr[data-pc-section="bodyrow"]');
     if (!row) return false;
 
-    const inputs = row.querySelectorAll('input[type="text"]:not([readonly])');
+    const inputs = row.querySelectorAll('.amount-input');
     const inputArray = Array.from(inputs);
     const currentIndex = inputArray.indexOf(activeElement);
 
@@ -832,8 +891,38 @@ const moveToPreviousColumn = () => {
 };
 
 // Handler สำหรับ keydown ใน InputText (เดบิต/เครดิต)
-const handleAmountKeydown = (event) => {
+const handleAmountKeydown = (event, amountType) => {
     const key = event.key?.toLowerCase() || '';
+
+    // อนุญาตเฉพาะ: ตัวเลข, จุดทศนิยม, และ keys ควบคุม
+    const allowedKeys = ['backspace', 'delete', 'tab', 'enter', 'escape', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'home', 'end', '.', '-'];
+
+    const isNumber = /^[0-9]$/.test(event.key);
+    const isAllowedKey = allowedKeys.includes(key);
+    const isCtrlCmd = event.ctrlKey || event.metaKey;
+
+    // อนุญาต Ctrl/Cmd + A, C, V, X, Z
+    if (isCtrlCmd && ['a', 'c', 'v', 'x', 'z'].includes(key)) {
+        return;
+    }
+
+    // ถ้าไม่ใช่ตัวเลขและไม่ใช่ key ที่อนุญาต → block
+    if (!isNumber && !isAllowedKey && !isCtrlCmd) {
+        event.preventDefault();
+        return;
+    }
+
+    // ป้องกันจุดทศนิยมซ้ำ
+    if (key === '.' && event.target.value.includes('.')) {
+        event.preventDefault();
+        return;
+    }
+
+    // ป้องกันเครื่องหมายลบที่ไม่ได้อยู่ต้น
+    if (key === '-' && event.target.selectionStart !== 0) {
+        event.preventDefault();
+        return;
+    }
 
     // ArrowUp - ย้ายไปแถวก่อนหน้า
     if (key === 'arrowup') {
@@ -863,8 +952,29 @@ const handleAmountKeydown = (event) => {
         return;
     }
 
-    // Enter/Tab ในช่องเครดิต แถวสุดท้าย → ขึ้นแถวใหม่
-    if ((key === 'enter' || (key === 'tab' && !event.shiftKey)) && isInCreditColumn() && isInLastRowOfTable()) {
+    // Enter - เปลี่ยนช่อง
+    if (key === 'enter') {
+        event.preventDefault();
+        event.stopPropagation(); // หยุดไม่ให้ event bubble ไป global handler
+
+        if (amountType === 'credit') {
+            // ช่องเครดิต
+            if (isInLastRowOfTable()) {
+                // แถวสุดท้าย → ขึ้นแถวใหม่และไป Select รหัสบัญชี
+                addRowAndFocus();
+            } else {
+                // ไป Select รหัสบัญชีของแถวถัดไป
+                focusNextRowAccountSelect();
+            }
+        } else {
+            // ช่องเดบิต → ย้ายไปช่องเครดิต
+            moveToNextColumn();
+        }
+        return;
+    }
+
+    // Tab ในช่องเครดิต แถวสุดท้าย → ขึ้นแถวใหม่
+    if (key === 'tab' && !event.shiftKey && amountType === 'credit' && isInLastRowOfTable()) {
         event.preventDefault();
         addRowAndFocus();
         return;
@@ -1076,13 +1186,14 @@ onUnmounted(() => {
                     <Column header="เดบิต" style="width: 150px; min-width: 150px">
                         <template #body="{ data, index }">
                             <InputText
-                                :value="formatAmountDisplay(data.debitamount)"
-                                @change="handleAmountChange(index, 'debitamount', $event)"
-                                @blur="handleAmountBlur"
-                                @focus="handleAmountFocus"
-                                @keydown="handleAmountKeydown"
-                                class="text-right w-full"
+                                :value="getAmountDisplayValue(index, 'debitamount', data.debitamount)"
+                                @input="handleAmountInput(index, 'debitamount', $event)"
+                                @blur="handleAmountBlur(index, 'debitamount', $event)"
+                                @focus="handleAmountFocus(index, 'debitamount', $event)"
+                                @keydown="(e) => handleAmountKeydown(e, 'debit')"
+                                class="text-right w-full amount-input"
                                 placeholder="0.00"
+                                fluid
                             />
                         </template>
                     </Column>
@@ -1090,13 +1201,14 @@ onUnmounted(() => {
                     <Column header="เครดิต" style="width: 150px; min-width: 150px">
                         <template #body="{ data, index }">
                             <InputText
-                                :value="formatAmountDisplay(data.creditamount)"
-                                @change="handleAmountChange(index, 'creditamount', $event)"
-                                @blur="handleAmountBlur"
-                                @focus="handleAmountFocus"
-                                @keydown="handleAmountKeydown"
-                                class="text-right w-full"
+                                :value="getAmountDisplayValue(index, 'creditamount', data.creditamount)"
+                                @input="handleAmountInput(index, 'creditamount', $event)"
+                                @blur="handleAmountBlur(index, 'creditamount', $event)"
+                                @focus="handleAmountFocus(index, 'creditamount', $event)"
+                                @keydown="(e) => handleAmountKeydown(e, 'credit')"
+                                class="text-right w-full amount-input"
                                 placeholder="0.00"
+                                fluid
                             />
                         </template>
                     </Column>
@@ -1198,5 +1310,10 @@ onUnmounted(() => {
 
 .dark .invalid-table-wrapper {
     border-color: rgb(248 113 113);
+}
+
+/* Header text center alignment - flex container needs justify-content */
+:deep(.p-datatable-column-header-content) {
+    justify-content: center !important;
 }
 </style>

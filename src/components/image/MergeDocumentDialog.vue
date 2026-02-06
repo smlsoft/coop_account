@@ -53,16 +53,6 @@ const mergedTags = computed(() => {
     return Array.from(tagsSet);
 });
 
-watch(
-    () => props.visible,
-    async (newVal) => {
-        if (newVal) {
-            resetForm();
-            await loadAllImageReferences();
-        }
-    }
-);
-
 const resetForm = () => {
     title.value = '';
     localTags.value = [...mergedTags.value];
@@ -217,8 +207,14 @@ const handleKeyPress = (event) => {
 
 watch(
     () => props.visible,
-    async (newVal) => {
+    async (newVal, oldVal) => {
+        // ป้องกัน infinite loop: ตรวจสอบว่าค่าเปลี่ยนจริงและไม่ซ้ำซ้อน
+        if (newVal === oldVal) return;
+
         if (newVal) {
+            // ป้องกันการเรียกซ้ำถ้ากำลัง loading อยู่
+            if (loadingDetails.value) return;
+
             resetForm();
             await loadAllImageReferences();
             window.addEventListener('keypress', handleKeyPress);

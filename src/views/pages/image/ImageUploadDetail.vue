@@ -86,9 +86,14 @@ const toggleDocumentMenu = (event) => {
     documentMenu.value.toggle(event);
 };
 
-// Computed: Check if job is closed (status !== 0)
+// Computed: Check if job is closed (status !== 0 and status !== 99)
 const isJobClosed = computed(() => {
-    return taskData.value?.status !== 0;
+    return taskData.value?.status !== 0 && taskData.value?.status !== 99;
+});
+
+// Computed: Check if approval is disabled (status = 99)
+const isApprovalDisabled = computed(() => {
+    return taskData.value?.status === 99;
 });
 
 // Computed: Check if can close job
@@ -786,7 +791,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                     <!-- Normal Mode Actions -->
                     <template v-else>
                         <Button v-if="!isJobClosed" label="Upload" icon="pi pi-cloud-upload" class="mr-2" @click="uploadDialogVisible = true" />
-                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="imageGroups.length === 0 ? 'ไม่มีเอกสารในงาน' : 'ปิดงาน'" outlined />
+                        <Button v-if="!isJobClosed && !isApprovalDisabled" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="imageGroups.length === 0 ? 'ไม่มีเอกสารในงาน' : 'ปิดงาน'" outlined />
                     </template>
                 </template>
             </Toolbar>

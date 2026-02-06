@@ -30,6 +30,7 @@ const jobIdValid = ref(false);
 const jobName = ref('');
 const jobNameValid = ref(false);
 const jobDescription = ref('');
+const disableApproval = ref(false);
 const modelConfirmUploadImage = ref(false);
 const responseId = ref('');
 const savingJob = ref(false);
@@ -152,6 +153,7 @@ const clearDataForm = () => {
     jobName.value = '';
     jobNameValid.value = false;
     jobDescription.value = '';
+    disableApproval.value = false;
 };
 
 // Save job
@@ -174,7 +176,7 @@ const saveJob = async () => {
         code: jobId.value,
         name: jobName.value.trim(),
         description: jobDescription.value.trim(),
-        status: 0
+        status: disableApproval.value ? 99 : 0
     };
 
     try {
@@ -481,9 +483,15 @@ onUnmounted(() => {
             </div>
 
             <template #footer>
-                <div class="flex justify-end gap-2">
-                    <Button label="ยกเลิก" severity="secondary" text @click="closeDialogCreateJob" :disabled="savingJob" />
-                    <Button label="สร้างงาน (Enter)" icon="pi pi-save" @click="saveJob" :loading="savingJob" />
+                <div class="flex justify-between items-center w-full">
+                    <div class="flex items-center gap-2">
+                        <ToggleSwitch v-model="disableApproval" :disabled="savingJob" />
+                        <label class="text-sm text-surface-600 dark:text-surface-400 cursor-pointer" @click="disableApproval = !disableApproval">ปิดการอนุมัติงาน</label>
+                    </div>
+                    <div class="flex gap-2">
+                        <Button label="ยกเลิก" severity="secondary" text @click="closeDialogCreateJob" :disabled="savingJob" />
+                        <Button label="สร้างงาน (Enter)" icon="pi pi-save" @click="saveJob" :loading="savingJob" />
+                    </div>
                 </div>
             </template>
         </Dialog>

@@ -9,6 +9,7 @@ import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
 import {
     getDocumentImageDetail,
+    getDocumentImageGroup,
     getDocumentImageGroups,
     recountTaskDocuments,
     ungroupDocumentImageGroup,
@@ -117,6 +118,11 @@ const hasPendingDocuments = computed(() => {
 // Computed property to check if job is closed (status = 3)
 const isJobClosed = computed(() => {
     return taskData.value?.status === 3;
+});
+
+// Computed property to check if approval is disabled (status = 99)
+const isApprovalDisabled = computed(() => {
+    return taskData.value?.status === 99;
 });
 
 // Computed property to check if job can be closed
@@ -322,53 +328,81 @@ const openMergeDialog = () => {
 
 const handleMergeComplete = async (newGroupGuid) => {
     try {
-        // Find the position of the first selected group before clearing
-        const firstSelectedGuid = selectedGroupsForMerge.value[0]?.guidfixed;
-        const firstSelectedIndex = imageGroups.value.findIndex((g) => g.guidfixed === firstSelectedGuid);
+        // เก็บ guid ของ target group (ตำแหน่งแรกใน selectedGroupsForMerge คือ target ที่ drop ลงไป)
+        const targetGuid = selectedGroupsForMerge.value[0]?.guidfixed;
+        // หาตำแหน่งของ target ก่อน merge
+        const targetIndex = imageGroups.value.findIndex((g) => g.guidfixed === targetGuid);
+
+        // เก็บ guid ทั้งหมดที่จะถูกลบ (ทั้ง source และ target)
+        const mergedGuids = selectedGroupsForMerge.value.map((g) => g.guidfixed);
+
+        // คำนวณตำแหน่งที่ถูกต้องหลัง merge
+        let adjustedIndex = targetIndex;
+        if (targetIndex !== -1) {
+            for (let i = 0; i < targetIndex; i++) {
+                if (mergedGuids.includes(imageGroups.value[i].guidfixed)) {
+                    adjustedIndex--;
+                }
+            }
+        }
 
         // Reset states
         multiSelectMode.value = false;
         selectedGroupsForMerge.value = [];
 
-        // Refresh data to get the new merged group
+        // ดึงข้อมูล group ใหม่โดยตรง (เพราะอาจไม่อยู่ใน pagination 100 รายการแรก)
+        showLoading('กำลังดึงข้อมูลเอกสารใหม่...');
+        let newGroup = null;
+        if (newGroupGuid) {
+            try {
+                const response = await getDocumentImageGroup(newGroupGuid);
+                if (response.data.success) {
+                    newGroup = response.data.data;
+                }
+            } catch (err) {
+                // Silent fail - will refresh data anyway
+            }
+        }
+
+        // Refresh data
         showLoading('กำลังโหลดรายการเอกสาร...');
         await fetchImageGroups(true);
 
-        // If we found the original position and have a new group
-        if (firstSelectedIndex !== -1 && newGroupGuid) {
-            // Find the new merged group (it's probably at the end)
-            const newGroupIndex = imageGroups.value.findIndex((g) => g.guidfixed === newGroupGuid);
+        // ถ้ามี group ใหม่และมี adjustedIndex ที่ถูกต้อง
+        if (newGroup && adjustedIndex !== -1 && adjustedIndex >= 0) {
+            // ลบ groups เก่าที่ถูก merge ออก (ถ้ายังอยู่)
+            imageGroups.value = imageGroups.value.filter((g) => !mergedGuids.includes(g.guidfixed));
 
-            if (newGroupIndex !== -1 && newGroupIndex !== firstSelectedIndex) {
-                // Move the new group to the original position
-                const newGroup = imageGroups.value.splice(newGroupIndex, 1)[0];
-                imageGroups.value.splice(firstSelectedIndex, 0, newGroup);
+            // ลบ group ใหม่ออกก่อน (ถ้ามีอยู่แล้ว) เพื่อป้องกันซ้ำ
+            imageGroups.value = imageGroups.value.filter((g) => g.guidfixed !== newGroupGuid);
 
-                // Re-sort with new order
-                showLoading('กำลังจัดเรียงลำดับ...');
-                const orderData = imageGroups.value.map((group, index) => ({
-                    guidfixed: group.guidfixed,
-                    xorder: index
-                }));
-                await updateDocumentImageGroupsOrder(taskId.value, orderData);
+            // แทรก group ใหม่ในตำแหน่งที่ถูกต้อง
+            const insertIndex = Math.min(adjustedIndex, imageGroups.value.length);
+            imageGroups.value.splice(insertIndex, 0, newGroup);
 
-                // Refresh again to confirm the order
-                await fetchImageGroups(true);
+            // บันทึกลำดับใหม่
+            showLoading('กำลังจัดเรียงลำดับ...');
+            const orderData = imageGroups.value.map((group, index) => ({
+                guidfixed: group.guidfixed,
+                xorder: index
+            }));
 
-                // Auto-select the merged group at its new position
-                const mergedGroup = imageGroups.value.find((g) => g.guidfixed === newGroupGuid);
-                if (mergedGroup) {
-                    selectedGroup.value = mergedGroup;
-                    await handleSelectGroup(mergedGroup);
-                }
+            await updateDocumentImageGroupsOrder(taskId.value, orderData);
+
+            // Refresh อีกครั้งเพื่อยืนยัน
+            await fetchImageGroups(true);
+
+            // Auto-select the merged group
+            const mergedGroup = imageGroups.value.find((g) => g.guidfixed === newGroupGuid);
+            if (mergedGroup) {
+                selectedGroup.value = mergedGroup;
+                await handleSelectGroup(mergedGroup);
             }
         }
 
         hideLoading();
     } catch (error) {
-        console.error('Error in handleMergeComplete:', error);
         hideLoading();
-        // Still refresh the list even if reordering failed
         await fetchImageGroups(true);
     }
 };
@@ -764,8 +798,16 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
     if (isJobClosed.value) return;
 
     try {
-        // บันทึกตำแหน่งของ target group ก่อนเริ่ม
+        // บันทึกตำแหน่งของ target group และ source group ก่อนเริ่ม
         const targetIndex = imageGroups.value.findIndex((g) => g.guidfixed === targetGroup.guidfixed);
+        const sourceIndex = imageGroups.value.findIndex((g) => g.guidfixed === sourceGroup.guidfixed);
+
+        // คำนวณตำแหน่งที่ถูกต้องหลัง merge
+        // ถ้า source อยู่ก่อน target, ตำแหน่ง target จะเลื่อนลง 1 หลังจาก source ถูกลบ
+        let adjustedTargetIndex = targetIndex;
+        if (sourceIndex !== -1 && sourceIndex < targetIndex) {
+            adjustedTargetIndex = targetIndex - 1;
+        }
 
         showLoading('กำลังเพิ่มเอกสารเข้าชุด...');
 
@@ -809,14 +851,16 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
             showLoading('กำลังโหลดรายการเอกสาร...');
             await fetchImageGroups(true);
 
-            // 5. Re-position the updated target group to its original position if it moved
-            if (targetIndex !== -1) {
+            // 5. Re-position the updated target group to its adjusted position if it moved
+            if (adjustedTargetIndex !== -1 && adjustedTargetIndex >= 0) {
                 const currentIndex = imageGroups.value.findIndex((g) => g.guidfixed === targetGroup.guidfixed);
 
-                if (currentIndex !== -1 && currentIndex !== targetIndex) {
-                    // Move target group back to original position
+                if (currentIndex !== -1 && currentIndex !== adjustedTargetIndex) {
+                    // Move target group back to adjusted position
                     const movedGroup = imageGroups.value.splice(currentIndex, 1)[0];
-                    imageGroups.value.splice(targetIndex, 0, movedGroup);
+                    // ป้องกัน index เกินขอบเขต
+                    const insertIndex = Math.min(adjustedTargetIndex, imageGroups.value.length);
+                    imageGroups.value.splice(insertIndex, 0, movedGroup);
                 }
 
                 // Re-sort with new order
@@ -913,7 +957,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                     </template>
                     <!-- Normal Mode Actions -->
                     <template v-else>
-                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="hasPendingDocuments ? 'ยังมีเอกสารที่รอตรวจสอบอยู่' : 'ปิดงาน'" />
+                        <Button v-if="!isJobClosed && !isApprovalDisabled" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="hasPendingDocuments ? 'ยังมีเอกสารที่รอตรวจสอบอยู่' : 'ปิดงาน'" />
                     </template>
                 </template>
             </Toolbar>

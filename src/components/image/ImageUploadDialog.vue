@@ -31,6 +31,10 @@ const searchQuery = ref('');
 const statusFilter = ref('all'); // all, uploaded, error, pending, uploading
 const isDragging = ref(false);
 
+// Tags management
+const localTags = ref([]);
+const newTag = ref('');
+
 const dialogVisible = computed({
     get: () => props.visible,
     set: (value) => emit('update:visible', value)
@@ -87,6 +91,8 @@ const resetDialog = () => {
     confirming.value = false;
     searchQuery.value = '';
     statusFilter.value = 'all';
+    localTags.value = [];
+    newTag.value = '';
     if (fileInput.value) {
         fileInput.value.value = '';
     }
@@ -185,6 +191,19 @@ const removeFile = (fileId) => {
     uploadedFiles.value = uploadedFiles.value.filter((f) => f.id !== fileId);
 };
 
+// Tags management functions
+const addTag = () => {
+    const tag = newTag.value.trim();
+    if (tag && !localTags.value.includes(tag)) {
+        localTags.value.push(tag);
+        newTag.value = '';
+    }
+};
+
+const removeTag = (index) => {
+    localTags.value.splice(index, 1);
+};
+
 const retryUpload = async (fileId) => {
     const fileObj = uploadedFiles.value.find((f) => f.id === fileId);
     if (!fileObj) return;
@@ -232,7 +251,7 @@ const handleConfirm = async () => {
             uploadedby: props.userEmail || 'unknown@example.com',
             uploadedat: new Date().toISOString(),
             billcount: 1,
-            tags: [],
+            tags: [...localTags.value], // ใช้ tags ที่ user กรอก
             taskguid: props.taskGuid
         }));
 
@@ -473,6 +492,27 @@ const handleDrop = async (event) => {
 
             <!-- Progress Bar -->
             <ProgressBar v-if="hasFiles" :value="uploadProgress" :show-value="true" class="h-4" />
+
+            <!-- Tags Management -->
+            <div v-if="hasFiles" class="space-y-2 p-4 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg">
+                <label class="block text-sm font-semibold text-surface-900 dark:text-surface-0">
+                    <i class="pi pi-tags mr-2"></i>
+                    Tags สำหรับรูปภาพทั้งหมด
+                </label>
+                <div class="flex flex-wrap gap-2 mb-2">
+                    <Tag v-for="(tag, index) in localTags" :key="index" :value="tag" severity="secondary" class="cursor-pointer hover:opacity-80" @click="removeTag(index)">
+                        <template #default>
+                            <span>{{ tag }}</span>
+                            <i class="pi pi-times ml-2 text-xs"></i>
+                        </template>
+                    </Tag>
+                    <span v-if="localTags.length === 0" class="text-sm text-surface-500 dark:text-surface-400">ไม่มี tags (คลิกเพิ่มด้านล่าง)</span>
+                </div>
+                <div class="flex gap-2">
+                    <InputText v-model="newTag" placeholder="เพิ่ม tag ใหม่ (เช่น ใบเสร็จ, ใบกำกับภาษี)" class="flex-1" :disabled="uploading || confirming" @keyup.enter="addTag" />
+                    <Button label="เพิ่ม" icon="pi pi-plus" @click="addTag" :disabled="!newTag.trim() || uploading || confirming" size="small" />
+                </div>
+            </div>
 
             <!-- File Grid - Compact for 100+ items -->
             <div v-if="hasFiles" class="max-h-[600px] overflow-y-auto border border-surface-200 dark:border-surface-700 rounded-lg bg-surface-50 dark:bg-surface-900 p-3 @container">

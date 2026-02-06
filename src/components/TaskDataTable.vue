@@ -51,7 +51,8 @@ const STATUS_CONFIG = {
     2: { text: 'กำลังตรวจสอบ', severity: 'info' },
     3: { text: 'รอบันทึกบัญชี', severity: 'info' },
     4: { text: 'เสร็จสิ้น', severity: 'success' },
-    5: { text: 'ยกเลิก', severity: 'danger' }
+    5: { text: 'ยกเลิก', severity: 'danger' },
+    99: { text: 'รอบันทึกบัญชี', severity: 'info' }
 };
 
 const LOCAL_STORAGE_KEYS = {
