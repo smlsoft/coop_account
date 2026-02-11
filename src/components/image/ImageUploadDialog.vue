@@ -463,15 +463,14 @@ const handleDrop = async (event) => {
             </div>
 
             <!-- Toolbar: Upload + Search + Filters + Actions -->
-            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+            <div v-if="hasFiles" class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <Button label="เลือกไฟล์" icon="pi pi-upload" @click="openFileDialog" :disabled="uploading || confirming" size="small" />
                     <Button v-if="stats.error > 0" label="ลองใหม่ทั้งหมด" icon="pi pi-refresh" severity="warning" @click="retryAllErrors" :disabled="uploading || confirming" size="small" outlined />
                     <Button v-if="stats.error > 0" label="ลบ Error" icon="pi pi-trash" severity="danger" @click="removeAllErrors" :disabled="uploading || confirming" size="small" outlined />
-                    <Button v-if="hasFiles" label="ล้างทั้งหมด" icon="pi pi-times" severity="secondary" @click="clearAll" :disabled="uploading || confirming" size="small" text />
+                    <Button label="ล้างทั้งหมด" icon="pi pi-times" severity="secondary" @click="clearAll" :disabled="uploading || confirming" size="small" text />
                 </div>
 
-                <div v-if="hasFiles" class="flex items-center gap-2 w-full sm:w-auto">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
                     <IconField class="flex-1 sm:flex-initial">
                         <InputIcon>
                             <i class="pi pi-search" />
@@ -515,7 +514,22 @@ const handleDrop = async (event) => {
             </div>
 
             <!-- File Grid - Compact for 100+ items -->
-            <div v-if="hasFiles" class="max-h-[600px] overflow-y-auto border border-surface-200 dark:border-surface-700 rounded-lg bg-surface-50 dark:bg-surface-900 p-3 @container">
+            <div
+                v-if="hasFiles"
+                class="max-h-[600px] overflow-y-auto rounded-lg p-3 @container transition-all duration-200 relative border-2 border-dashed"
+                :class="isDragging ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/20 shadow-xl shadow-primary-500/30' : 'border-primary-300 dark:border-primary-600 bg-surface-50 dark:bg-surface-900'"
+                @dragover="handleDragOver"
+                @dragleave="handleDragLeave"
+                @drop="handleDrop"
+            >
+                <!-- Drag Overlay Hint -->
+                <div v-if="isDragging" class="absolute inset-0 flex items-center justify-center bg-primary-500/10 dark:bg-primary-500/20 rounded-lg pointer-events-none z-10">
+                    <div class="text-center">
+                        <i class="pi pi-cloud-upload text-6xl text-primary-600 dark:text-primary-400 mb-3"></i>
+                        <p class="text-xl font-bold text-primary-700 dark:text-primary-300">วางไฟล์เพื่อเพิ่มเติม</p>
+                        <p class="text-sm text-primary-600 dark:text-primary-400 mt-2">รองรับรูปภาพและ PDF</p>
+                    </div>
+                </div>
                 <div v-if="filteredFiles.length === 0" class="text-center py-12 text-surface-500 dark:text-surface-400">
                     <i class="pi pi-filter-slash text-4xl mb-3"></i>
                     <p>ไม่พบไฟล์ที่ตรงกับการค้นหา</p>

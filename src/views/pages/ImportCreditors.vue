@@ -39,13 +39,6 @@ const getCustomerTypeLabel = (code) => {
     return customerTypeLabels[code] || '-';
 };
 
-// Convert AR_TYPE and BRANCH_TYPE values (0 → 1, 1 → 2)
-const convertTypeValue = (value) => {
-    if (value === 0 || value === '0') return 1;
-    if (value === 1 || value === '1') return 2;
-    return parseInt(value) || 1;
-};
-
 // Download template
 const downloadTemplate = () => {
     const link = document.createElement('a');
@@ -63,6 +56,12 @@ const processFile = (file) => {
     const isValidType = validTypes.some((type) => file.name.endsWith(type) || file.type === type);
 
     if (!isValidType) {
+        errorMessages.value = [
+            {
+                word: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                code: 'กรุณาเลือกไฟล์ Excel (.xls หรือ .xlsx)'
+            }
+        ];
         toast.add({
             severity: 'warn',
             summary: 'รูปแบบไฟล์ไม่ถูกต้อง',
@@ -89,6 +88,12 @@ const processFile = (file) => {
             // Row 1 = Field names (CODE, NAME, AR_TYPE, etc.)
             // Row 2+ = Data
             if (rawData.length < 3) {
+                errorMessages.value = [
+                    {
+                        word: 'ไฟล์ไม่มีข้อมูล',
+                        code: 'กรุณาตรวจสอบรูปแบบไฟล์และดาวน์โหลด Template ใหม่'
+                    }
+                ];
                 toast.add({
                     severity: 'warn',
                     summary: 'ไฟล์ไม่มีข้อมูล',
@@ -107,6 +112,27 @@ const processFile = (file) => {
                 }
             });
 
+            // Validate required headers
+            const requiredHeaders = ['CODE', 'NAME', 'AP_TYPE', 'TAXID', 'BRANCH_TYPE', 'BRANCH_CODE', 'ADDRESS', 'TELEPHONE'];
+            const missingHeaders = requiredHeaders.filter((header) => !(header in headerMap));
+
+            if (missingHeaders.length > 0) {
+                errorMessages.value = [
+                    {
+                        word: 'รูปแบบไฟล์ไม่ตรงกับ Template',
+                        code: `ไม่พบคอลัมน์: ${missingHeaders.join(', ')} - กรุณาใช้ไฟล์ Template ที่ดาวน์โหลดจากระบบ`
+                    }
+                ];
+                toast.add({
+                    severity: 'error',
+                    summary: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                    detail: `ไม่พบคอลัมน์ที่จำเป็น: ${missingHeaders.join(', ')}`,
+                    life: 5000
+                });
+                hideLoading();
+                return;
+            }
+
             const dataRows = rawData.slice(2); // Data rows
 
             const parsedData = dataRows
@@ -119,9 +145,9 @@ const processFile = (file) => {
                             name: row[headerMap['NAME']] ? String(row[headerMap['NAME']]).trim() : ''
                         }
                     ],
-                    personaltype: convertTypeValue(row[headerMap['AR_TYPE']]),
+                    personaltype: parseInt(row[headerMap['AP_TYPE']]),
                     taxid: row[headerMap['TAXID']] ? String(row[headerMap['TAXID']]).trim() : '',
-                    customertype: convertTypeValue(row[headerMap['BRANCH_TYPE']]),
+                    customertype: parseInt(row[headerMap['BRANCH_TYPE']]),
                     branchnumber: row[headerMap['BRANCH_CODE']] ? String(row[headerMap['BRANCH_CODE']]).trim() : '',
                     addressforbilling: {
                         address: [row[headerMap['ADDRESS']] ? String(row[headerMap['ADDRESS']]).trim() : ''],
@@ -142,6 +168,12 @@ const processFile = (file) => {
             }
         } catch (error) {
             console.error('Error parsing file:', error);
+            errorMessages.value = [
+                {
+                    word: 'ไม่สามารถอ่านไฟล์ได้',
+                    code: `กรุณาตรวจสอบรูปแบบไฟล์ให้ตรงกับ Template: ${error.message || 'Unknown error'}`
+                }
+            ];
             toast.add({
                 severity: 'error',
                 summary: 'เกิดข้อผิดพลาด',
@@ -155,6 +187,12 @@ const processFile = (file) => {
 
     reader.onerror = () => {
         hideLoading();
+        errorMessages.value = [
+            {
+                word: 'เกิดข้อผิดพลาดในการอ่านไฟล์',
+                code: 'กรุณาลองใหม่อีกครั้ง หรือตรวจสอบว่าไฟล์ไม่เสียหาย'
+            }
+        ];
         toast.add({
             severity: 'error',
             summary: 'เกิดข้อผิดพลาด',
@@ -297,9 +335,9 @@ const confirmSave = async () => {
             <div class="flex flex-wrap gap-3">
                 <Button label="ดาวน์โหลด Template" icon="pi pi-download" severity="secondary" @click="downloadTemplate" />
 
-                <Button v-if="importData.length > 0" label="บันทึกนำเข้า" icon="pi pi-save" severity="success" :loading="isSaving" @click="openConfirmDialog" />
+                <Button v-if="importData.length > 0 && errorMessages.length === 0" label="บันทึกนำเข้า" icon="pi pi-save" severity="success" :loading="isSaving" @click="openConfirmDialog" />
 
-                <Button v-if="importData.length > 0" label="ยกเลิก" icon="pi pi-times" severity="danger" outlined @click="clearData" />
+                <Button v-if="importData.length > 0 || errorMessages.length > 0" label="ยกเลิก" icon="pi pi-times" severity="danger" outlined @click="clearData" v-tooltip.top="'ยกเลิกไฟล์ปัจจุบันและเลือกไฟล์ใหม่'" />
             </div>
 
             <!-- Error Messages -->
@@ -309,7 +347,9 @@ const confirmSave = async () => {
                     <span class="font-semibold text-red-700 dark:text-red-400">ไม่สามารถทำรายการได้ กรุณาตรวจสอบข้อมูล</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1">
-                    <li v-for="(error, index) in errorMessages" :key="index" class="text-red-600 dark:text-red-400">{{ error.word }} - รหัสเจ้าหนี้: {{ error.code }}</li>
+                    <li v-for="(error, index) in errorMessages" :key="index" class="text-red-600 dark:text-red-400">
+                        {{ error.word }}<span v-if="error.code"> - {{ error.code }}</span>
+                    </li>
                 </ul>
             </div>
 

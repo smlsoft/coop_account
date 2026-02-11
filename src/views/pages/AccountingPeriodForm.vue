@@ -4,7 +4,7 @@ import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -387,11 +387,26 @@ const formatDisplayDate = (dateString) => {
     });
 };
 
+/**
+ * Keyboard handler สำหรับ Ctrl + S
+ */
+const handleKeydown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        handleSubmit();
+    }
+};
+
 // โหลดข้อมูลเมื่อเป็น edit mode
 onMounted(() => {
     if (isEditMode.value) {
         fetchPeriodData();
     }
+    document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -480,7 +495,7 @@ onMounted(() => {
 
                             <!-- Action Buttons -->
                             <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                                <Button type="submit" label="สร้าง (Enter)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.startdate || !formData.enddate || !formData.period" />
+                                <Button type="submit" label="สร้าง (Ctrl + S)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.startdate || !formData.enddate || !formData.period" />
                             </div>
                         </form>
                     </TabPanel>
@@ -623,7 +638,7 @@ onMounted(() => {
 
                     <!-- Action Buttons -->
                     <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                        <Button type="submit" label="บันทึก (Enter)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.startdate || !formData.enddate || !formData.period" />
+                        <Button type="submit" label="บันทึก (Ctrl + S)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.startdate || !formData.enddate || !formData.period" />
                     </div>
                 </form>
             </div>

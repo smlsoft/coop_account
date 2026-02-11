@@ -151,7 +151,11 @@ export function useTaxReport(mode) {
             const response = await api.getJournalVat(params);
 
             if (response.success) {
-                reportData.value = response.data || [];
+                // เพิ่ม unique ID ให้แต่ละแถวเพื่อป้องกันปัญหา docno ซ้ำ
+                reportData.value = (response.data || []).map((item, index) => ({
+                    ...item,
+                    _uniqueId: `${mode}-${item.docno}-${index}`
+                }));
                 totalRecords.value = response.total || response.data?.length || 0;
 
                 if (resetPage) {
@@ -206,6 +210,9 @@ export function useTaxReport(mode) {
             return;
         }
 
+        // Clear expanded rows เมื่อค้นหาข้อมูลใหม่
+        expandedRows.value = {};
+
         searchPopover.value.hide();
         fetchReport(true);
     };
@@ -245,11 +252,11 @@ export function useTaxReport(mode) {
      * จัดการการคลิกแถวเพื่อขยาย/หดข้อมูล
      */
     const onRowClick = (event) => {
-        const docno = event.data.docno;
-        if (expandedRows.value[docno]) {
-            delete expandedRows.value[docno];
+        const uniqueId = event.data._uniqueId;
+        if (expandedRows.value[uniqueId]) {
+            delete expandedRows.value[uniqueId];
         } else {
-            expandedRows.value[docno] = true;
+            expandedRows.value[uniqueId] = true;
         }
     };
 
@@ -335,6 +342,8 @@ export function useTaxReport(mode) {
     watch(itemsPerPage, () => {
         if (selectedYear.value && selectedMonth.value && !isUpdatingFromWatch.value) {
             isUpdatingFromWatch.value = true;
+            // Clear expanded rows เมื่อเปลี่ยนจำนวนรายการต่อหน้า
+            expandedRows.value = {};
             fetchReport(true).finally(() => {
                 isUpdatingFromWatch.value = false;
             });
@@ -344,6 +353,8 @@ export function useTaxReport(mode) {
     // Watch currentPage changes - ดึงข้อมูลหน้าใหม่
     watch(currentPage, (newPage, oldPage) => {
         if (newPage !== oldPage && selectedYear.value && selectedMonth.value && !isUpdatingFromWatch.value) {
+            // Clear expanded rows เมื่อเปลี่ยนหน้า
+            expandedRows.value = {};
             fetchReport(false);
         }
     });

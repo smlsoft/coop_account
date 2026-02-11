@@ -1,4 +1,5 @@
 <script setup>
+import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import DialogApprove from '@/components/DialogApprove.vue';
 import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
@@ -8,6 +9,7 @@ import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
 import {
+    bulkCreateDocumentImages,
     getDocumentImageDetail,
     getDocumentImageGroup,
     getDocumentImageGroups,
@@ -18,6 +20,7 @@ import {
     updateDocumentImageGroupsOrder,
     updateDocumentImageGroupStatus
 } from '@/services/api/image';
+import { getJournalById } from '@/services/api/journal';
 import { getTask, updateTaskStatus } from '@/services/api/task';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -33,6 +36,7 @@ const taskId = ref('');
 const taskData = ref(null);
 const mergeDialogVisible = ref(false);
 const multiSelectMode = ref(false);
+const statusSelectMode = ref(false);
 const selectedGroupsForMerge = ref([]);
 const ungrouping = ref(false);
 const sortMode = ref(false);
@@ -54,6 +58,15 @@ const closingJob = ref(false);
 const dialogJobClose = ref(false);
 const showUngroupDialog = ref(false);
 const randomNumber = ref(0);
+const journalDetailDialog = ref(false);
+const selectedJournal = ref(null);
+const loadingJournal = ref(false);
+const gridSize = ref('medium'); // เล็ก, กลาง, ใหญ่, ใหญ่มาก
+
+// Copy document dialog
+const showCopyDialog = ref(false);
+const copyCount = ref(1);
+const copyingDocument = ref(false);
 
 // Menu refs
 const documentMenu = ref(null);
@@ -80,11 +93,20 @@ const documentMenuItems = computed(() => [
         label: 'แยกเอกสาร',
         icon: 'pi pi-clone',
         command: () => handleUngroup(),
-        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1
+        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1 || (isApprovalDisabled.value && selectedGroup.value?.references && selectedGroup.value.references.length > 0)
     }
 ]);
 
 const statusMenuItems = computed(() => [
+    {
+        label: 'เลือกเอกสารเพื่ออัปเดตสถานะ',
+        icon: 'pi pi-check-square',
+        command: () => toggleStatusSelectMode(),
+        disabled: isJobClosed.value
+    },
+    {
+        separator: true
+    },
     {
         label: 'ผ่านทั้งหมด',
         icon: 'pi pi-check-circle',
@@ -108,6 +130,25 @@ const toggleStatusMenu = (event) => {
     statusMenu.value.toggle(event);
 };
 
+// Grid size cycle: small -> medium -> large -> xlarge -> small
+const cycleGridSize = () => {
+    const sizes = ['small', 'medium', 'large', 'xlarge'];
+    const currentIndex = sizes.indexOf(gridSize.value);
+    const nextIndex = (currentIndex + 1) % sizes.length;
+    gridSize.value = sizes[nextIndex];
+};
+
+// Get grid size icon
+const gridSizeIcon = computed(() => {
+    const icons = {
+        small: 'pi pi-th-large',
+        medium: 'pi pi-table',
+        large: 'pi pi-clone',
+        xlarge: 'pi pi-stop'
+    };
+    return icons[gridSize.value] || 'pi pi-table';
+});
+
 // Computed property to check if all documents are reviewed (no pending status=0)
 const hasPendingDocuments = computed(() => {
     if (!taskData.value?.totaldocumentstatus) return true;
@@ -115,14 +156,14 @@ const hasPendingDocuments = computed(() => {
     return pendingStatus && pendingStatus.total > 0;
 });
 
-// Computed property to check if job is closed (status = 3)
+// Computed property to check if job is closed (status = 3 or 4)
 const isJobClosed = computed(() => {
-    return taskData.value?.status === 3;
+    return taskData.value?.status === 3 || taskData.value?.status === 4;
 });
 
-// Computed property to check if approval is disabled (status = 99)
+// Computed property to check if approval is disabled (status = 6)
 const isApprovalDisabled = computed(() => {
-    return taskData.value?.status === 99;
+    return taskData.value?.status === 6;
 });
 
 // Computed property to check if job can be closed
@@ -304,6 +345,18 @@ const toggleMultiSelectMode = () => {
 
 const toggleGroupSelection = (group) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการเลือกเอกสารที่บันทึกบัญชีแล้ว
+    if (group.references && group.references.length > 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'เอกสารนี้ถูกบันทึกบัญชีแล้ว ไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
+
     const index = selectedGroupsForMerge.value.findIndex((g) => g.guidfixed === group.guidfixed);
     if (index !== -1) {
         selectedGroupsForMerge.value.splice(index, 1);
@@ -323,6 +376,19 @@ const openMergeDialog = () => {
         });
         return;
     }
+
+    // ตรวจสอบว่ามีเอกสารที่บันทึกบัญชีแล้วหรือไม่
+    const hasRecordedDocs = selectedGroupsForMerge.value.some((g) => g.references && g.references.length > 0);
+    if (hasRecordedDocs) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'มีเอกสารที่ถูกบันทึกบัญชีแล้ว ไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
+
     mergeDialogVisible.value = true;
 };
 
@@ -604,6 +670,87 @@ const handleSearch = () => {
     fetchImageGroups(true);
 };
 
+// Toggle status select mode
+const toggleStatusSelectMode = () => {
+    statusSelectMode.value = !statusSelectMode.value;
+    if (!statusSelectMode.value) {
+        selectedGroupsForMerge.value = [];
+    }
+    // ปิดโหมดอื่นๆ
+    if (statusSelectMode.value) {
+        multiSelectMode.value = false;
+        sortMode.value = false;
+    }
+};
+
+// Bulk update status for selected groups
+const handleBulkUpdateStatus = async (status) => {
+    if (isJobClosed.value) return;
+    if (updatingStatus.value) return;
+    if (selectedGroupsForMerge.value.length === 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'คำเตือน',
+            detail: 'กรุณาเลือกเอกสารอย่างน้อย 1 รายการ',
+            life: 3000
+        });
+        return;
+    }
+
+    updatingStatus.value = true;
+
+    try {
+        showLoading(`กำลังอัปเดตสถานะ ${selectedGroupsForMerge.value.length} รายการ...`);
+
+        // Update status for each selected group
+        const updatePromises = selectedGroupsForMerge.value.map((group) => updateDocumentImageGroupStatus(group.guidfixed, status));
+
+        await Promise.all(updatePromises);
+
+        // Recount task documents
+        showLoading('กำลังนับจำนวนเอกสารใหม่...');
+        await recountTaskDocuments(taskId.value);
+
+        // Refresh task detail
+        showLoading('กำลังอัปเดตข้อมูลงาน...');
+        await fetchTaskDetail();
+
+        // Refresh image groups
+        showLoading('กำลังโหลดรายการเอกสาร...');
+        await fetchImageGroups(true);
+
+        hideLoading();
+
+        const statusText = {
+            0: 'รอตรวจสอบ',
+            1: 'ผ่าน',
+            2: 'ไม่ผ่าน',
+            3: 'ไม่บันทึกรายวัน'
+        };
+
+        toast.add({
+            severity: 'success',
+            summary: 'สำเร็จ',
+            detail: `อัปเดตสถานะเป็น "${statusText[status]}" แล้ว ${selectedGroupsForMerge.value.length} รายการ`,
+            life: 3000
+        });
+
+        // Exit status select mode
+        toggleStatusSelectMode();
+    } catch (error) {
+        hideLoading();
+        console.error('Bulk update status error:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถอัปเดตสถานะได้',
+            life: 3000
+        });
+    } finally {
+        updatingStatus.value = false;
+    }
+};
+
 // ผ่านทั้งหมด - เปลี่ยนสถานะเอกสารทั้งหมดเป็น status: 1
 const handleApproveAll = async () => {
     if (isJobClosed.value) return;
@@ -656,44 +803,89 @@ const handleApproveAll = async () => {
     }
 };
 
-// ยกเลิกผ่านทั้งหมด - เปลี่ยนสถานะเอกสารทั้งหมดเป็น status: 0
+// ยกเลิกผ่านทั้งหมด - เปลี่ยนสถานะเอกสารทั้งหมดเป็น status: 0 (ยกเว้นเอกสารที่บันทึกบัญชีแล้ว)
 const handleResetAllStatus = async () => {
     if (isJobClosed.value) return;
     if (updatingAllStatus.value) return;
 
+    // กรองเอกสารที่ไม่ได้บันทึกบัญชี (ไม่มี references)
+    const groupsToReset = imageGroups.value.filter((g) => !(g.references && g.references.length > 0));
+    const recordedGroups = imageGroups.value.filter((g) => g.references && g.references.length > 0);
+
+    if (groupsToReset.length === 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถดำเนินการได้',
+            detail: 'ไม่มีเอกสารที่สามารถยกเลิกผ่านได้ (เอกสารทั้งหมดถูกบันทึกบัญชีแล้ว)',
+            life: 3000
+        });
+        return;
+    }
+
     updatingAllStatus.value = true;
 
     try {
-        showLoading('กำลังยกเลิกการอนุมัติทั้งหมด...');
-        const response = await updateAllDocumentImageGroupsStatus(taskId.value, 0);
+        showLoading('กำลังยกเลิกการอนุมัติ...');
 
-        if (response.data.success) {
-            // Recount task documents
-            showLoading('กำลังนับจำนวนเอกสารใหม่...');
-            await recountTaskDocuments(taskId.value);
+        let successCount = 0;
+        let failCount = 0;
 
-            // Refresh task detail
-            showLoading('กำลังอัปเดตข้อมูลงาน...');
-            await fetchTaskDetail();
+        // อัปเดตทีละรายการสำหรับเอกสารที่ไม่ได้บันทึกบัญชี
+        for (const group of groupsToReset) {
+            try {
+                const response = await updateDocumentImageGroupStatus(group.guidfixed, 0);
+                if (response.data.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (error) {
+                console.error(`Error resetting status for ${group.guidfixed}:`, error);
+                failCount++;
+            }
+        }
 
-            // Refresh image groups
-            showLoading('กำลังโหลดรายการเอกสาร...');
-            await fetchImageGroups(true);
+        // Recount task documents
+        showLoading('กำลังนับจำนวนเอกสารใหม่...');
+        await recountTaskDocuments(taskId.value);
 
-            hideLoading();
+        // Refresh task detail
+        showLoading('กำลังอัปเดตข้อมูลงาน...');
+        await fetchTaskDetail();
+
+        // Refresh image groups
+        showLoading('กำลังโหลดรายการเอกสาร...');
+        await fetchImageGroups(true);
+
+        hideLoading();
+
+        // แสดงผลลัพธ์
+        if (successCount > 0) {
+            let message = `ยกเลิกการอนุมัติแล้ว ${successCount} รายการ`;
+            if (recordedGroups.length > 0) {
+                message += ` (ข้าม ${recordedGroups.length} รายการที่บันทึกบัญชีแล้ว)`;
+            }
+
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
-                detail: 'ยกเลิกการอนุมัติทั้งหมดแล้ว',
+                detail: message,
+                life: 4000
+            });
+        }
+
+        if (failCount > 0) {
+            toast.add({
+                severity: 'warn',
+                summary: 'คำเตือน',
+                detail: `ไม่สามารถยกเลิกได้ ${failCount} รายการ`,
                 life: 3000
             });
-
-            // Clear selection
-            selectedGroup.value = null;
-            selectedImageDetail.value = null;
-        } else {
-            throw new Error('Reset all status failed');
         }
+
+        // Clear selection
+        selectedGroup.value = null;
+        selectedImageDetail.value = null;
     } catch (error) {
         console.error('Reset all status error:', error);
         hideLoading();
@@ -781,11 +973,149 @@ const goBack = () => {
     router.push({ name: 'image-review' });
 };
 
+// View Journal Detail
+const handleViewJournalDetail = async (reference) => {
+    if (!reference?.guidfixed) return;
+
+    try {
+        loadingJournal.value = true;
+        const response = await getJournalById(reference.guidfixed);
+
+        if (response.data.success) {
+            selectedJournal.value = response.data.data;
+            journalDetailDialog.value = true;
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'ข้อผิดพลาด',
+                detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching journal detail:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+            life: 3000
+        });
+    } finally {
+        loadingJournal.value = false;
+    }
+};
+
+// Handle copy document
+const handleCopyDocument = () => {
+    if (isJobClosed.value) return;
+    if (!selectedGroup.value?.guidfixed) return;
+
+    copyCount.value = 1;
+    showCopyDialog.value = true;
+};
+
+const confirmCopyDocument = async () => {
+    if (!selectedGroup.value?.guidfixed || copyCount.value < 1) return;
+
+    copyingDocument.value = true;
+
+    try {
+        showLoading('กำลัง Copy เอกสาร...');
+
+        // สร้าง payload สำหรับ bulk create
+        const bulkPayload = [];
+        const now = new Date();
+
+        // วนลูปสร้างข้อมูลตามจำนวนที่ระบุ
+        for (let i = 1; i <= copyCount.value; i++) {
+            // วนลูปแต่ละรูปใน group
+            if (selectedGroup.value.imagereferences && selectedGroup.value.imagereferences.length > 0) {
+                for (const imgRef of selectedGroup.value.imagereferences) {
+                    // แยกนามสกุลไฟล์ออกจากชื่อ
+                    const originalName = imgRef.name || 'document';
+                    const lastDotIndex = originalName.lastIndexOf('.');
+                    const nameWithoutExt = lastDotIndex > 0 ? originalName.substring(0, lastDotIndex) : originalName;
+                    const extension = lastDotIndex > 0 ? originalName.substring(lastDotIndex) : '';
+                    const newName = `${nameWithoutExt} copy-${i}${extension}`;
+
+                    bulkPayload.push({
+                        name: newName,
+                        metafileat: imgRef.metafileat || now.toISOString(),
+                        imageuri: imgRef.imageuri,
+                        uploadedby: username.value || 'unknown',
+                        uploadedat: now.toISOString(),
+                        billcount: 1,
+                        tags: [`copy-${i}`],
+                        taskguid: taskId.value
+                    });
+                }
+            }
+        }
+
+        // ส่ง bulk create
+        const response = await bulkCreateDocumentImages(bulkPayload);
+
+        if (response.data.success) {
+            // Recount task documents
+            showLoading('กำลังนับจำนวนเอกสารใหม่...');
+            await recountTaskDocuments(taskId.value);
+
+            // Refresh task detail
+            showLoading('กำลังอัปเดตข้อมูลงาน...');
+            await fetchTaskDetail();
+
+            // Refresh image groups
+            showLoading('กำลังโหลดรายการเอกสาร...');
+            await fetchImageGroups(true);
+
+            hideLoading();
+            toast.add({
+                severity: 'success',
+                summary: 'สำเร็จ',
+                detail: `Copy เอกสาร ${copyCount.value} ชุดเรียบร้อยแล้ว`,
+                life: 3000
+            });
+
+            showCopyDialog.value = false;
+            copyCount.value = 1;
+        } else {
+            throw new Error('Copy document failed');
+        }
+    } catch (error) {
+        console.error('Copy document error:', error);
+        hideLoading();
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: error.response?.data?.message || 'ไม่สามารถ Copy เอกสารได้',
+            life: 3000
+        });
+    } finally {
+        copyingDocument.value = false;
+    }
+};
+
+const handleCancelCopy = () => {
+    showCopyDialog.value = false;
+    copyCount.value = 1;
+};
+
 // ========== Drag & Drop Merge Handlers ==========
 
 // Use Case 1: รวมเอกสาร (สร้าง group ใหม่) - เปิด MergeDocumentDialog
 const handleDragMergeGroups = ({ sourceGroup, targetGroup }) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการ drag เอกสารที่บันทึกบัญชีแล้ว
+    if ((sourceGroup.references && sourceGroup.references.length > 0) || (targetGroup.references && targetGroup.references.length > 0)) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'เอกสารที่ถูกบันทึกบัญชีแล้วไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
 
     // เพิ่ม groups เข้า selectedGroupsForMerge แล้วเปิด dialog
     // ให้ targetGroup อยู่ก่อน (ตำแหน่งแรก) เพราะจะใช้ตำแหน่งนี้ในการวาง
@@ -796,6 +1126,17 @@ const handleDragMergeGroups = ({ sourceGroup, targetGroup }) => {
 // Use Case 2: เพิ่มเอกสารเข้าในชุดที่มีอยู่แล้ว - ใช้ข้อมูลของชุดหลักเลย ไม่ต้องเปิด dialog
 const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการ drag เอกสารที่บันทึกบัญชีแล้ว
+    if ((sourceGroup.references && sourceGroup.references.length > 0) || (targetGroup.references && targetGroup.references.length > 0)) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถเพิ่มเอกสารได้',
+            detail: 'เอกสารที่ถูกบันทึกบัญชีแล้วไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
 
     try {
         // บันทึกตำแหน่งของ target group และ source group ก่อนเริ่ม
@@ -955,6 +1296,17 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                         <Button label="บันทึกการเรียง" icon="pi pi-save" class="mr-2" @click="saveSortOrder" :loading="savingOrder" />
                         <Button label="ยกเลิก" icon="pi pi-times" @click="cancelSortMode" outlined />
                     </template>
+                    <!-- Status Select Mode Actions -->
+                    <template v-else-if="statusSelectMode">
+                        <div class="flex items-center gap-2">
+                            <Tag :value="`เลือกแล้ว ${selectedGroupsForMerge.length} รายการ`" severity="success" />
+                            <Button label="ผ่าน" icon="pi pi-check-circle" severity="success" @click="handleBulkUpdateStatus(1)" :disabled="selectedGroupsForMerge.length === 0" />
+                            <Button label="ไม่ผ่าน" icon="pi pi-times-circle" severity="danger" @click="handleBulkUpdateStatus(2)" :disabled="selectedGroupsForMerge.length === 0" />
+                            <Button label="ไม่บันทึกรายวัน" icon="pi pi-minus-circle" severity="warning" @click="handleBulkUpdateStatus(3)" :disabled="selectedGroupsForMerge.length === 0" />
+                            <Button label="รอตรวจสอบ" icon="pi pi-clock" severity="secondary" @click="handleBulkUpdateStatus(0)" :disabled="selectedGroupsForMerge.length === 0" />
+                            <Button label="ยกเลิก" icon="pi pi-times" @click="toggleStatusSelectMode" outlined />
+                        </div>
+                    </template>
                     <!-- Normal Mode Actions -->
                     <template v-else>
                         <Button v-if="!isJobClosed && !isApprovalDisabled" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="hasPendingDocuments ? 'ยังมีเอกสารที่รอตรวจสอบอยู่' : 'ปิดงาน'" />
@@ -972,11 +1324,11 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                             <div class="flex items-center gap-2">
                                 <!-- Dropdown จัดการเอกสาร -->
                                 <Menu ref="documentMenu" :model="documentMenuItems" :popup="true" />
-                                <Button v-if="!sortMode && !isJobClosed" type="button" label="จัดการเอกสาร" icon="pi pi-file-edit" @click="toggleDocumentMenu" size="small" />
+                                <Button v-if="taskData && !sortMode && !isJobClosed" type="button" label="จัดการเอกสาร" icon="pi pi-file-edit" @click="toggleDocumentMenu" size="small" />
 
                                 <!-- Dropdown จัดการสถานะ -->
                                 <Menu ref="statusMenu" :model="statusMenuItems" :popup="true" />
-                                <Button v-if="!sortMode && !multiSelectMode && !isJobClosed" type="button" label="จัดการสถานะ" icon="pi pi-check-square" @click="toggleStatusMenu" size="small" />
+                                <Button v-if="taskData && !sortMode && !multiSelectMode && !statusSelectMode && !isJobClosed" type="button" label="จัดการสถานะ" icon="pi pi-check-square" @click="toggleStatusMenu" size="small" />
 
                                 <!-- ปุ่ม Refresh -->
                                 <Button v-if="!sortMode" icon="pi pi-refresh" size="small" @click="fetchImageGroups" :loading="loading" title="รีเฟรช" text />
@@ -988,14 +1340,23 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                     <Button label="ยกเลิก" icon="pi pi-times" size="small" @click="toggleMultiSelectMode" outlined />
                                 </template>
 
+                                <!-- Context Actions สำหรับ Status Select Mode -->
+                                <template v-if="statusSelectMode && !sortMode">
+                                    <Tag value="โหมดอัปเดตสถานะ" severity="success" />
+                                </template>
+
                                 <!-- Context Actions สำหรับ Sort Mode -->
                                 <template v-if="sortMode">
                                     <Tag value="โหมดเรียงลำดับ" severity="info" />
                                 </template>
                             </div>
 
-                            <!-- แสดงจำนวนเอกสาร -->
-                            <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            <div class="flex items-center gap-2">
+                                <!-- ปุ่มเปลี่ยนขนาดการแสดงผล -->
+                                <Button :icon="gridSizeIcon" @click="cycleGridSize" size="small" outlined />
+                                <!-- แสดงจำนวนเอกสาร -->
+                                <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            </div>
                         </div>
                         <div class="flex-1 overflow-hidden">
                             <ImageGridPanel
@@ -1004,10 +1365,11 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                 :loading-more="loadingMore"
                                 :selected-group="selectedGroup"
                                 :selected-groups="selectedGroupsForMerge"
-                                :multi-select-mode="multiSelectMode"
+                                :multi-select-mode="multiSelectMode || statusSelectMode"
                                 :sort-mode="sortMode"
                                 :current-page="currentPage"
                                 :total-pages="totalPages"
+                                :grid-size="gridSize"
                                 :show-status="true"
                                 :is-job-closed="isJobClosed"
                                 @select-group="handleSelectGroup"
@@ -1028,9 +1390,13 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                         :is-job-closed="isJobClosed"
                         :is-review-mode="true"
                         :updating-status="updatingStatus"
+                        :task-status="taskData?.status"
+                        :show-copy-button="true"
                         @refresh-detail="handleRefreshDetail"
                         @refresh-group="handleRefreshGroup"
                         @update-status="handleUpdateStatus"
+                        @view-journal-detail="handleViewJournalDetail"
+                        @copy-document="handleCopyDocument"
                     />
                 </SplitterPanel>
             </Splitter>
@@ -1042,8 +1408,94 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
         <!-- Ungroup Dialog -->
         <DialogForm :confirmDialog="showUngroupDialog" textContent="คุณต้องการแยกเอกสารนี้หรือไม่?" confirmLabel="แยก (Enter)" cancelLabel="ยกเลิก" severity="warning" @close="showUngroupDialog = false" @confirm="confirmUngroup" />
 
+        <!-- Journal Detail Dialog -->
+        <JournalDetailDialog v-model:visible="journalDetailDialog" :journal="selectedJournal" :loading="loadingJournal" />
+
         <!-- Close Job Dialog -->
         <DialogApprove mode="close" title="ยืนยันการปิดงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />
+
+        <!-- Copy Document Dialog -->
+        <Dialog v-model:visible="showCopyDialog" modal :closable="true" :style="{ width: '500px' }" @keydown.enter="confirmCopyDocument">
+            <template #header>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                        <i class="pi pi-copy text-2xl text-primary-600 dark:text-primary-400"></i>
+                    </div>
+                    <div>
+                        <div class="text-xl font-semibold text-surface-900 dark:text-surface-0">Copy เอกสาร</div>
+                        <div class="text-sm text-surface-500 dark:text-surface-400">สร้างสำเนาเอกสารใหม่</div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="flex flex-col gap-5 py-5">
+                <!-- เอกสารต้นฉบับ -->
+                <div class="bg-surface-50 dark:bg-surface-800 rounded-lg p-4 border border-surface-200 dark:border-surface-700">
+                    <div class="flex items-start gap-3">
+                        <i class="pi pi-file text-2xl text-surface-500 mt-1"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-1">เอกสารต้นฉบับ</div>
+                            <div class="text-surface-900 dark:text-surface-100 font-medium">{{ selectedGroup?.title || 'ไม่มีชื่อ' }}</div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <Tag :value="`${selectedGroup?.imagereferences?.length || 0} รูป`" severity="info" size="small" />
+                                <Tag v-if="selectedGroup?.status === 0" value="รอตรวจสอบ" severity="secondary" size="small" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- จำนวนที่ต้องการ Copy -->
+                <div>
+                    <label class="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3">
+                        <i class="pi pi-hashtag mr-1"></i>
+                        จำนวนชุดที่ต้องการ Copy
+                    </label>
+                    <InputNumber v-model="copyCount" :min="1" :max="100" showButtons buttonLayout="horizontal" :step="1" fluid inputClass="text-center text-lg font-semibold" @keydown.enter="confirmCopyDocument">
+                        <template #incrementbuttonicon>
+                            <span class="pi pi-plus" />
+                        </template>
+                        <template #decrementbuttonicon>
+                            <span class="pi pi-minus" />
+                        </template>
+                    </InputNumber>
+                </div>
+
+                <!-- สรุปผลลัพธ์ -->
+                <div class="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-4 border border-primary-200 dark:border-primary-800">
+                    <div class="flex items-start gap-3">
+                        <i class="pi pi-info-circle text-primary-600 dark:text-primary-400 text-xl mt-0.5"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-primary-900 dark:text-primary-100 mb-2">ผลลัพธ์ที่จะได้</div>
+                            <div class="text-sm text-primary-800 dark:text-primary-200">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <i class="pi pi-arrow-right text-xs"></i>
+                                    <span
+                                        >สร้างเอกสารใหม่ <strong>{{ copyCount }} ชุด</strong></span
+                                    >
+                                </div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <i class="pi pi-arrow-right text-xs"></i>
+                                    <span
+                                        >แต่ละชุดมี <strong>{{ selectedGroup?.imagereferences?.length || 0 }} รูป</strong></span
+                                    >
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <i class="pi pi-arrow-right text-xs"></i>
+                                    <span>ชื่อไฟล์จะเพิ่ม <strong>"copy-1", "copy-2", ...</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex justify-end gap-2">
+                    <Button label="ยกเลิก (Esc)" icon="pi pi-times" @click="handleCancelCopy" severity="secondary" outlined />
+                    <Button label="ยืนยัน Copy (Enter)" icon="pi pi-save" @click="confirmCopyDocument" :loading="copyingDocument" :disabled="copyCount < 1" />
+                </div>
+            </template>
+        </Dialog>
 
         <!-- Loading Dialog -->
         <LoadingDialog />

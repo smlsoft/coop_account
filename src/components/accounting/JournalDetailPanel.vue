@@ -4,6 +4,7 @@ import PdfViewer from '@/components/image/PdfViewer.vue';
 import { getDocumentImageGroup } from '@/services/api/image';
 import { getJournalBooks, getJournalByDocno } from '@/services/api/journal';
 import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 const props = defineProps({
     docno: {
@@ -11,6 +12,8 @@ const props = defineProps({
         default: ''
     }
 });
+
+const router = useRouter();
 
 const journal = ref(null);
 const loading = ref(false);
@@ -160,11 +163,20 @@ const getJournalTypeName = (journaltype) => {
     return '-';
 };
 
-// VAT type: 0=ปกติ, 1=ขอคืนไม่ได้, 2=ไม่ถึงกำหนดชำระ
-const getVatTypeName = (vattype) => {
-    if (vattype === 0) return 'ปกติ';
-    if (vattype === 1) return 'ขอคืนไม่ได้';
-    if (vattype === 2) return 'ไม่ถึงกำหนดชำระ';
+// VAT type: แสดงตามประเภทภาษี (vatmode)
+// vatmode = 0 (ภาษีซื้อ): 0=ปกติ, 1=ขอคืนไม่ได้, 2=ไม่ถึงกำหนดชำระ
+// vatmode = 1 (ภาษีขาย): 0=ปกติ, 1=ไม่ถึงกำหนดชำระ
+const getVatTypeName = (vattype, vatmode) => {
+    if (vatmode === 0) {
+        // ภาษีซื้อ
+        if (vattype === 0) return 'ปกติ';
+        if (vattype === 1) return 'ขอคืนไม่ได้';
+        if (vattype === 2) return 'ไม่ถึงกำหนดชำระ';
+    } else if (vatmode === 1) {
+        // ภาษีขาย
+        if (vattype === 0) return 'ปกติ';
+        if (vattype === 1) return 'ไม่ถึงกำหนดชำระ';
+    }
     return '-';
 };
 
@@ -184,15 +196,15 @@ const getTaxTypeName = (taxtype) => {
 
 // Customer type: 0=บุคคลธรรมดา, 1=นิติบุคคล
 const getCustomerTypeName = (custtype) => {
-    if (custtype === 0) return 'บุคคลธรรมดา';
-    if (custtype === 1) return 'นิติบุคคล';
+    if (custtype === 1) return 'บุคคลธรรมดา';
+    if (custtype === 2) return 'นิติบุคคล';
     return '-';
 };
 
-// Organization: 0=สำนักงานใหญ่, 1=สาขา
+// Organization: 1=สำนักงานใหญ่, 2=สาขา
 const getOrganizationName = (org) => {
-    if (org === 0) return 'สำนักงานใหญ่';
-    if (org === 1) return 'สาขา';
+    if (org === 1) return 'สำนักงานใหญ่';
+    if (org === 2) return 'สาขา';
     return '-';
 };
 
@@ -266,6 +278,13 @@ const isPDF = (uri) => {
     if (!uri) return false;
     return uri.toLowerCase().endsWith('.pdf');
 };
+
+// Navigate to edit page
+const navigateToEdit = () => {
+    if (journal.value?.guidfixed) {
+        router.push(`/accounting/entry/${journal.value.guidfixed}`);
+    }
+};
 </script>
 
 <template>
@@ -302,6 +321,15 @@ const isPDF = (uri) => {
 
             <!-- Right Panel: Details (ขยายเต็มความกว้างเมื่อไม่มีรูป) -->
             <div :class="[loadingImages || documentImages.length > 0 ? 'w-3/5' : 'w-full px-6', 'flex flex-col overflow-hidden']">
+                <!-- Header with Edit Button -->
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <div class="text-xl font-bold text-surface-900 dark:text-surface-0">รายละเอียดการบันทึกบัญชี</div>
+                        <p class="text-sm text-surface-500 dark:text-surface-400">{{ journal.docno }}</p>
+                    </div>
+                    <Button label="แก้ไข" icon="pi pi-pencil" severity="primary" @click="navigateToEdit" :disabled="!journal?.guidfixed" />
+                </div>
+
                 <!-- Summary Cards -->
                 <div class="mb-3">
                     <div class="grid grid-cols-4 gap-2">
@@ -534,7 +562,7 @@ const isPDF = (uri) => {
                                                 </div>
                                                 <div>
                                                     <label class="text-surface-500">ภาษี</label>
-                                                    <div><Tag :value="getVatTypeName(vat.vattype)" :severity="vat.vattype === 0 ? 'info' : 'success'" /></div>
+                                                    <div><Tag :value="getVatTypeName(vat.vattype, vat.vatmode)" :severity="vat.vattype === 0 ? 'info' : 'success'" /></div>
                                                 </div>
                                                 <div>
                                                     <label class="text-surface-500">ประเภทภาษี</label>

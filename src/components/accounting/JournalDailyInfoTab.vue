@@ -64,6 +64,29 @@ const journalTypes = ref([
     { label: 'ปิดบัญชี', value: 1 }
 ]);
 
+// Reactive keys สำหรับ force re-render SelectButton เมื่อ block null value
+const debtAccountTypeKey = ref(0);
+const journalTypeKey = ref(0);
+
+// ฟังก์ชันสำหรับจัดการการเปลี่ยนแปลงของ SelectButton โดยป้องกัน unselect
+const handleDebtAccountTypeChange = (val) => {
+    if (val !== null && val !== undefined) {
+        updateField('debtaccounttype', val);
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        debtAccountTypeKey.value++;
+    }
+};
+
+const handleJournalTypeChange = (val) => {
+    if (val !== null && val !== undefined) {
+        updateField('journaltype', val);
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        journalTypeKey.value++;
+    }
+};
+
 // Generate document number - ใช้วันที่จาก docdate และปี พ.ศ.
 const generateDocNo = () => {
     // ใช้วันที่จาก docdate ถ้ามี ไม่งั้นใช้วันที่ปัจจุบัน
@@ -1052,7 +1075,7 @@ onUnmounted(() => {
         <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label class="block font-medium mb-2">ประเภท</label>
             <div class="select-button-full">
-                <SelectButton :modelValue="formData.debtaccounttype" @update:modelValue="updateField('debtaccounttype', $event)" :options="debtAccountTypes" optionLabel="label" optionValue="value" />
+                <SelectButton :key="debtAccountTypeKey" :modelValue="formData.debtaccounttype" @update:modelValue="handleDebtAccountTypeChange" :options="debtAccountTypes" optionLabel="label" optionValue="value" />
             </div>
         </div>
 
@@ -1095,7 +1118,7 @@ onUnmounted(() => {
         <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label class="block font-medium mb-2">ประเภทรายการ</label>
             <div class="select-button-full">
-                <SelectButton :modelValue="formData.journaltype" @update:modelValue="updateField('journaltype', $event)" :options="journalTypes" optionLabel="label" optionValue="value" />
+                <SelectButton :key="journalTypeKey" :modelValue="formData.journaltype" @update:modelValue="handleJournalTypeChange" :options="journalTypes" optionLabel="label" optionValue="value" />
             </div>
         </div>
 

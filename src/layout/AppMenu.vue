@@ -51,10 +51,10 @@ const model = ref([
             },
             /// บันทึกรายการบัญชี จาก Statement ธนาคาร
             {
-                label: 'บันทึกบัญชี Statement ธนาคาร',
-                icon: 'pi pi-fw pi-credit-card',
-                to: '/accounting/entry-from-bank-statement',
-                path: '/entry-from-bank-statement'
+                label: 'บันทึกบัญชี จาก Statement',
+                icon: 'pi pi-fw pi-file-pdf',
+                to: '/accounting/entry-from-statement',
+                path: '/entry-from-statement'
             }
         ]
     },
@@ -222,20 +222,20 @@ const model = ref([
                 to: '/masterdata/accounting-periods',
                 path: '/accounting-periods'
             },
-            /// กำหนดรายได้อื่น ๆ
-            {
-                label: 'กำหนดรายได้อื่น ๆ',
-                icon: 'pi pi-fw pi-money-bill',
-                to: '/masterdata/other-incomes',
-                path: '/other-incomes'
-            },
-            /// กำหนดค่าใช้จ่ายอื่น ๆ
-            {
-                label: 'กำหนดค่าใช้จ่ายอื่น ๆ',
-                icon: 'pi pi-fw pi-wallet',
-                to: '/masterdata/other-expenses',
-                path: '/other-expenses'
-            },
+            // /// กำหนดรายได้อื่น ๆ
+            // {
+            //     label: 'กำหนดรายได้อื่น ๆ',
+            //     icon: 'pi pi-fw pi-money-bill',
+            //     to: '/masterdata/other-incomes',
+            //     path: '/other-incomes'
+            // },
+            // /// กำหนดค่าใช้จ่ายอื่น ๆ
+            // {
+            //     label: 'กำหนดค่าใช้จ่ายอื่น ๆ',
+            //     icon: 'pi pi-fw pi-wallet',
+            //     to: '/masterdata/other-expenses',
+            //     path: '/other-expenses'
+            // },
             /// กำหนดรูปแบบการบันทึกบัญชี
             {
                 label: 'กำหนดรูปแบบการบันทึกบัญชี',

@@ -46,6 +46,15 @@ export const deleteJournalEntry = (guidfixed) => {
 };
 
 /**
+ * Delete journal entries by batch ID (ลบทั้ง batch จาก Statement)
+ * @param {string} batchid - Batch ID
+ * @returns {Promise} Delete result
+ */
+export const deleteJournalByBatchId = (batchid) => {
+    return apiClient.delete(`/gl/journal/batchid/${batchid}`);
+};
+
+/**
  * Get journal books (สมุดรายวัน) with pagination and search
  * @param {Object} params - Query parameters
  * @param {string} params.q - Search query

@@ -1,4 +1,5 @@
 <script setup>
+import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import DialogApprove from '@/components/DialogApprove.vue';
 import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
@@ -9,6 +10,7 @@ import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useLoading } from '@/composables/useLoading';
 import { deleteDocumentImageGroups, getDocumentImageDetail, getDocumentImageGroups, recountTaskDocuments, ungroupDocumentImageGroup, updateDocumentImageGroupImages, updateDocumentImageGroupsOrder } from '@/services/api/image';
+import { getJournalById } from '@/services/api/journal';
 import { getTask, updateTaskStatus } from '@/services/api/task';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -46,6 +48,10 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const searchQuery = ref('');
 const searchTimeout = ref(null);
+const journalDetailDialog = ref(false);
+const selectedJournal = ref(null);
+const loadingJournal = ref(false);
+const gridSize = ref('medium'); // เล็ก, กลาง, ใหญ่, ใหญ่มาก
 
 // Menu refs
 const documentMenu = ref(null);
@@ -77,7 +83,7 @@ const documentMenuItems = computed(() => [
         label: 'ลบเอกสาร',
         icon: 'pi pi-trash',
         command: () => handleDelete(),
-        disabled: isJobClosed.value || !selectedGroup.value
+        disabled: isJobClosed.value || !selectedGroup.value || selectedGroup.value?.status === 1
     }
 ]);
 
@@ -86,14 +92,33 @@ const toggleDocumentMenu = (event) => {
     documentMenu.value.toggle(event);
 };
 
-// Computed: Check if job is closed (status !== 0 and status !== 99)
-const isJobClosed = computed(() => {
-    return taskData.value?.status !== 0 && taskData.value?.status !== 99;
+// Grid size cycle: small -> medium -> large -> xlarge -> small
+const cycleGridSize = () => {
+    const sizes = ['small', 'medium', 'large', 'xlarge'];
+    const currentIndex = sizes.indexOf(gridSize.value);
+    const nextIndex = (currentIndex + 1) % sizes.length;
+    gridSize.value = sizes[nextIndex];
+};
+
+// Get grid size icon
+const gridSizeIcon = computed(() => {
+    const icons = {
+        small: 'pi pi-th-large',
+        medium: 'pi pi-table',
+        large: 'pi pi-clone',
+        xlarge: 'pi pi-stop'
+    };
+    return icons[gridSize.value] || 'pi pi-table';
 });
 
-// Computed: Check if approval is disabled (status = 99)
+// Computed: Check if job is closed (status !== 0 and status !== 6)
+const isJobClosed = computed(() => {
+    return taskData.value?.status !== 0 && taskData.value?.status !== 6;
+});
+
+// Computed: Check if approval is disabled (status = 6)
 const isApprovalDisabled = computed(() => {
-    return taskData.value?.status === 99;
+    return taskData.value?.status === 6;
 });
 
 // Computed: Check if can close job
@@ -210,12 +235,15 @@ const handleSelectGroup = async (group) => {
         if (firstImageGuid) {
             try {
                 loadingDetail.value = true;
+                // showLoading('กำลังโหลดรายละเอียดเอกสาร...');
                 const response = await getDocumentImageDetail(firstImageGuid);
                 if (response.data.success) {
                     selectedImageDetail.value = response.data.data;
                 }
+                hideLoading();
             } catch (error) {
                 console.error('Error fetching image detail:', error);
+                hideLoading();
                 toast.add({
                     severity: 'error',
                     summary: 'Error',
@@ -234,12 +262,15 @@ const handleRefreshDetail = async () => {
     if (!selectedGroup.value?.imagereferences?.[0]?.documentimageguid) return;
 
     try {
+        showLoading('กำลังรีเฟรชข้อมูล...');
         const response = await getDocumentImageDetail(selectedGroup.value.imagereferences[0].documentimageguid);
         if (response.data.success) {
             selectedImageDetail.value = response.data.data;
         }
+        hideLoading();
     } catch (error) {
         console.error('Error refreshing image detail:', error);
+        hideLoading();
     }
 };
 
@@ -283,6 +314,18 @@ const toggleMultiSelectMode = () => {
 
 const toggleGroupSelection = (group) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการเลือกเอกสารที่บันทึกบัญชีแล้ว
+    if (group.references && group.references.length > 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'เอกสารนี้ถูกบันทึกบัญชีแล้ว ไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
+
     const index = selectedGroupsForMerge.value.findIndex((g) => g.guidfixed === group.guidfixed);
     if (index !== -1) {
         selectedGroupsForMerge.value.splice(index, 1);
@@ -300,6 +343,18 @@ const openMergeDialog = () => {
             severity: 'warn',
             summary: 'คำเตือน',
             detail: 'กรุณาเลือกอย่างน้อย 2 รายการ',
+            life: 3000
+        });
+        return;
+    }
+
+    // ตรวจสอบว่ามีเอกสารที่บันทึกบัญชีแล้วหรือไม่
+    const hasRecordedDocs = selectedGroupsForMerge.value.some((g) => g.references && g.references.length > 0);
+    if (hasRecordedDocs) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'มีเอกสารที่ถูกบันทึกบัญชีแล้ว ไม่สามารถรวมกับเอกสารอื่นได้',
             life: 3000
         });
         return;
@@ -512,6 +567,17 @@ const handleDelete = () => {
     if (isJobClosed.value) return;
     if (!selectedGroup.value?.guidfixed) return;
 
+    // ตรวจสอบว่าเอกสารเป็นสถานะ "ผ่าน" (status = 1) หรือไม่
+    if (selectedGroup.value.status === 1) {
+        toast.add({
+            severity: 'warn',
+            summary: 'คำเตือน',
+            detail: 'ไม่สามารถลบเอกสารที่มีสถานะ "ผ่าน" ได้',
+            life: 3000
+        });
+        return;
+    }
+
     showDeleteDialog.value = true;
 };
 
@@ -641,11 +707,54 @@ const goBack = () => {
     router.push({ name: 'image-upload' });
 };
 
+// View Journal Detail
+const handleViewJournalDetail = async (reference) => {
+    if (!reference?.guidfixed) return;
+
+    try {
+        loadingJournal.value = true;
+        const response = await getJournalById(reference.guidfixed);
+
+        if (response.data.success) {
+            selectedJournal.value = response.data.data;
+            journalDetailDialog.value = true;
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'ข้อผิดพลาด',
+                detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching journal detail:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+            life: 3000
+        });
+    } finally {
+        loadingJournal.value = false;
+    }
+};
+
 // ========== Drag & Drop Merge Handlers ==========
 
 // Use Case 1: รวมเอกสาร (สร้าง group ใหม่) - เปิด MergeDocumentDialog
 const handleDragMergeGroups = ({ sourceGroup, targetGroup }) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการ drag เอกสารที่บันทึกบัญชีแล้ว
+    if ((sourceGroup.references && sourceGroup.references.length > 0) || (targetGroup.references && targetGroup.references.length > 0)) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถรวมเอกสารได้',
+            detail: 'เอกสารที่ถูกบันทึกบัญชีแล้วไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
 
     // เพิ่ม groups เข้า selectedGroupsForMerge แล้วเปิด dialog
     // ให้ targetGroup อยู่ก่อน (ตำแหน่งแรก) เพราะจะใช้ตำแหน่งนี้ในการวาง
@@ -656,6 +765,17 @@ const handleDragMergeGroups = ({ sourceGroup, targetGroup }) => {
 // Use Case 2: เพิ่มเอกสารเข้าในชุดที่มีอยู่แล้ว - ใช้ข้อมูลของชุดหลักเลย ไม่ต้องเปิด dialog
 const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
     if (isJobClosed.value) return;
+
+    // ป้องกันการ drag เอกสารที่บันทึกบัญชีแล้ว
+    if ((sourceGroup.references && sourceGroup.references.length > 0) || (targetGroup.references && targetGroup.references.length > 0)) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถเพิ่มเอกสารได้',
+            detail: 'เอกสารที่ถูกบันทึกบัญชีแล้วไม่สามารถรวมกับเอกสารอื่นได้',
+            life: 3000
+        });
+        return;
+    }
 
     try {
         // บันทึกตำแหน่งของ target group ก่อนเริ่ม
@@ -823,9 +943,11 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                     <Tag value="โหมดเรียงลำดับ" severity="info" />
                                 </template>
                             </div>
-
-                            <!-- แสดงจำนวนเอกสาร -->
-                            <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            <div class="flex items-center gap-2">
+                                <!-- แสดงจำนวนเอกสาร -->
+                                <Button :icon="gridSizeIcon" @click="cycleGridSize" size="small" outlined />
+                                <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            </div>
                         </div>
                         <div class="flex-1 overflow-hidden">
                             <ImageGridPanel
@@ -838,7 +960,9 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                                 :sort-mode="sortMode"
                                 :current-page="currentPage"
                                 :total-pages="totalPages"
+                                :grid-size="gridSize"
                                 :is-job-closed="isJobClosed"
+                                :show-status="true"
                                 @select-group="handleSelectGroup"
                                 @toggle-group-selection="toggleGroupSelection"
                                 @reorder="handleReorder"
@@ -857,6 +981,7 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
                         :is-job-closed="isJobClosed"
                         @refresh-detail="handleRefreshDetail"
                         @refresh-group="handleRefreshGroup"
+                        @view-journal-detail="handleViewJournalDetail"
                     />
                 </SplitterPanel>
             </Splitter>
@@ -873,6 +998,9 @@ const handleDragAddToGroup = async ({ sourceGroup, targetGroup }) => {
 
         <!-- Delete Document Dialog -->
         <DialogForm :confirmDialog="showDeleteDialog" textContent="คุณต้องการลบเอกสารนี้หรือไม่?" confirmLabel="ลบ (Enter)" cancelLabel="ยกเลิก" severity="danger" @close="showDeleteDialog = false" @confirm="confirmDelete" />
+
+        <!-- Journal Detail Dialog -->
+        <JournalDetailDialog v-model:visible="journalDetailDialog" :journal="selectedJournal" :loading="loadingJournal" />
 
         <!-- Close Job Dialog -->
         <DialogApprove mode="close" title="ยืนยันการปิดงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobClose" @close="dialogJobClose = false" @confirmJob="confirmCloseJob" @confirmJobFalse="confirmJobFalse" />

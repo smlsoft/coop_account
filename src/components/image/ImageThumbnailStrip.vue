@@ -268,6 +268,7 @@ const fetchSelectedDocRefs = async () => {
         const response = await getDocrefSelected();
         if (response.data.success && response.data.data) {
             selectedDocRefs.value = response.data.data;
+            console.log('📋 Selected docrefs:', selectedDocRefs.value);
             retryCount = 0; // Reset retry count on success
         }
     } catch (error) {
@@ -591,7 +592,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <!-- In-use indicator (blue) -->
-                            <div v-if="isDocRefSelected(group.guidfixed) && group.guidfixed !== currentDocumentRef" v-tooltip.top="'มีผู้ใช้งานอยู่'" class="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                            <div v-if="isDocRefSelected(group.guidfixed)" v-tooltip.top="'มีผู้ใช้งานอยู่'" class="bg-blue-400 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1">
                                 <i class="pi pi-user text-[10px]"></i>
                             </div>
                         </div>

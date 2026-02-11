@@ -3,7 +3,7 @@ import DialogForm from '@/components/DialogForm.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -159,11 +159,26 @@ const handleCancel = () => {
     router.push({ name: 'journal-books' });
 };
 
+/**
+ * Keyboard handler สำหรับ Ctrl + S
+ */
+const handleKeydown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        handleSubmit();
+    }
+};
+
 // โหลดข้อมูลเมื่อเป็น edit mode
 onMounted(() => {
     if (isEditMode.value) {
         fetchJournalBookData();
     }
+    document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -216,7 +231,7 @@ onMounted(() => {
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                    <Button type="submit" :label="isEditMode ? 'บันทึก (Enter)' : 'สร้าง (Enter)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.code || !formData.name1" />
+                    <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'สร้าง (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.code || !formData.name1" />
                 </div>
             </form>
         </div>

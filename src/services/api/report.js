@@ -22,7 +22,8 @@ const REPORT_API_URL = import.meta.env.VITE_APP_API_REPORT || import.meta.env.VI
  */
 export const getJournalVat = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/journalvat', { params });
+        const url = createReportApiUrl('apireport/journalvat');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching journal VAT report:', error);
@@ -195,7 +196,8 @@ export const getJournalDetail = async (docno) => {
  */
 export const getJournalTax = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/journaltax', { params });
+        const url = createReportApiUrl('apireport/journaltax');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching journal tax report:', error);
@@ -340,7 +342,8 @@ export const generateAndOpenJournalTaxPDF = async (params) => {
  */
 export const getJournalTaxDeduct = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/journaltaxdeduct', { params });
+        const url = createReportApiUrl('apireport/journaltaxdeduct');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching journal tax deduct report:', error);
@@ -549,7 +552,8 @@ export const getProfitAndLoss = async (params) => {
  */
 export const getJournal12Columns = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/journal12columns/', { params });
+        const url = createReportApiUrl('apireport/journal12columns/');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching journal 12 columns report:', error);
@@ -593,7 +597,8 @@ export const getBalanceSheet = async (params) => {
  */
 export const getAccountsPayable = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/accounts_payable/', { params });
+        const url = createReportApiUrl('apireport/accounts_payable/');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching accounts payable report:', error);
@@ -736,7 +741,8 @@ export const generateAndOpenAccountsPayablePDF = async (params) => {
  */
 export const getAccountsReceivable = async (params) => {
     try {
-        const response = await apiClient.get('/apireport/accounts_receivable/', { params });
+        const url = createReportApiUrl('apireport/accounts_receivable/');
+        const response = await axios.get(url, { params });
         return response.data;
     } catch (error) {
         console.error('Error fetching accounts receivable report:', error);

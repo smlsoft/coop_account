@@ -9,6 +9,10 @@ const props = defineProps({
     src: {
         type: String,
         required: true
+    },
+    password: {
+        type: String,
+        default: ''
     }
 });
 
@@ -48,7 +52,11 @@ const loadPdf = async () => {
         }
         const arrayBuffer = await response.arrayBuffer();
 
-        pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const loadingTask = pdfjsLib.getDocument({
+            data: arrayBuffer,
+            password: props.password || undefined
+        });
+        pdfDoc = await loadingTask.promise;
         totalPages.value = pdfDoc.numPages;
 
         loading.value = false;

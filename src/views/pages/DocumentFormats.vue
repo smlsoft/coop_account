@@ -200,9 +200,11 @@ onMounted(() => {
                 :totalRecords="totalRecords"
                 :lazy="true"
                 @page="onPageChange"
+                @row-dblclick="editFormat($event.data)"
                 :rowsPerPageOptions="[20, 50, 100]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 currentPageReportTemplate="แสดง {first} ถึง {last} จากทั้งหมด {totalRecords} รายการ"
+                selectionMode="single"
                 class="w-full"
                 responsiveLayout="scroll"
                 stripedRows
@@ -231,12 +233,6 @@ onMounted(() => {
                 <Column field="description" header="คำอธิบาย" :sortable="false" style="min-width: 15rem">
                     <template #body="{ data }">
                         <span class="text-surface-900 dark:text-surface-0">{{ data.description || '-' }}</span>
-                    </template>
-                </Column>
-
-                <Column header="รายการ" :sortable="false" style="min-width: 8rem">
-                    <template #body="{ data }">
-                        <Badge :value="getDetailsCount(data.details)" severity="secondary" />
                     </template>
                 </Column>
 

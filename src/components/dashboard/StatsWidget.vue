@@ -161,24 +161,12 @@ onMounted(() => {
                 <div class="flex justify-between items-center">
                     <span v-if="stats.duplicateDocs > 0" class="text-red-500 font-medium">ต้องตรวจสอบ</span>
                     <span v-else class="text-green-500 font-medium">ไม่มีเอกสารซ้ำ</span>
-                    <Button
-                        v-if="stats.duplicateDocs > 0"
-                        label="ดูรายละเอียด"
-                        icon="pi pi-eye"
-                        severity="danger"
-                        text
-                        size="small"
-                        @click="openDuplicateDialog"
-                    />
+                    <Button v-if="stats.duplicateDocs > 0" label="ดูรายละเอียด" icon="pi pi-eye" severity="danger" text size="small" @click="openDuplicateDialog" />
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Duplicate Docno Dialog -->
-    <DuplicateDocnoDialog
-        v-model:visible="duplicateDialogVisible"
-        :duplicateDocnos="duplicateDocnos"
-        @refresh="handleRefresh"
-    />
+    <DuplicateDocnoDialog v-model:visible="duplicateDialogVisible" :duplicateDocnos="duplicateDocnos" @refresh="handleRefresh" />
 </template>

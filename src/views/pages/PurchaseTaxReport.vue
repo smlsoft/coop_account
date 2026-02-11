@@ -98,7 +98,7 @@ onMounted(async () => {
             </div>
 
             <!-- Report Table with Expand -->
-            <DataTable v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="docno" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
+            <DataTable :key="'purchase-tax-table'" v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="_uniqueId" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
                 <Column expander style="width: 3rem" />
                 <Column header="ลำดับ" style="width: 60px">
                     <template #body="{ index }">
@@ -127,7 +127,7 @@ onMounted(async () => {
                 </Column>
                 <Column header="สำนักงานใหญ่" style="width: 120px">
                     <template #body="{ data }">
-                        {{ data.organization === 0 ? 'สำนักงานใหญ่' : data.branchcode }}
+                        {{ data.organization === 1 ? 'สำนักงานใหญ่' : data.branchcode }}
                     </template>
                 </Column>
                 <Column header="ยอดยกเว้นภาษี" style="width: 120px" headerClass="text-center" bodyClass="text-right">

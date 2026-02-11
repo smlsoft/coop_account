@@ -1,5 +1,6 @@
 <script setup>
 import DialogForm from '@/components/DialogForm.vue';
+import OcrTestDialog from '@/components/accounting/OcrTestDialog.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
@@ -37,6 +38,9 @@ const isLoadingAccounts = ref(false);
 
 // Dialog confirmation
 const showConfirmDialog = ref(false);
+
+// OCR Test Dialog
+const showOcrTestDialog = ref(false);
 
 // Invalid states
 const isDocCodeInvalid = ref(false);
@@ -230,6 +234,14 @@ const isInLastInputOfRow = () => {
  * Keyboard handler สำหรับ Tab ในแถวสุดท้าย
  */
 const handleKeydown = (event) => {
+    // Handle Ctrl + S
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        handleSubmit();
+        return;
+    }
+
+    // Handle Tab in last row
     if (event.key === 'Tab' && !event.shiftKey) {
         if (isInLastRowOfTable() && isInLastInputOfRow()) {
             event.preventDefault();
@@ -357,6 +369,39 @@ const confirmSave = async () => {
 const handleCancel = () => {
     router.push({ name: 'document-formats' });
 };
+
+/**
+ * เปิด OCR Test Dialog
+ */
+const openOcrTestDialog = () => {
+    // ตรวจสอบว่ามีข้อมูลพื้นฐานครบหรือไม่
+    if (!formData.value.doccode || !formData.value.description) {
+        toast.add({
+            severity: 'warn',
+            summary: 'คำเตือน',
+            detail: 'กรุณากรอกรหัสและคำอธิบายก่อนทดสอบ',
+            life: 3000
+        });
+        return;
+    }
+
+    showOcrTestDialog.value = true;
+};
+
+/**
+ * Get template data for OCR testing
+ */
+const templateData = computed(() => ({
+    doccode: formData.value.doccode,
+    description: formData.value.description,
+    details: formData.value.details
+        .filter((d) => d.accountcode)
+        .map((d) => ({
+            accountcode: d.accountcode,
+            detail: d.detail || ''
+        })),
+    promptdescription: formData.value.promptdescription
+}));
 
 /**
  * คำนวณรวมเดบิตและเครดิต
@@ -552,8 +597,9 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                    <Button type="submit" :label="isEditMode ? 'บันทึก (Enter)' : 'สร้าง (Enter)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.doccode || !formData.description" />
+                <div class="flex justify-between items-center pt-4 border-t border-surface">
+                    <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined />
+                    <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'สร้าง (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.doccode || !formData.description" />
                 </div>
             </form>
         </div>
@@ -568,6 +614,9 @@ onUnmounted(() => {
         @close="showConfirmDialog = false"
         @confirm="confirmSave"
     />
+
+    <!-- OCR Test Dialog -->
+    <OcrTestDialog :visible="showOcrTestDialog" :template-data="templateData" @update:visible="showOcrTestDialog = $event" @close="showOcrTestDialog = false" />
 </template>
 
 <style scoped>

@@ -90,6 +90,12 @@ const processFile = (file) => {
     const isValidType = validTypes.some((type) => file.name.endsWith(type) || file.type === type);
 
     if (!isValidType) {
+        errorMessages.value = [
+            {
+                word: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                acc_code: 'กรุณาเลือกไฟล์ Excel (.xls หรือ .xlsx)'
+            }
+        ];
         toast.add({
             severity: 'warn',
             summary: 'รูปแบบไฟล์ไม่ถูกต้อง',
@@ -109,6 +115,30 @@ const processFile = (file) => {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             const results = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+
+            // Validate required headers
+            if (results.length > 0) {
+                const firstRow = results[0];
+                const requiredHeaders = ['account_code', 'account_name', 'account_type', 'balance_mode', 'account_level'];
+                const missingHeaders = requiredHeaders.filter((header) => !(header in firstRow));
+
+                if (missingHeaders.length > 0) {
+                    errorMessages.value = [
+                        {
+                            word: 'รูปแบบไฟล์ไม่ตรงกับ Template',
+                            acc_code: `ไม่พบคอลัมน์: ${missingHeaders.join(', ')} - กรุณาใช้ไฟล์ Template ที่ดาวน์โหลดจากระบบ`
+                        }
+                    ];
+                    toast.add({
+                        severity: 'error',
+                        summary: 'รูปแบบไฟล์ไม่ถูกต้อง',
+                        detail: `ไม่พบคอลัมน์ที่จำเป็น: ${missingHeaders.join(', ')}`,
+                        life: 5000
+                    });
+                    hideLoading();
+                    return;
+                }
+            }
 
             const parsedData = results.map((row) => ({
                 accountbalancetype: row.balance_mode ? parseInt(String(row.balance_mode).trim()) : null,
@@ -134,6 +164,12 @@ const processFile = (file) => {
             }
         } catch (error) {
             console.error('Error parsing file:', error);
+            errorMessages.value = [
+                {
+                    word: 'ไม่สามารถอ่านไฟล์ได้',
+                    acc_code: `กรุณาตรวจสอบรูปแบบไฟล์ให้ตรงกับ Template: ${error.message || 'Unknown error'}`
+                }
+            ];
             toast.add({
                 severity: 'error',
                 summary: 'เกิดข้อผิดพลาด',
@@ -147,6 +183,12 @@ const processFile = (file) => {
 
     reader.onerror = () => {
         hideLoading();
+        errorMessages.value = [
+            {
+                word: 'เกิดข้อผิดพลาดในการอ่านไฟล์',
+                acc_code: 'กรุณาลองใหม่อีกครั้ง หรือตรวจสอบว่าไฟล์ไม่เสียหาย'
+            }
+        ];
         toast.add({
             severity: 'error',
             summary: 'เกิดข้อผิดพลาด',
@@ -296,9 +338,9 @@ const confirmSave = async () => {
             <div class="flex flex-wrap gap-3">
                 <Button label="ดาวน์โหลด Template" icon="pi pi-download" severity="secondary" @click="downloadTemplate" />
 
-                <Button v-if="importData.length > 0" label="บันทึกนำเข้า" icon="pi pi-save" severity="success" :loading="isSaving" @click="openConfirmDialog" />
+                <Button v-if="importData.length > 0 && errorMessages.length === 0" label="บันทึกนำเข้า" icon="pi pi-save" severity="success" :loading="isSaving" @click="openConfirmDialog" />
 
-                <Button v-if="importData.length > 0" label="ยกเลิก" icon="pi pi-times" severity="danger" outlined @click="clearData" />
+                <Button v-if="importData.length > 0 || errorMessages.length > 0" label="ยกเลิก" icon="pi pi-refresh" severity="warning" outlined @click="clearData" v-tooltip.top="'ยกเลิกไฟล์ปัจจุบันและเลือกไฟล์ใหม่'" />
             </div>
 
             <!-- Error Messages -->
@@ -308,7 +350,9 @@ const confirmSave = async () => {
                     <span class="font-semibold text-red-700 dark:text-red-400">ไม่สามารถทำรายการได้ กรุณาตรวจสอบข้อมูล</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1">
-                    <li v-for="(error, index) in errorMessages" :key="index" class="text-red-600 dark:text-red-400">{{ error.word }} - รหัสผังบัญชี: {{ error.acc_code }}</li>
+                    <li v-for="(error, index) in errorMessages" :key="index" class="text-red-600 dark:text-red-400">
+                        {{ error.word }}<span v-if="error.acc_code"> - {{ error.acc_code }}</span>
+                    </li>
                 </ul>
             </div>
 

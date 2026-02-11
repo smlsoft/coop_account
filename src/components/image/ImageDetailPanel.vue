@@ -50,10 +50,18 @@ const props = defineProps({
     selectedByUsername: {
         type: String,
         default: ''
+    },
+    taskStatus: {
+        type: Number,
+        default: null
+    },
+    showCopyButton: {
+        type: Boolean,
+        default: false
     }
 });
 
-const emit = defineEmits(['refresh-detail', 'refresh-group', 'update-status', 'create-journal', 'view-journal-detail']);
+const emit = defineEmits(['refresh-detail', 'refresh-group', 'update-status', 'create-journal', 'view-journal-detail', 'copy-document']);
 
 const currentImageIndex = ref(0);
 const showCommentDialog = ref(false);
@@ -159,6 +167,10 @@ const updateStatus = (status) => {
 const handleCreateJournal = () => {
     emit('create-journal');
 };
+
+const handleCopyDocument = () => {
+    emit('copy-document');
+};
 </script>
 
 <template>
@@ -181,17 +193,31 @@ const handleCreateJournal = () => {
                     <div class="flex gap-2 mb-4 items-center">
                         <Tag :value="`${selectedGroup.imagereferences?.length || 0} เอกสาร`" severity="info" />
                         <!-- <Tag :value="`${selectedGroup.billcount || 0} บิล`" severity="success" /> -->
-                        <Tag v-if="isReviewMode" :value="getStatusConfig(selectedGroup.status).text" :severity="getStatusConfig(selectedGroup.status).severity" />
+                        <!-- แสดงสถานะ "บันทึกบัญชีแล้ว" ถ้ามี references -->
+                        <Tag v-if="isReviewMode && hasReferences" value="บันทึกบัญชีแล้ว" severity="success" icon="pi pi-check-circle" />
+                        <!-- แสดงสถานะปกติถ้ายังไม่ได้บันทึกบัญชี -->
+                        <Tag v-else-if="isReviewMode" :value="getStatusConfig(selectedGroup.status).text" :severity="getStatusConfig(selectedGroup.status).severity" />
                         <Button v-if="selectedImageDetail" icon="pi pi-comment" :label="`${selectedImageDetail.comments?.length || 0}`" severity="danger" text size="small" @click="openCommentDialog" :disabled="isJobClosed" />
-                        <div class="ml-auto">
-                            <Button v-if="totalImages > 1" label="เรียงรูปภาพ" icon="pi pi-sort-alt" severity="info" size="small" @click="toggleImageSortMode" :disabled="isJobClosed" outlined />
+                        <div class="ml-auto flex gap-2">
+                            <Button
+                                v-if="showCopyButton && selectedGroup.status === 0 && totalImages === 1"
+                                label="Copy เอกสาร"
+                                icon="pi pi-copy"
+                                severity="secondary"
+                                size="small"
+                                @click="handleCopyDocument"
+                                :disabled="isJobClosed || hasReferences"
+                                outlined
+                            />
+                            <Button v-if="totalImages > 1" label="เรียงรูปภาพ" icon="pi pi-sort-alt" severity="info" size="small" @click="toggleImageSortMode" :disabled="isJobClosed || hasReferences" outlined />
                         </div>
                     </div>
 
-                    <!-- Review Mode Buttons -->
-                    <div v-if="isReviewMode" class="flex gap-2 mb-4 flex-wrap">
+                    <!-- Review Mode Buttons - ซ่อนถ้าบันทึกบัญชีแล้ว -->
+                    <div v-if="isReviewMode && !hasReferences" class="flex gap-2 mb-4 flex-wrap">
                         <Button label="ผ่าน" icon="pi pi-check" severity="success" size="small" @click="updateStatus(1)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 1" />
-                        <Button label="ไม่ผ่าน" icon="pi pi-times" severity="danger" size="small" @click="updateStatus(2)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 2" />
+                        <!-- ซ่อนปุ่ม "ไม่ผ่าน" เมื่อ taskStatus = 6 -->
+                        <Button v-if="taskStatus !== 6" label="ไม่ผ่าน" icon="pi pi-times" severity="danger" size="small" @click="updateStatus(2)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 2" />
                         <Button label="ไม่บันทึกรายวัน" icon="pi pi-minus" severity="warn" size="small" @click="updateStatus(3)" :loading="updatingStatus" :disabled="isJobClosed || selectedGroup.status === 3" />
                         <Button v-if="selectedGroup.status !== 0" label="รีเซ็ต" icon="pi pi-refresh" severity="secondary" size="small" @click="updateStatus(0)" :loading="updatingStatus" :disabled="isJobClosed" outlined />
                     </div>
@@ -224,14 +250,24 @@ const handleCreateJournal = () => {
 
                 <!-- รายละเอียด -->
                 <div v-if="!hideDetails" class="bg-surface-50 dark:bg-surface-800 p-4 rounded-lg border border-surface-200 dark:border-surface-700">
-                    <!-- เอกสารอ้างอิง (full width) -->
+                    <!-- เอกสารอ้างอิง (full width) - แสดงเด่นเมื่อบันทึกบัญชีแล้ว -->
                     <div v-if="selectedImageDetail?.references && selectedImageDetail.references.length > 0" class="mb-3">
+                        <Message severity="success" :closable="false" class="mb-2">
+                            <template #icon>
+                                <i class="pi pi-check-circle text-xl"></i>
+                            </template>
+                            <div class="flex flex-col gap-1">
+                                <span class="font-semibold">เอกสารนี้ได้บันทึกบัญชีแล้ว </span>
+                            </div>
+                        </Message>
                         <label class="text-sm font-semibold text-surface-700 dark:text-surface-300">เอกสารอ้างอิง</label>
                         <div class="space-y-2 mt-1">
-                            <div v-for="(ref, index) in selectedImageDetail.references" :key="index" class="flex gap-2 items-center text-sm text-surface-700 dark:text-surface-200">
+                            <div v-for="(ref, index) in selectedImageDetail.references" :key="index" class="flex gap-2 items-center text-sm text-surface-700 dark:text-surface-200 bg-surface-100 dark:bg-surface-700 p-2 rounded">
                                 <Tag :value="ref.module" severity="info" />
-                                <span>{{ ref.docno }}</span>
-                                <Button icon="pi pi-eye" label="ดูรายละเอียด" size="small" text @click="handleViewJournalDetail(ref)" />
+                                <span class="font-semibold">{{ ref.docno }}</span>
+                                <div class="ml-auto">
+                                    <Button icon="pi pi-eye" label="ดูรายละเอียด" size="small" severity="success" @click="handleViewJournalDetail(ref)" />
+                                </div>
                             </div>
                         </div>
                     </div>

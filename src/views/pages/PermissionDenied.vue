@@ -3,7 +3,7 @@
 <template>
     <div class="card min-h-[calc(100vh-8rem)] flex items-center justify-center">
         <div class="flex flex-col items-center justify-center w-full max-w-3xl mx-auto py-8">
-            <img src="/demo/images/dedeaccountlogo.svg" alt="DedE Account Logo" class="mb-6 w-32 h-32 opacity-50" />
+            <img src="/demo/images/dedeaccountlogo.svg" alt="BC Account Logo" class="mb-6 w-32 h-32 opacity-50" />
 
             <span class="text-red-500 font-bold text-2xl mb-2">403</span>
             <h1 class="text-surface-900 dark:text-surface-0 font-bold text-2xl mb-3">Permission Denied</h1>

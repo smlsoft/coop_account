@@ -38,8 +38,8 @@ const handleLogout = () => {
                 <i class="pi pi-bars"></i>
             </button>
             <router-link to="/" class="layout-topbar-logo">
-                <img src="/demo/images/dedeaccountlogo.svg" alt="DedeAccount Logo" class="w-12 h-12" />
-                <span>{{ currentShop.name || 'DedeAccount' }}</span>
+                <img src="/demo/images/dedeaccountlogo.svg" alt="BC Account Logo" class="w-12 h-12" />
+                <span>{{ currentShop.name || 'BC Account' }}</span>
             </router-link>
         </div>
 

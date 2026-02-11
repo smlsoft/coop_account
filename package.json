@@ -1,5 +1,5 @@
 {
-    "name": "dedeaccount",
+    "name": "bcaccount",
     "version": "4.3.0",
     "scripts": {
         "dev": "vite",

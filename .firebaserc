@@ -1,18 +1,18 @@
 {
-  "projects": {
-    "default": "dedepos"
-  },
-  "targets": {
-    "dedepos": {
-      "hosting": {
-        "dede-account-dev": [
-          "dede-account-dev"
-        ],
-        "dede-account": [
-          "dede-account"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "projects": {
+        "default": "dedepos"
+    },
+    "targets": {
+        "dedepos": {
+            "hosting": {
+                "bc-account": [
+                    "bc-account"
+                ],
+                "bc-account-dev": [
+                    "bc-account-dev"
+                ]
+            }
+        }
+    },
+    "etags": {}
 }

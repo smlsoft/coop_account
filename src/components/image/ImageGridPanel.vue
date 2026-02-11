@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     imageGroups: {
@@ -53,6 +53,10 @@ const props = defineProps({
     disableMerge: {
         type: Boolean,
         default: false
+    },
+    gridSize: {
+        type: String,
+        default: 'medium' // small, medium, large, xlarge
     }
 });
 
@@ -135,15 +139,14 @@ const handleKeyboardNavigation = (event) => {
     const maxIndex = props.imageGroups.length - 1;
     let newIndex = selectedIndex.value;
 
-    // คำนวณจำนวนคอลัมน์จริงๆ จาก grid
-    let columns = 4; // default
-    if (gridContainer.value) {
-        const gridElement = gridContainer.value;
-        const computedStyle = window.getComputedStyle(gridElement);
-        const gridTemplateColumns = computedStyle.getPropertyValue('grid-template-columns');
-        // นับจำนวนคอลัมน์จากค่า grid-template-columns
-        columns = gridTemplateColumns.split(' ').length;
-    }
+    // คำนวณจำนวนคอลัมน์จาก gridSize (ใช้ค่าเฉลี่ยของ breakpoints)
+    const columnsBySize = {
+        small: 6,
+        medium: 4,
+        large: 3,
+        xlarge: 2
+    };
+    const columns = columnsBySize[props.gridSize] || 4;
 
     switch (event.key) {
         case 'ArrowUp':
@@ -401,6 +404,28 @@ const formatUsername = (username) => {
 const hasReferences = (group) => {
     return group.references && group.references.length > 0;
 };
+
+// Grid size configuration
+const gridColumns = computed(() => {
+    const configs = {
+        small: 'grid-cols-1 @sm:grid-cols-3 @md:grid-cols-4 @lg:grid-cols-6',
+        medium: 'grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3 @lg:grid-cols-4',
+        large: 'grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3',
+        xlarge: 'grid-cols-1 @sm:grid-cols-2'
+    };
+    return configs[props.gridSize] || configs.medium;
+});
+
+// Grid gap configuration
+const gridGap = computed(() => {
+    const configs = {
+        small: 'gap-3',
+        medium: 'gap-4',
+        large: 'gap-6',
+        xlarge: 'gap-8'
+    };
+    return configs[props.gridSize] || configs.medium;
+});
 </script>
 
 <template>
@@ -414,7 +439,7 @@ const hasReferences = (group) => {
                 <p class="text-surface-500 dark:text-surface-400">ไม่มีรูปภาพในงานนี้</p>
             </div>
             <div v-else>
-                <div ref="gridContainer" class="grid grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3 @lg:grid-cols-4 gap-4 pt-4">
+                <div ref="gridContainer" class="grid pt-4" :class="[gridColumns, gridGap]">
                     <div
                         v-for="(group, index) in imageGroups"
                         :key="group.guidfixed"

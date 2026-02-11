@@ -1,6 +1,6 @@
 <script setup>
-import { computed, watch } from 'vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps({
     modelValue: {
@@ -18,9 +18,32 @@ const taxTypeOptions = [
 ];
 
 const custTypeOptions = [
-    { label: 'บุคคลธรรมดา', value: 0 },
-    { label: 'นิติบุคคล', value: 1 }
+    { label: 'บุคคลธรรมดา', value: 1 },
+    { label: 'นิติบุคคล', value: 2 }
 ];
+
+// Reactive keys สำหรับ force re-render SelectButton เมื่อ block null value (per Tax entry)
+const taxTypeKeys = ref({});
+const custTypeKeys = ref({});
+
+// ฟังก์ชันสำหรับจัดการการเปลี่ยนแปลงของ SelectButton โดยป้องกัน unselect
+const handleTaxTypeChange = (index, val) => {
+    if (val !== null && val !== undefined) {
+        taxes.value[index].taxtype = val;
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        taxTypeKeys.value[index] = (taxTypeKeys.value[index] || 0) + 1;
+    }
+};
+
+const handleCustTypeChange = (index, val) => {
+    if (val !== null && val !== undefined) {
+        taxes.value[index].custtype = val;
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        custTypeKeys.value[index] = (custTypeKeys.value[index] || 0) + 1;
+    }
+};
 
 // Local state
 const localValue = computed({
@@ -44,10 +67,10 @@ const getDebtAccountInfo = () => {
     if (debtAccount) {
         const thName = debtAccount.names?.find((n) => n.code === 'th')?.name || '';
         // personaltype: 1 = บุคคลธรรมดา, 2 = นิติบุคคล
-        // custtype: 0 = บุคคลธรรมดา, 1 = นิติบุคคล
-        // ดังนั้น custtype = personaltype - 1
+        // custtype: 1 = บุคคลธรรมดา, 2 = นิติบุคคล
+        // ดังนั้น custtype = personaltype
         const personaltype = debtAccount.personaltype || 1;
-        const custtype = personaltype === 2 ? 1 : 0;
+        const custtype = personaltype === 2 ? 2 : 1;
         return {
             custname: thName || debtAccount.name || '',
             custtaxid: debtAccount.taxid || '',
@@ -67,7 +90,7 @@ const addTaxEntry = () => {
 
     const newEntry = {
         taxtype: 0,
-        custtype: debtInfo.custtype,
+        custtype: debtInfo.custtype || 1, // ค่าเริ่มต้น = 1 (บุคคลธรรมดา)
         taxdate: taxdate,
         taxdocno: '',
         custname: debtInfo.custname,
@@ -128,6 +151,62 @@ const getTaxTotal = (tax) => {
 const formatNumber = (value) => {
     if (!value && value !== 0) return '0.00';
     return parseFloat(value).toFixed(2);
+};
+
+// Track which input is currently being edited
+const editingAmountCell = ref(null); // { taxIndex, detailIndex, field }
+const editingValue = ref('');
+
+// Format number for display (with commas and 2 decimals)
+const formatAmountDisplay = (value) => {
+    const num = parseFloat(value) || 0;
+    if (num === 0) return '';
+    return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Get display value - show raw value when editing, formatted when not
+const getAmountDisplayValue = (taxIndex, detailIndex, field, value) => {
+    if (editingAmountCell.value?.taxIndex === taxIndex && editingAmountCell.value?.detailIndex === detailIndex && editingAmountCell.value?.field === field) {
+        return editingValue.value;
+    }
+    return formatAmountDisplay(value);
+};
+
+// Parse formatted string back to number
+const parseAmountInput = (value) => {
+    if (!value || value === '') return 0;
+    // Remove commas and parse
+    const cleaned = String(value).replace(/,/g, '');
+    return parseFloat(cleaned) || 0;
+};
+
+// Handle amount input change
+const handleAmountInput = (taxIndex, detailIndex, field, event) => {
+    editingValue.value = event.target.value;
+};
+
+// Handle amount blur (format the display and save)
+const handleAmountBlur = (taxIndex, detailIndex, field, event) => {
+    const value = parseAmountInput(event.target.value);
+    taxes.value[taxIndex].details[detailIndex][field] = value;
+    // Recalculate taxamount if needed
+    if (field === 'taxbase' || field === 'taxrate') {
+        calculateDetailTaxAmount(taxIndex, detailIndex);
+    }
+    editingAmountCell.value = null;
+    editingValue.value = '';
+};
+
+// Handle amount focus (select all text for easy editing)
+const handleAmountFocus = (taxIndex, detailIndex, field, event) => {
+    editingAmountCell.value = { taxIndex, detailIndex, field };
+    // Show raw number value when focusing (without commas)
+    const currentValue = taxes.value[taxIndex]?.details[detailIndex]?.[field] || 0;
+    editingValue.value = currentValue === 0 ? '' : String(currentValue);
+    nextTick(() => {
+        event.target.value = editingValue.value;
+        event.target.select();
+    });
 };
 
 // Validation helpers
@@ -217,13 +296,13 @@ watch(
                             <!-- ภาษี -->
                             <div class="flex flex-col gap-2">
                                 <label class="font-medium text-sm">ภาษี</label>
-                                <SelectButton v-model="tax.taxtype" :options="taxTypeOptions" optionLabel="label" optionValue="value" fluid />
+                                <SelectButton :key="taxTypeKeys[taxIndex] || 0" :modelValue="tax.taxtype" @update:modelValue="handleTaxTypeChange(taxIndex, $event)" :options="taxTypeOptions" optionLabel="label" optionValue="value" fluid />
                             </div>
 
                             <!-- ประเภท -->
                             <div class="flex flex-col gap-2">
                                 <label class="font-medium text-sm">ประเภท</label>
-                                <SelectButton v-model="tax.custtype" :options="custTypeOptions" optionLabel="label" optionValue="value" fluid />
+                                <SelectButton :key="custTypeKeys[taxIndex] || 0" :modelValue="tax.custtype" @update:modelValue="handleCustTypeChange(taxIndex, $event)" :options="custTypeOptions" optionLabel="label" optionValue="value" fluid />
                             </div>
 
                             <!-- วันที่หัก ณ ที่จ่าย -->
@@ -275,17 +354,32 @@ watch(
                                 </Column>
                                 <Column field="taxbase" header="ฐานภาษี *" style="width: 150px">
                                     <template #body="{ data, index }">
-                                        <InputNumber v-model="data.taxbase" :minFractionDigits="2" :maxFractionDigits="2" class="w-full" @update:modelValue="calculateDetailTaxAmount(taxIndex, index)" :invalid="isDetailTaxBaseInvalid(data)" />
+                                        <InputText
+                                            :value="getAmountDisplayValue(taxIndex, index, 'taxbase', data.taxbase)"
+                                            @input="handleAmountInput(taxIndex, index, 'taxbase', $event)"
+                                            @blur="handleAmountBlur(taxIndex, index, 'taxbase', $event)"
+                                            @focus="handleAmountFocus(taxIndex, index, 'taxbase', $event)"
+                                            class="w-full text-right"
+                                            placeholder="0.00"
+                                            :invalid="isDetailTaxBaseInvalid(data)"
+                                        />
                                     </template>
                                 </Column>
                                 <Column field="taxrate" header="อัตรา (%)" style="width: 120px">
                                     <template #body="{ data, index }">
-                                        <InputNumber v-model="data.taxrate" :minFractionDigits="2" :maxFractionDigits="2" suffix=" %" class="w-full" @update:modelValue="calculateDetailTaxAmount(taxIndex, index)" />
+                                        <InputText
+                                            :value="getAmountDisplayValue(taxIndex, index, 'taxrate', data.taxrate)"
+                                            @input="handleAmountInput(taxIndex, index, 'taxrate', $event)"
+                                            @blur="handleAmountBlur(taxIndex, index, 'taxrate', $event)"
+                                            @focus="handleAmountFocus(taxIndex, index, 'taxrate', $event)"
+                                            class="w-full text-right"
+                                            placeholder="0.00"
+                                        />
                                     </template>
                                 </Column>
                                 <Column field="taxamount" header="ภาษีหัก ณ ที่จ่าย" style="width: 150px">
                                     <template #body="{ data }">
-                                        <InputNumber v-model="data.taxamount" :minFractionDigits="2" :maxFractionDigits="2" class="w-full bg-surface-100 dark:bg-surface-700" />
+                                        <InputNumber v-model="data.taxamount" :minFractionDigits="2" :maxFractionDigits="2" inputClass="text-right" class="w-full bg-surface-100 dark:bg-surface-700" />
                                     </template>
                                 </Column>
                                 <Column style="width: 60px">

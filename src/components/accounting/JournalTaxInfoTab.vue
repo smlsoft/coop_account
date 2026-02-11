@@ -1,6 +1,6 @@
 <script setup>
-import { computed, watch } from 'vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps({
     modelValue: {
@@ -13,20 +13,65 @@ const emit = defineEmits(['update:modelValue']);
 
 // Dropdown options
 const organizationOptions = [
-    { label: 'สำนักงานใหญ่', value: 0 },
-    { label: 'สาขา', value: 1 }
+    { label: 'สำนักงานใหญ่', value: 1 },
+    { label: 'สาขา', value: 2 }
 ];
 
-const vatTypeOptions = [
+// Function to get vatTypeOptions based on vatmode
+const getVatTypeOptions = (vatmode) => {
+    if (vatmode === 0) {
+        // ภาษีซื้อ
+        return [
+            { label: 'ปกติ', value: 0 },
+            { label: 'ขอคืนไม่ได้', value: 1 },
+            { label: 'ไม่ถึงกำหนดชำระ', value: 2 }
+        ];
+    } else {
+        // ภาษีขาย
+        return [
+            { label: 'ปกติ', value: 0 },
+            { label: 'ไม่ถึงกำหนดชำระ', value: 1 }
+        ];
+    }
+};
+
+const vatModeOptions = [
     { label: 'ภาษีซื้อ', value: 0 },
     { label: 'ภาษีขาย', value: 1 }
 ];
 
-const vatModeOptions = [
-    { label: 'ปกติ', value: 0 },
-    { label: 'ขอคืนไม่ได้', value: 1 },
-    { label: 'ไม่ถึงกำหนดชำระ', value: 2 }
-];
+// Reactive keys สำหรับ force re-render SelectButton เมื่อ block null value (per VAT entry)
+const organizationKeys = ref({});
+const vatModeKeys = ref({});
+const vatTypeKeys = ref({});
+
+// ฟังก์ชันสำหรับจัดการการเปลี่ยนแปลงของ SelectButton โดยป้องกัน unselect
+const handleOrganizationChange = (index, val) => {
+    if (val !== null && val !== undefined) {
+        vats.value[index].organization = val;
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        organizationKeys.value[index] = (organizationKeys.value[index] || 0) + 1;
+    }
+};
+
+const handleVatModeChange = (index, val) => {
+    if (val !== null && val !== undefined) {
+        vats.value[index].vatmode = val;
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        vatModeKeys.value[index] = (vatModeKeys.value[index] || 0) + 1;
+    }
+};
+
+const handleVatTypeChange = (index, val) => {
+    if (val !== null && val !== undefined) {
+        vats.value[index].vattype = val;
+    } else {
+        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
+        vatTypeKeys.value[index] = (vatTypeKeys.value[index] || 0) + 1;
+    }
+};
 
 // Local state
 const localValue = computed({
@@ -48,10 +93,10 @@ const vats = computed({
 const addVatEntry = () => {
     const debtInfo = getDebtAccountInfo();
 
-    // กำหนด vattype ตามประเภทหนี้
-    // debtaccounttype = 0 (ลูกหนี้) → vattype = 1 (ภาษีขาย)
-    // debtaccounttype = 1 (เจ้าหนี้) → vattype = 0 (ภาษีซื้อ)
-    const vattype = localValue.value.debtaccounttype === 0 ? 1 : 0;
+    // กำหนด vatmode ตามประเภทหนี้
+    // debtaccounttype = 0 (ลูกหนี้) → vatmode = 1 (ภาษีขาย)
+    // debtaccounttype = 1 (เจ้าหนี้) → vatmode = 0 (ภาษีซื้อ)
+    const vatmode = localValue.value.debtaccounttype === 0 ? 1 : 0;
 
     // ใช้ docdate จาก JournalDailyInfoTab ถ้ามี ไม่เช่นนั้นใช้วันที่ปัจจุบัน
     const vatdate = localValue.value.docdate ? new Date(localValue.value.docdate) : new Date();
@@ -59,8 +104,8 @@ const addVatEntry = () => {
     const newEntry = {
         vatdocno: '',
         vatdate: vatdate,
-        vattype: vattype,
-        vatmode: 0,
+        vattype: 0,
+        vatmode: vatmode,
         vatperiod: vatdate.getMonth() + 1,
         vatyear: vatdate.getFullYear() + 543,
         vatbase: 0,
@@ -72,7 +117,7 @@ const addVatEntry = () => {
         custtaxid: debtInfo.custtaxid,
         custname: debtInfo.custname,
         custtype: 0,
-        organization: debtInfo.organization,
+        organization: debtInfo.organization || 1, // ค่าเริ่มต้น = 1 (สำนักงานใหญ่)
         branchcode: debtInfo.branchcode,
         address: debtInfo.address
     };
@@ -130,6 +175,62 @@ const formatNumber = (value) => {
     return parseFloat(value).toFixed(2);
 };
 
+// Track which input is currently being edited
+const editingAmountCell = ref(null); // { index, field }
+const editingValue = ref('');
+
+// Format number for display (with commas and 2 decimals)
+const formatAmountDisplay = (value) => {
+    const num = parseFloat(value) || 0;
+    if (num === 0) return '';
+    return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Get display value - show raw value when editing, formatted when not
+const getAmountDisplayValue = (index, field, value) => {
+    if (editingAmountCell.value?.index === index && editingAmountCell.value?.field === field) {
+        return editingValue.value;
+    }
+    return formatAmountDisplay(value);
+};
+
+// Parse formatted string back to number
+const parseAmountInput = (value) => {
+    if (!value || value === '') return 0;
+    // Remove commas and parse
+    const cleaned = String(value).replace(/,/g, '');
+    return parseFloat(cleaned) || 0;
+};
+
+// Handle amount input change
+const handleAmountInput = (index, field, event) => {
+    editingValue.value = event.target.value;
+};
+
+// Handle amount blur (format the display and save)
+const handleAmountBlur = (index, field, event) => {
+    const value = parseAmountInput(event.target.value);
+    vats.value[index][field] = value;
+    // Recalculate vatamount if needed
+    if (field === 'vatbase' || field === 'vatrate') {
+        handleVatChange(index);
+    }
+    editingAmountCell.value = null;
+    editingValue.value = '';
+};
+
+// Handle amount focus (select all text for easy editing)
+const handleAmountFocus = (index, field, event) => {
+    editingAmountCell.value = { index, field };
+    // Show raw number value when focusing (without commas)
+    const currentValue = vats.value[index]?.[field] || 0;
+    editingValue.value = currentValue === 0 ? '' : String(currentValue);
+    nextTick(() => {
+        event.target.value = editingValue.value;
+        event.target.select();
+    });
+};
+
 // Validation helpers
 const isVatDocNoInvalid = (vat) => !vat.vatdocno || vat.vatdocno.trim() === '';
 const isCustTaxIdInvalid = (vat) => !vat.custtaxid || vat.custtaxid.trim() === '';
@@ -161,21 +262,30 @@ watch(
     }
 );
 
-// Watch for changes in debtaccounttype and update vattype in all vat entries
+// Watch for changes in debtaccounttype and update vatmode in all vat entries
 let lastDebtAccountType = null;
 watch(
     () => localValue.value.debtaccounttype,
     (newType, oldType) => {
         // ป้องกัน infinite loop โดยตรวจสอบว่าค่าเปลี่ยนจริงๆ
-        if (newType !== oldType && newType !== lastDebtAccountType && vats.value.length > 0) {
+        if (newType !== oldType && newType !== lastDebtAccountType) {
             lastDebtAccountType = newType;
-            // debtaccounttype = 0 (ลูกหนี้) → vattype = 1 (ภาษีขาย)
-            // debtaccounttype = 1 (เจ้าหนี้) → vattype = 0 (ภาษีซื้อ)
-            const vattype = newType === 0 ? 1 : 0;
-            vats.value = vats.value.map((vat) => ({
-                ...vat,
-                vattype: vattype
-            }));
+
+            // อัปเดต vatmode และ vattype ของทุก vat entry ที่มีอยู่
+            if (vats.value.length > 0) {
+                // debtaccounttype = 0 (ลูกหนี้) → vatmode = 1 (ภาษีขาย)
+                // debtaccounttype = 1 (เจ้าหนี้) → vatmode = 0 (ภาษีซื้อ)
+                const vatmode = newType === 0 ? 1 : 0;
+                // vatmode = 0 (ภาษีซื้อ) → vattype = 1 (ขอคืนไม่ได้)
+                // vatmode = 1 (ภาษีขาย) → vattype = 0 (ปกติ)
+                const vattype = vatmode === 0 ? 1 : 0;
+
+                // ใช้ index-based update เพื่อให้ Vue track reactivity ได้ถูกต้อง
+                vats.value.forEach((vat, index) => {
+                    vats.value[index].vatmode = vatmode;
+                    vats.value[index].vattype = vattype;
+                });
+            }
         }
     }
 );
@@ -262,7 +372,7 @@ watch(
                         <!-- สถานประกอบการ -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">สถานประกอบการ</label>
-                            <SelectButton v-model="vat.organization" :options="organizationOptions" optionLabel="label" optionValue="value" fluid />
+                            <SelectButton :key="organizationKeys[index] || 0" :modelValue="vat.organization" @update:modelValue="handleOrganizationChange(index, $event)" :options="organizationOptions" optionLabel="label" optionValue="value" fluid />
                         </div>
 
                         <!-- ลำดับที่สาขา -->
@@ -286,26 +396,41 @@ watch(
                         <!-- ฐานภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">ฐานภาษี <span class="text-red-500">*</span></label>
-                            <InputNumber v-model="vat.vatbase" :minFractionDigits="2" :maxFractionDigits="2" @update:modelValue="handleVatChange(index)" :invalid="isVatBaseInvalid(vat)" />
+                            <InputText
+                                :value="getAmountDisplayValue(index, 'vatbase', vat.vatbase)"
+                                @input="handleAmountInput(index, 'vatbase', $event)"
+                                @blur="handleAmountBlur(index, 'vatbase', $event)"
+                                @focus="handleAmountFocus(index, 'vatbase', $event)"
+                                class="text-right"
+                                placeholder="0.00"
+                                :invalid="isVatBaseInvalid(vat)"
+                            />
                             <small v-if="isVatBaseInvalid(vat)" class="text-red-500">กรุณากรอกฐานภาษี</small>
                         </div>
 
                         <!-- อัตราภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">อัตราภาษี (%)</label>
-                            <InputNumber v-model="vat.vatrate" :minFractionDigits="2" :maxFractionDigits="2" suffix=" %" @update:modelValue="handleVatChange(index)" />
-                        </div>
-
-                        <!-- ภาษี -->
-                        <div class="flex flex-col gap-2">
-                            <label class="font-medium text-sm">ภาษี</label>
-                            <SelectButton v-model="vat.vattype" :options="vatTypeOptions" optionLabel="label" optionValue="value" fluid />
+                            <InputText
+                                :value="getAmountDisplayValue(index, 'vatrate', vat.vatrate)"
+                                @input="handleAmountInput(index, 'vatrate', $event)"
+                                @blur="handleAmountBlur(index, 'vatrate', $event)"
+                                @focus="handleAmountFocus(index, 'vatrate', $event)"
+                                class="text-right"
+                                placeholder="0.00"
+                            />
                         </div>
 
                         <!-- ประเภทภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">ประเภทภาษี</label>
-                            <SelectButton v-model="vat.vatmode" :options="vatModeOptions" optionLabel="label" optionValue="value" fluid />
+                            <SelectButton :key="vatModeKeys[index] || 0" :modelValue="vat.vatmode" @update:modelValue="handleVatModeChange(index, $event)" :options="vatModeOptions" optionLabel="label" optionValue="value" fluid />
+                        </div>
+
+                        <!-- ภาษี -->
+                        <div class="flex flex-col gap-2">
+                            <label class="font-medium text-sm">ภาษี</label>
+                            <SelectButton :key="vatTypeKeys[index] || 0" :modelValue="vat.vattype" @update:modelValue="handleVatTypeChange(index, $event)" :options="getVatTypeOptions(vat.vatmode)" optionLabel="label" optionValue="value" fluid />
                         </div>
 
                         <!-- ยอดภาษี -->
@@ -317,7 +442,14 @@ watch(
                         <!-- ยอดยกเว้นภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">ยอดยกเว้นภาษี</label>
-                            <InputNumber v-model="vat.exceptvat" :minFractionDigits="2" :maxFractionDigits="2" />
+                            <InputText
+                                :value="getAmountDisplayValue(index, 'exceptvat', vat.exceptvat)"
+                                @input="handleAmountInput(index, 'exceptvat', $event)"
+                                @blur="handleAmountBlur(index, 'exceptvat', $event)"
+                                @focus="handleAmountFocus(index, 'exceptvat', $event)"
+                                class="text-right"
+                                placeholder="0.00"
+                            />
                         </div>
 
                         <!-- หมายเหตุ (full width) -->

@@ -3,7 +3,7 @@ import DialogForm from '@/components/DialogForm.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 const toast = useToast();
 const { showLoading, hideLoading } = useLoading();
@@ -229,9 +229,24 @@ const confirmSave = async () => {
     }
 };
 
+/**
+ * Keyboard handler สำหรับ Ctrl + S
+ */
+const handleKeydown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        saveShopData();
+    }
+};
+
 // โหลดข้อมูลเมื่อเริ่มต้น
 onMounted(() => {
     fetchShopData();
+    document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -306,7 +321,7 @@ onMounted(() => {
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                    <Button type="submit" label="บันทึก (Enter)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.name || !formData.taxId" />
+                    <Button type="submit" label="บันทึก (Ctrl + S)" icon="pi pi-save" :loading="isSaving" :disabled="!formData.name || !formData.taxId" />
                 </div>
             </form>
         </div>

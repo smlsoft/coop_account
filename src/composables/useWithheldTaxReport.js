@@ -137,7 +137,11 @@ export function useWithheldTaxReport() {
             const response = await api.getJournalTaxDeduct(params);
 
             if (response.success) {
-                reportData.value = response.data || [];
+                // เพิ่ม unique ID ให้แต่ละแถวเพื่อป้องกันปัญหา docno ซ้ำ
+                reportData.value = (response.data || []).map((item, index) => ({
+                    ...item,
+                    _uniqueId: `withheld-${item.docno}-${index}`
+                }));
                 totalRecords.value = response.pagination?.total || 0;
             } else {
                 reportData.value = [];
@@ -172,6 +176,7 @@ export function useWithheldTaxReport() {
 
         if (newPage !== oldPage || newItemsPerPage !== oldItemsPerPage) {
             if (fromDate.value && toDate.value) {
+                expandedRows.value = {};
                 fetchReport(false);
             }
         }
@@ -207,6 +212,7 @@ export function useWithheldTaxReport() {
             return;
         }
 
+        expandedRows.value = {};
         searchPopover.value.hide();
         fetchReport(true);
     };
@@ -238,11 +244,11 @@ export function useWithheldTaxReport() {
      * จัดการการคลิกแถวเพื่อขยาย/หดข้อมูล
      */
     const onRowClick = (event) => {
-        const docno = event.data.docno;
-        if (expandedRows.value[docno]) {
-            delete expandedRows.value[docno];
+        const uniqueId = event.data._uniqueId;
+        if (expandedRows.value[uniqueId]) {
+            delete expandedRows.value[uniqueId];
         } else {
-            expandedRows.value[docno] = true;
+            expandedRows.value[uniqueId] = true;
         }
     };
 

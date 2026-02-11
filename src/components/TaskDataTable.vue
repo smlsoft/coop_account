@@ -52,7 +52,7 @@ const STATUS_CONFIG = {
     3: { text: 'รอบันทึกบัญชี', severity: 'info' },
     4: { text: 'เสร็จสิ้น', severity: 'success' },
     5: { text: 'ยกเลิก', severity: 'danger' },
-    99: { text: 'รอบันทึกบัญชี', severity: 'info' }
+    6: { text: 'ไม่ต้องอนุมัติ', severity: 'warn' }
 };
 
 const LOCAL_STORAGE_KEYS = {
@@ -157,6 +157,14 @@ const onPage = (event) => {
     emit('onPage', activePage, event.rows);
 };
 
+// Row styling for status 6
+const getRowClass = (data) => {
+    if (data.status === 6) {
+        return 'bg-yellow-50 dark:bg-yellow-950 hover:bg-yellow-100 dark:hover:bg-yellow-900 cursor-pointer transition-colors';
+    }
+    return 'hover:bg-surface-50 dark:hover:bg-surface-800 cursor-pointer transition-colors';
+};
+
 // Lifecycle hooks
 onMounted(() => {
     const storageKey = LOCAL_STORAGE_KEYS[props.modeMenu];
@@ -200,6 +208,7 @@ onMounted(() => {
             :loading="loading"
             :lazy="true"
             :filters="tableFilters"
+            :rowClass="getRowClass"
             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
             :rowsPerPageOptions="[10, 20, 50, 100]"
             currentPageReportTemplate="แสดง {first} ถึง {last} จาก {totalRecords} รายการ"
@@ -315,9 +324,12 @@ onMounted(() => {
             <Column field="ownerby" header="ผู้สร้าง" style="min-width: 10rem"></Column>
 
             <!-- สถานะ -->
-            <Column field="status" header="สถานะ" style="min-width: 8rem">
+            <Column field="status" header="สถานะ" style="min-width: 10rem">
                 <template #body="{ data }">
-                    <Tag :value="getStatusLabel(data)" :severity="getStatusSeverity(data)" />
+                    <div class="flex items-center gap-2">
+                        <i v-if="data.status === 6" class="pi pi-exclamation-circle text-orange-500"></i>
+                        <Tag :value="getStatusLabel(data)" :severity="getStatusSeverity(data)" />
+                    </div>
                 </template>
             </Column>
 
@@ -339,7 +351,7 @@ onMounted(() => {
             <!-- modeMenu = 1: การจัดการ -->
             <Column v-if="props.modeMenu === 1" :exportable="false" style="min-width: 6rem">
                 <template #body="slotProps">
-                    <Button v-if="slotProps.data.status === 0" icon="pi pi-cog" outlined rounded @click.stop="showDialogConfigJob(slotProps.data)" v-tooltip.top="'ตั้งค่า'" />
+                    <Button v-if="slotProps.data.status === 0 || slotProps.data.status === 6" icon="pi pi-cog" outlined rounded @click.stop="showDialogConfigJob(slotProps.data)" v-tooltip.top="'ตั้งค่า'" />
                 </template>
             </Column>
         </DataTable>

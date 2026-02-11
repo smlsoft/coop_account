@@ -19,14 +19,14 @@ const currentPage = ref(1);
 const perPage = ref(10);
 const filters = ref('');
 
-// Fetch tasks with status 1,2,3,4 (exclude 0)
+// Fetch tasks with status 1,6 (exclude 0)
 const fetchTasks = async () => {
     loading.value = true;
     try {
         const params = {
             page: currentPage.value,
             limit: perPage.value,
-            status: '1,2,3,4',
+            status: '1,2,3,4,6',
             sort: 'ownerat:-1'
         };
 
@@ -108,17 +108,7 @@ onMounted(() => {
         <!-- Main Content -->
         <div class="card">
             <h4 class="mb-4">ตรวจสอบรูปภาพเอกสาร</h4>
-            <TaskDataTable
-                :modeMenu="2"
-                :dataList="tasks"
-                :loading="loading"
-                :firstPage="firstPage"
-                :totalItemsCount="totalItemsCount"
-                :filters="filters"
-                @onRowSelect="handleRowSelect"
-                @search="handleSearch"
-                @onPage="handlePage"
-            />
+            <TaskDataTable :modeMenu="2" :dataList="tasks" :loading="loading" :firstPage="firstPage" :totalItemsCount="totalItemsCount" :filters="filters" @onRowSelect="handleRowSelect" @search="handleSearch" @onPage="handlePage" />
         </div>
     </div>
 </template>

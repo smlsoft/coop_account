@@ -93,7 +93,7 @@ onMounted(async () => {
             </div>
 
             <!-- Report Table with Expand -->
-            <DataTable v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="docno" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
+            <DataTable v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="_uniqueId" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
                 <Column expander style="width: 3rem" />
                 <Column header="ลำดับ" style="width: 60px">
                     <template #body="{ index }">

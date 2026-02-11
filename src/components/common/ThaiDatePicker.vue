@@ -196,11 +196,15 @@ const openCalendar = () => {
 };
 
 // Sync inputValue เมื่อ modelValue เปลี่ยน
-watch(localModelValue, (newVal) => {
-    if (!isFocused.value) {
-        inputValue.value = newVal ? formatThaiDate(newVal) : '';
-    }
-}, { immediate: true });
+watch(
+    localModelValue,
+    (newVal) => {
+        if (!isFocused.value) {
+            inputValue.value = newVal ? formatThaiDate(newVal) : '';
+        }
+    },
+    { immediate: true }
+);
 
 // แปลงปีใน calendar popup เป็น พ.ศ.
 const convertYearsToBuddhist = () => {
@@ -262,9 +266,7 @@ const setupObserver = () => {
         for (const mutation of mutations) {
             // ตรวจสอบว่ามี datepicker panel ถูกเพิ่มหรือเปลี่ยนแปลง
             if (mutation.type === 'childList') {
-                const hasDatepicker = Array.from(mutation.addedNodes).some(
-                    (node) => node.nodeType === 1 && (node.classList?.contains('p-datepicker-panel') || node.querySelector?.('.p-datepicker-panel'))
-                );
+                const hasDatepicker = Array.from(mutation.addedNodes).some((node) => node.nodeType === 1 && (node.classList?.contains('p-datepicker-panel') || node.querySelector?.('.p-datepicker-panel')));
                 if (hasDatepicker) {
                     shouldConvert = true;
                     break;
@@ -359,14 +361,7 @@ onUnmounted(() => {
         />
 
         <!-- ปุ่มเปิด calendar -->
-        <button
-            v-if="manualInput && !attrs.inline && attrs.showIcon !== false"
-            type="button"
-            class="thai-date-icon-btn"
-            @click="openCalendar"
-            :disabled="attrs.disabled"
-            tabindex="-1"
-        >
+        <button v-if="manualInput && !attrs.inline && attrs.showIcon !== false" type="button" class="thai-date-icon-btn" @click="openCalendar" :disabled="attrs.disabled" tabindex="-1">
             <i class="pi pi-calendar"></i>
         </button>
 

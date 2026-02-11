@@ -1,26 +1,49 @@
 <script setup>
-import AlertDialog from '@/components/AlertDialog.vue';
-import DialogApprove from '@/components/DialogApprove.vue';
-import DialogForm from '@/components/DialogForm.vue';
+import AiModelSelectionDialog from '@/components/accounting/AiModelSelectionDialog.vue';
 import JournalDailyInfoTab from '@/components/accounting/JournalDailyInfoTab.vue';
 import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
 import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
+import OcrResultDialog from '@/components/accounting/OcrResultDialog.vue';
+import TaskImageSelectionDialog from '@/components/accounting/TaskImageSelectionDialog.vue';
+import TaskSelectionDialog from '@/components/accounting/TaskSelectionDialog.vue';
+import AlertDialog from '@/components/AlertDialog.vue';
+import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageUploadPreviewDialog from '@/components/image/ImageUploadPreviewDialog.vue';
+import LoadingDialog from '@/components/LoadingDialog.vue';
+import { useLoading } from '@/composables/useLoading';
 import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadImage } from '@/services/api/image';
 import { createJournal, getCreditors, getDebtors, getDocumentFormats, getJournalBooks, getJournalById, updateJournal } from '@/services/api/journal';
+import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
+const { showLoading, hideLoading } = useLoading();
 
 const journalId = ref(route.params.id || null);
 const isEditMode = ref(!!journalId.value);
 const activeTab = ref('0');
 const loading = ref(false);
+
+// AbortController สำหรับยกเลิก API calls
+const abortControllers = ref({
+    upload: null,
+    loadImages: null,
+    loadJournal: null,
+    submit: null
+});
+
+// Helper function: สร้าง AbortController พร้อม timeout
+const createAbortController = (timeoutMs = 30000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    controller.signal.addEventListener('abort', () => clearTimeout(timeoutId));
+    return controller;
+};
 
 // Validation alert state
 const showValidationAlert = ref(false);
@@ -34,20 +57,230 @@ const isBalanceInvalid = ref(false);
 // Confirm dialog state
 const showConfirmDialog = ref(false);
 const isSaving = ref(false); // ป้องกันการ save ซ้ำ
+const justSaved = ref(false); // flag เพื่อบอกว่าเพิ่ง save เสร็จ
+
+// Navigation confirmation dialog state
+const showNavigationConfirm = ref(false);
+const pendingNavigation = ref(null);
+
+// Original form data snapshot (for detecting changes in edit mode)
+const originalFormData = ref(null);
 
 // Cancel image confirm dialog
-const showCancelImageDialog = ref(false);
-const cancelImageRandomNumber = ref(0);
 
 // Detect OS for keyboard shortcuts
 const isMac = ref(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
 const ctrlKey = computed(() => (isMac.value ? '⌘' : 'Ctrl'));
 const altKey = computed(() => (isMac.value ? '⌥' : 'Alt'));
 
+// ========== Computed Properties: Form Validation ==========
+// คำนวณยอดรวม Debit และ Credit
+const totalDebit = computed(() => {
+    return formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.debitamount, 0), 0);
+});
+
+const totalCredit = computed(() => {
+    return formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.creditamount, 0), 0);
+});
+
+// ตรวจสอบความสมดุล
+const isBalanced = computed(() => {
+    return Math.abs(totalDebit.value - totalCredit.value) <= 0.01;
+});
+
+// ตรวจสอบว่าฟอร์มถูกต้องหรือไม่ (สำหรับ validation พื้นฐาน)
+const isFormValid = computed(() => {
+    // ต้องมี docdate, docno, bookcode
+    if (!formData.value.docdate || !formData.value.docno || !formData.value.bookcode) {
+        return false;
+    }
+
+    // ต้องมี journaldetail อย่างน้อย 1 รายการ
+    if (!formData.value.journaldetail || formData.value.journaldetail.length === 0) {
+        return false;
+    }
+
+    // ทุกรายการต้องมี accountcode และมี debit หรือ credit
+    const hasInvalidRows = formData.value.journaldetail.some((detail) => {
+        return !detail.accountcode || (!detail.debitamount && !detail.creditamount);
+    });
+
+    if (hasInvalidRows) {
+        return false;
+    }
+
+    // ต้องสมดุล
+    if (!isBalanced.value) {
+        return false;
+    }
+
+    return true;
+});
+
 // Keyboard shortcuts info popover
 const shortcutInfoRef = ref(null);
 const toggleShortcutInfo = (event) => {
     shortcutInfoRef.value.toggle(event);
+};
+
+// ========== AI OCR Functions ==========
+const handleAiAnalyze = () => {
+    if (!hasImages.value) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่มีรูปภาพ',
+            detail: 'กรุณาเพิ่มรูปภาพเอกสารก่อนใช้ AI วิเคราะห์',
+            life: 3000
+        });
+        return;
+    }
+    showAiModelDialog.value = true;
+};
+
+const handleAiModelSelected = async (selectedModel) => {
+    showAiModelDialog.value = false;
+
+    if (!formData.value.documentref) {
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: 'ไม่พบข้อมูลเอกสาร',
+            life: 3000
+        });
+        return;
+    }
+
+    // ตรวจสอบว่ามีข้อมูล OCR อยู่แล้วหรือไม่
+    if (documentImageGroup.value?.ocranalyzeai) {
+        try {
+            const existingOcrData = JSON.parse(documentImageGroup.value.ocranalyzeai);
+            ocrResultData.value = existingOcrData;
+            showOcrResultDialog.value = true;
+            return;
+        } catch (error) {
+            console.warn('Failed to parse existing OCR data:', error);
+        }
+    }
+
+    // เรียก API วิเคราะห์เอกสาร
+    try {
+        showLoading('กำลังวิเคราะห์เอกสารด้วย AI...');
+        const response = await analyzeReceipt({
+            guidfixed: formData.value.documentref,
+            model: selectedModel
+        });
+
+        if (response.data.success) {
+            ocrResultData.value = response.data.data;
+
+            // บันทึกผลลัพธ์ลงฐานข้อมูล
+            await saveOcrResult(response.data.data);
+
+            hideLoading();
+            showOcrResultDialog.value = true;
+        } else {
+            throw new Error('OCR analysis failed');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('OCR analysis error:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'ข้อผิดพลาด',
+            detail: error.response?.data?.message || 'ไม่สามารถวิเคราะห์เอกสารได้',
+            life: 3000
+        });
+    }
+};
+
+const saveOcrResult = async (ocrData) => {
+    try {
+        await updateDocumentImageGroup(formData.value.documentref, {
+            ocranalyzeai: JSON.stringify(ocrData),
+            updatedby: 'system'
+        });
+    } catch (error) {
+        console.error('Error saving OCR result:', error);
+    }
+};
+
+const handleApplyOcrData = async () => {
+    if (!ocrResultData.value?.accounting_entry) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่พบข้อมูล',
+            detail: 'ไม่พบข้อมูลรายการบัญชีจาก OCR',
+            life: 3000
+        });
+        return;
+    }
+
+    const entry = ocrResultData.value.accounting_entry;
+
+    // นำข้อมูลมาใส่ใน form
+    formData.value.docdate = entry.document_date || new Date().toISOString().split('T')[0];
+    formData.value.docno = entry.reference_number || '';
+
+    // ตั้งค่า journal book
+    if (entry.journal_book_code) {
+        try {
+            // โหลด journal books ถ้ายังไม่มี
+            if (journalBooks.value.length === 0) {
+                const response = await getJournalBooks({ q: entry.journal_book_code, page: 1, limit: 20 });
+                if (response.data.success) {
+                    journalBooks.value = response.data.data.map((item) => ({
+                        ...item,
+                        displayLabel: `${item.code} ~ ${item.name1}`
+                    }));
+                }
+            }
+
+            // หา journal book จาก code
+            const foundBook = journalBooks.value.find((book) => book.code === entry.journal_book_code);
+            if (foundBook) {
+                formData.value.bookcode = foundBook;
+            } else {
+                console.warn(`Journal book with code ${entry.journal_book_code} not found`);
+            }
+        } catch (error) {
+            console.error('Error loading journal books:', error);
+        }
+    }
+
+    // ตั้งค่า debtor/creditor
+    if (entry.creditor_code) {
+        formData.value.debtaccounttype = 1; // Creditor
+        // TODO: หา creditor จาก code
+    } else if (entry.debtor_code) {
+        formData.value.debtaccounttype = 0; // Debtor
+        // TODO: หา debtor จาก code
+    }
+
+    // ใส่รายการบัญชี
+    if (entry.entries && entry.entries.length > 0) {
+        formData.value.journaldetail = entry.entries.map((item) => ({
+            accountcode: item.account_code || '',
+            accountname: item.account_name || '',
+            debitamount: item.debit || 0,
+            creditamount: item.credit || 0
+        }));
+    }
+
+    // Mark that data is from AI
+    isDataFromAI.value = true;
+
+    toast.add({
+        severity: 'success',
+        summary: 'สำเร็จ',
+        detail: 'นำข้อมูลจาก AI มาใช้เรียบร้อยแล้ว',
+        life: 3000
+    });
+};
+
+const handleReanalyze = () => {
+    showOcrResultDialog.value = false;
+    ocrResultData.value = null;
+    showAiModelDialog.value = true;
 };
 
 // Image panel state
@@ -56,8 +289,22 @@ const loadingImages = ref(false);
 const documentImageGroup = ref(null);
 const selectedImageDetail = ref(null);
 
+// AI OCR Dialog state
+const showAiModelDialog = ref(false);
+const showOcrResultDialog = ref(false);
+const ocrResultData = ref(null);
+const isDataFromAI = ref(false);
+
+// Journal books for OCR mapping
+const journalBooks = ref([]);
+
 // Responsive: ตรวจสอบว่าหน้าจอเล็กกว่า lg (1024px) หรือไม่
 const isSmallScreen = ref(window.innerWidth < 1024);
+
+// ตรวจสอบว่ามีรูปภาพหรือไม่
+const hasImages = computed(() => {
+    return documentImageGroup.value?.imagereferences && documentImageGroup.value.imagereferences.length > 0;
+});
 const handleResize = () => {
     isSmallScreen.value = window.innerWidth < 1024;
 };
@@ -69,10 +316,40 @@ const selectedFile = ref(null);
 const uploadedImageUri = ref('');
 const uploadingImage = ref(false);
 
+// Task selection state
+const showTaskSelectionDialog = ref(false);
+const showTaskImageSelectionDialog = ref(false);
+const selectedTask = ref(null);
+const imageSourceType = ref(null); // 'upload' or 'task'
+
 // Get current user email (from localStorage or auth store)
 const getCurrentUserEmail = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     return user.email || 'unknown@user.com';
+};
+
+// ========== Helper Functions: Safe Data Parsing ==========
+const safeParseDate = (dateValue) => {
+    if (!dateValue) return null;
+    if (dateValue === '0001-01-01T00:00:00Z') return null;
+    try {
+        const date = new Date(dateValue);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
+};
+
+const safeParseNumber = (value, defaultValue = 0) => {
+    if (value === null || value === undefined || value === '') return defaultValue;
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+};
+
+const safeParseInt = (value, defaultValue = 0) => {
+    if (value === null || value === undefined || value === '') return defaultValue;
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? defaultValue : parsed;
 };
 
 // แปลงวันที่เป็น ISO string โดยใช้ local timezone (ไม่ใช่ UTC)
@@ -99,6 +376,72 @@ const toLocalISOString = (date) => {
 // Trigger file input
 const triggerFileUpload = () => {
     fileInputRef.value?.click();
+};
+
+// Open task selection dialog
+const openTaskSelection = () => {
+    // ถ้ามีรูปอยู่แล้วและเป็นรูปจาก task ต้องลบก่อน
+    if (formData.value.documentref && imageSourceType.value === 'task') {
+        toast.add({
+            severity: 'warn',
+            summary: 'แจ้งเตือน',
+            detail: 'กรุณาลบรูปภาพที่มีอยู่ก่อน จึงจะสามารถเลือกรูปภาพจาก Task ใหม่ได้',
+            life: 5000
+        });
+        return;
+    }
+    showTaskSelectionDialog.value = true;
+};
+
+// Handle task selected
+const handleTaskSelected = (task) => {
+    selectedTask.value = task;
+    showTaskImageSelectionDialog.value = true;
+};
+
+// Handle back to task selection
+const handleBackToTaskSelection = () => {
+    showTaskImageSelectionDialog.value = false;
+    showTaskSelectionDialog.value = true;
+};
+
+// Handle images selected from task (ใช้ชุดเอกสารที่มีอยู่แล้วจาก Task)
+const handleImagesSelectedFromTask = async (result) => {
+    if (!result || !result.groupGuidfixed) return;
+
+    showLoading('กำลังโหลดชุดเอกสารจาก Task...');
+
+    try {
+        // ใช้ guidfixed ของชุดเอกสารที่เลือกจาก Task โดยตรง (ไม่สร้างใหม่)
+        formData.value.documentref = result.groupGuidfixed;
+
+        // Set image source type
+        imageSourceType.value = 'task';
+
+        // Reload document images
+        await loadDocumentImages(formData.value.documentref);
+
+        // Show image panel
+        showImagePanel.value = true;
+
+        toast.add({
+            severity: 'success',
+            summary: 'สำเร็จ',
+            detail: 'เลือกชุดเอกสารจาก Task เรียบร้อยแล้ว',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Error loading images from task:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'เกิดข้อผิดพลาด',
+            detail: error.response?.data?.message || 'ไม่สามารถโหลดชุดเอกสารจาก Task ได้',
+            life: 3000
+        });
+    } finally {
+        hideLoading();
+        selectedTask.value = null;
+    }
 };
 
 // Handle file selection
@@ -130,11 +473,19 @@ const handleFileSelect = async (event) => {
     }
 
     selectedFile.value = file;
-    uploadingImage.value = true;
+    showLoading('กำลังอัพโหลดไฟล์...');
+
+    // ยกเลิก upload ก่อนหน้าถ้ามี
+    if (abortControllers.value.upload) {
+        abortControllers.value.upload.abort();
+    }
+
+    // สร้าง AbortController ใหม่พร้อม timeout 30 วินาที
+    abortControllers.value.upload = createAbortController(30000);
 
     try {
-        // Upload file
-        const response = await uploadImage(file);
+        // Upload file with abort signal
+        const response = await uploadImage(file, { signal: abortControllers.value.upload.signal });
         if (response.data.success) {
             uploadedImageUri.value = response.data.data.uri;
             showUploadPreview.value = true;
@@ -142,17 +493,27 @@ const handleFileSelect = async (event) => {
             throw new Error('Upload failed');
         }
     } catch (error) {
-        console.error('Error uploading image:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'อัพโหลดไม่สำเร็จ',
-            detail: error.response?.data?.message || 'ไม่สามารถอัพโหลดไฟล์ได้',
-            life: 3000
-        });
+        if (error.name === 'AbortError') {
+            toast.add({
+                severity: 'warn',
+                summary: 'ยกเลิกการอัพโหลด',
+                detail: 'การอัพโหลดถูกยกเลิกหรือใช้เวลานานเกินไป',
+                life: 3000
+            });
+        } else {
+            console.error('Error uploading image:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'อัพโหลดไม่สำเร็จ',
+                detail: error.response?.data?.message || 'ไม่สามารถอัพโหลดไฟล์ได้',
+                life: 3000
+            });
+        }
         selectedFile.value = null;
         uploadedImageUri.value = '';
     } finally {
-        uploadingImage.value = false;
+        hideLoading();
+        abortControllers.value.upload = null;
         // Reset file input
         if (fileInputRef.value) {
             fileInputRef.value.value = '';
@@ -164,7 +525,14 @@ const handleFileSelect = async (event) => {
 const handleConfirmUpload = async () => {
     if (!selectedFile.value || !uploadedImageUri.value) return;
 
-    uploadingImage.value = true;
+    showLoading('กำลังบันทึกเอกสาร...');
+
+    // ยกเลิก request ก่อนหน้าถ้ามี
+    if (abortControllers.value.upload) {
+        abortControllers.value.upload.abort();
+    }
+
+    abortControllers.value.upload = createAbortController(30000);
 
     try {
         const now = new Date();
@@ -180,7 +548,7 @@ const handleConfirmUpload = async () => {
         };
 
         // Create document image
-        const createResponse = await createDocumentImage(payload);
+        const createResponse = await createDocumentImage(payload, { signal: abortControllers.value.upload.signal });
         if (!createResponse.data.success) {
             throw new Error('Failed to create document image');
         }
@@ -209,7 +577,7 @@ const handleConfirmUpload = async () => {
             ];
 
             // Update document image group
-            await updateDocumentImageGroupImages(formData.value.documentref, updatedImages);
+            await updateDocumentImageGroupImages(formData.value.documentref, updatedImages, { signal: abortControllers.value.upload.signal });
 
             toast.add({
                 severity: 'success',
@@ -220,6 +588,9 @@ const handleConfirmUpload = async () => {
         } else {
             // New document - set documentref to new group
             formData.value.documentref = groupid;
+
+            // Set image source type
+            imageSourceType.value = 'upload';
 
             toast.add({
                 severity: 'success',
@@ -240,15 +611,25 @@ const handleConfirmUpload = async () => {
         selectedFile.value = null;
         uploadedImageUri.value = '';
     } catch (error) {
-        console.error('Error confirming upload:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'เกิดข้อผิดพลาด',
-            detail: error.response?.data?.message || 'ไม่สามารถบันทึกเอกสารได้',
-            life: 3000
-        });
+        if (error.name === 'AbortError') {
+            toast.add({
+                severity: 'warn',
+                summary: 'ยกเลิกการบันทึก',
+                detail: 'การบันทึกเอกสารถูกยกเลิกหรือใช้เวลานานเกินไป',
+                life: 3000
+            });
+        } else {
+            console.error('Error confirming upload:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'เกิดข้อผิดพลาด',
+                detail: error.response?.data?.message || 'ไม่สามารถบันทึกเอกสารได้',
+                life: 3000
+            });
+        }
     } finally {
-        uploadingImage.value = false;
+        hideLoading();
+        abortControllers.value.upload = null;
     }
 };
 
@@ -288,19 +669,16 @@ const goBack = () => {
     router.push({ name: 'journal-entry' });
 };
 
-// ลบแถวว่างใน journaldetail (แถวที่ไม่มีข้อมูลเลย)
+// ลบแถวว่างใน journaldetail (แถวที่ไม่มียอด debit หรือ credit)
 const removeEmptyJournalDetails = () => {
     if (!formData.value.journaldetail) return;
 
     const filteredDetails = formData.value.journaldetail.filter((detail) => {
-        // ถ้า accountcode ว่าง, accountname ว่าง, debitamount = 0, creditamount = 0 ให้ลบออก
-        const hasAccountCode = detail.accountcode && detail.accountcode.trim() !== '';
-        const hasAccountName = detail.accountname && detail.accountname.trim() !== '';
+        // เก็บเฉพาะแถวที่มียอด debit หรือ credit
         const hasDebit = parseFloat(detail.debitamount) !== 0;
         const hasCredit = parseFloat(detail.creditamount) !== 0;
 
-        // เก็บแถวไว้ถ้ามีข้อมูลอย่างน้อย 1 อย่าง
-        return hasAccountCode || hasAccountName || hasDebit || hasCredit;
+        return hasDebit || hasCredit;
     });
 
     formData.value.journaldetail = filteredDetails;
@@ -345,22 +723,22 @@ const validateForm = () => {
         errors.push('- รายละเอียดรายการ (ต้องมีอย่างน้อย 1 รายการ)');
         isJournalDetailInvalid.value = true;
     } else {
-        // ตรวจสอบว่าแต่ละรายการมีข้อมูลครบถ้วน
+        // ตรวจสอบว่าแต่ละรายการมี accountcode (เพราะแถวที่ไม่มียอดถูกลบไปแล้ว)
         const invalidRows = [];
         formData.value.journaldetail.forEach((detail, index) => {
-            if (!detail.accountcode || (!detail.debitamount && !detail.creditamount)) {
+            if (!detail.accountcode) {
                 invalidRows.push(index + 1);
             }
         });
 
         if (invalidRows.length > 0) {
-            errors.push(`- รายการบัญชีแถวที่ ${invalidRows.join(', ')} (ข้อมูลไม่ครบถ้วน)`);
+            errors.push(`- รายการบัญชีแถวที่ ${invalidRows.join(', ')} (ไม่มีรหัสบัญชี)`);
             isJournalDetailInvalid.value = true;
         }
 
-        // ตรวจสอบความสมดุลของรายการ
-        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.debitamount) || 0), 0);
-        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.creditamount) || 0), 0);
+        // ตรวจสอบความสมดุลของรายการ (ใช้ safeParseNumber)
+        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.debitamount, 0), 0);
+        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.creditamount, 0), 0);
 
         if (Math.abs(totalDebit - totalCredit) > 0.01) {
             errors.push('- ยอดเดบิตและเครดิตไม่สมดุล');
@@ -383,7 +761,7 @@ const validateForm = () => {
             if (!vat.custname || vat.custname.trim() === '') {
                 rowErrors.push('ชื่อ');
             }
-            if (!vat.vatbase || parseFloat(vat.vatbase) === 0) {
+            if (!vat.vatbase || safeParseNumber(vat.vatbase, 0) === 0) {
                 rowErrors.push('ฐานภาษี');
             }
             if (rowErrors.length > 0) {
@@ -415,7 +793,7 @@ const validateForm = () => {
             } else {
                 const invalidDetails = [];
                 tax.details.forEach((detail, detailIndex) => {
-                    if (!detail.description || detail.description.trim() === '' || !detail.taxbase || parseFloat(detail.taxbase) === 0) {
+                    if (!detail.description || detail.description.trim() === '' || !detail.taxbase || safeParseNumber(detail.taxbase, 0) === 0) {
                         invalidDetails.push(detailIndex + 1);
                     }
                 });
@@ -444,39 +822,27 @@ const toggleImagePanel = async () => {
     showImagePanel.value = !showImagePanel.value;
 };
 
-// Handle cancel image - show confirmation if documentref exists
+// Handle cancel image - ยกเลิกทันทีโดยไม่ต้องยืนยัน
 const handleCancelImage = () => {
     if (formData.value.documentref) {
-        // Has document, show confirm dialog
-        cancelImageRandomNumber.value = Math.floor(Math.random() * 9000) + 1000;
-        showCancelImageDialog.value = true;
+        // Has document, cancel it directly
+        cancelImage();
     } else {
         // No document, just close panel
         showImagePanel.value = false;
     }
 };
 
-// Confirm cancel image - clear documentref
-const confirmCancelImage = () => {
+// Cancel image - clear documentref (ไม่ต้องใช้ Dialog ยืนยัน)
+const cancelImage = () => {
     formData.value.documentref = '';
     documentImageGroup.value = null;
-    showImagePanel.value = false;
-    showCancelImageDialog.value = false;
+    imageSourceType.value = null; // Reset image source type
 
     toast.add({
         severity: 'success',
         summary: 'สำเร็จ',
         detail: 'ยกเลิกการใช้รูปภาพเอกสารเรียบร้อยแล้ว',
-        life: 3000
-    });
-};
-
-// Cancel image confirmation failed
-const cancelImageFailed = () => {
-    toast.add({
-        severity: 'error',
-        summary: 'ตัวเลขไม่ถูกต้อง',
-        detail: 'กรุณากรอกตัวเลขให้ตรงกับที่แสดง',
         life: 3000
     });
 };
@@ -494,8 +860,17 @@ const loadDocumentImages = async (documentRef) => {
     }
 
     loadingImages.value = true;
+    showLoading('กำลังโหลดรูปภาพเอกสาร...');
+
+    // ยกเลิก request ก่อนหน้าถ้ามี
+    if (abortControllers.value.loadImages) {
+        abortControllers.value.loadImages.abort();
+    }
+
+    abortControllers.value.loadImages = createAbortController(15000);
+
     try {
-        const response = await getDocumentImageGroup(documentRef);
+        const response = await getDocumentImageGroup(documentRef, { signal: abortControllers.value.loadImages.signal });
         if (response.data.success) {
             documentImageGroup.value = response.data.data;
         } else {
@@ -507,15 +882,21 @@ const loadDocumentImages = async (documentRef) => {
             });
         }
     } catch (error) {
-        console.error('Error loading document images:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'ข้อผิดพลาด',
-            detail: error.response?.data?.message || 'ไม่สามารถโหลดรูปภาพเอกสารได้',
-            life: 3000
-        });
+        if (error.name === 'AbortError') {
+            console.log('Load images aborted');
+        } else {
+            console.error('Error loading document images:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'ข้อผิดพลาด',
+                detail: error.response?.data?.message || 'ไม่สามารถโหลดรูปภาพเอกสารได้',
+                life: 3000
+            });
+        }
     } finally {
         loadingImages.value = false;
+        hideLoading();
+        abortControllers.value.loadImages = null;
     }
 };
 
@@ -565,10 +946,19 @@ const submitForm = async () => {
     isSaving.value = true;
 
     loading.value = true;
+    showLoading(isEditMode.value ? 'กำลังบันทึกการแก้ไขรายการบัญชี...' : 'กำลังบันทึกรายการบัญชีใหม่...');
+
+    // ยกเลิก submit ก่อนหน้าถ้ามี
+    if (abortControllers.value.submit) {
+        abortControllers.value.submit.abort();
+    }
+
+    abortControllers.value.submit = createAbortController(60000); // 60 วินาที สำหรับ submit
+
     try {
-        // คำนวณ amount จาก journaldetail
-        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.debitamount) || 0), 0);
-        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.creditamount) || 0), 0);
+        // คำนวณ amount จาก journaldetail (ใช้ safeParseNumber)
+        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.debitamount, 0), 0);
+        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.creditamount, 0), 0);
         const amount = Math.max(totalDebit, totalCredit);
 
         // สร้าง payload ตาม API format
@@ -586,40 +976,40 @@ const submitForm = async () => {
             docdate: formData.value.docdate ? toLocalISOString(formData.value.docdate) : toLocalISOString(new Date()),
             docno: formData.value.docno,
             bookcode: formData.value.bookcode?.code || '',
-            appname: '',
+            appname: isDataFromAI.value ? 'AI' : '',
             jobguidfixed: '',
             docformat: formData.value.docformat || '',
             journaldetail: formData.value.journaldetail.map((detail) => ({
                 accountcode: detail.accountcode,
                 accountname: detail.accountname || '',
-                debitamount: parseFloat(detail.debitamount) || 0,
-                creditamount: parseFloat(detail.creditamount) || 0
+                debitamount: safeParseNumber(detail.debitamount, 0),
+                creditamount: safeParseNumber(detail.creditamount, 0)
             })),
             journaltype: formData.value.journaltype || 0,
             parid: '0000000',
             vats: (formData.value.vats || []).map((vat) => ({
                 vatdocno: vat.vatdocno || '',
                 vatdate: vat.vatdate ? toLocalISOString(vat.vatdate) : toLocalISOString(new Date()),
-                vattype: vat.vattype || 0,
-                vatmode: vat.vatmode || 0,
-                vatperiod: vat.vatperiod || new Date().getMonth() + 1,
-                vatyear: vat.vatyear || new Date().getFullYear() + 543,
-                vatbase: parseFloat(vat.vatbase) || 0,
-                vatrate: parseFloat(vat.vatrate) || 7,
-                vatamount: parseFloat(vat.vatamount) || 0,
-                exceptvat: parseFloat(vat.exceptvat) || 0,
+                vattype: safeParseInt(vat.vattype, 0),
+                vatmode: safeParseInt(vat.vatmode, 0),
+                vatperiod: safeParseInt(vat.vatperiod, new Date().getMonth() + 1),
+                vatyear: safeParseInt(vat.vatyear, new Date().getFullYear() + 543),
+                vatbase: safeParseNumber(vat.vatbase, 0),
+                vatrate: safeParseNumber(vat.vatrate, 7),
+                vatamount: safeParseNumber(vat.vatamount, 0),
+                exceptvat: safeParseNumber(vat.exceptvat, 0),
                 vatsubmit: vat.vatsubmit || false,
                 remark: vat.remark || '',
                 custtaxid: vat.custtaxid || '',
                 custname: vat.custname || '',
-                custtype: vat.custtype || 0,
-                organization: vat.organization || 0,
+                custtype: safeParseInt(vat.custtype, 0),
+                organization: safeParseInt(vat.organization, 0),
                 branchcode: vat.branchcode || '00000',
                 address: vat.address || ''
             })),
             taxes: (formData.value.taxes || []).map((tax) => ({
-                taxtype: tax.taxtype || 0,
-                custtype: tax.custtype || 0,
+                taxtype: safeParseInt(tax.taxtype, 0),
+                custtype: safeParseInt(tax.custtype, 0),
                 taxdate: tax.taxdate ? toLocalISOString(tax.taxdate) : toLocalISOString(new Date()),
                 taxdocno: tax.taxdocno || '',
                 custname: tax.custname || '',
@@ -627,30 +1017,36 @@ const submitForm = async () => {
                 address: tax.address || '',
                 details: (tax.details || []).map((detail) => ({
                     description: detail.description || '',
-                    taxbase: parseFloat(detail.taxbase) || 0,
-                    taxrate: parseFloat(detail.taxrate) || 0,
-                    taxamount: parseFloat(detail.taxamount) || 0
+                    taxbase: safeParseNumber(detail.taxbase, 0),
+                    taxrate: safeParseNumber(detail.taxrate, 0),
+                    taxamount: safeParseNumber(detail.taxamount, 0)
                 }))
             })),
             exdocrefdate: formData.value.exdocrefdate ? toLocalISOString(formData.value.exdocrefdate) : null,
             exdocrefno: formData.value.exdocrefno || ''
         };
 
-        // เรียก API (POST หรือ PUT)
+        // เรียก API (POST หรือ PUT) พร้อม abort signal
         let response;
         if (isEditMode.value) {
-            response = await updateJournal(journalId.value, payload);
+            response = await updateJournal(journalId.value, payload, { signal: abortControllers.value.submit.signal });
         } else {
-            response = await createJournal(payload);
+            response = await createJournal(payload, { signal: abortControllers.value.submit.signal });
         }
 
         if (response.data.success) {
+            // Reset AI flag after successful save
+            isDataFromAI.value = false;
+
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
                 detail: isEditMode.value ? 'บันทึกการแก้ไขรายการบัญชีเรียบร้อยแล้ว' : 'บันทึกรายการบัญชีใหม่เรียบร้อยแล้ว',
                 life: 3000
             });
+
+            // Set flag ว่าเพิ่ง save เสร็จ เพื่อไม่ให้แสดง Navigation Confirm Dialog
+            justSaved.value = true;
 
             // กลับไปหน้า list
             setTimeout(() => {
@@ -665,16 +1061,27 @@ const submitForm = async () => {
             });
         }
     } catch (error) {
-        console.error('Error submitting journal:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'เกิดข้อผิดพลาด',
-            detail: error.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้',
-            life: 5000
-        });
+        if (error.name === 'AbortError') {
+            toast.add({
+                severity: 'warn',
+                summary: 'ยกเลิกการบันทึก',
+                detail: 'การบันทึกถูกยกเลิกหรือใช้เวลานานเกินไป',
+                life: 3000
+            });
+        } else {
+            console.error('Error submitting journal:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'เกิดข้อผิดพลาด',
+                detail: error.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้',
+                life: 5000
+            });
+        }
     } finally {
         loading.value = false;
+        hideLoading();
         isSaving.value = false;
+        abortControllers.value.submit = null;
     }
 };
 
@@ -683,13 +1090,25 @@ const loadJournalData = async () => {
     if (!journalId.value) return;
 
     loading.value = true;
+    showLoading('กำลังโหลดข้อมูลรายการบัญชี...');
+
+    // ยกเลิก request ก่อนหน้าถ้ามี
+    if (abortControllers.value.loadJournal) {
+        abortControllers.value.loadJournal.abort();
+    }
+
+    abortControllers.value.loadJournal = createAbortController(30000);
+
     try {
-        const response = await getJournalById(journalId.value);
+        const response = await getJournalById(journalId.value, { signal: abortControllers.value.loadJournal.signal });
         if (response.data.success) {
             const data = response.data.data;
 
-            // โหลด master data แบบ parallel
-            const [booksResponse, formatsResponse] = await Promise.all([getJournalBooks({ q: data.bookcode || '', page: 1, limit: 20 }), getDocumentFormats({ q: data.docformat || '', page: 1, limit: 20 })]);
+            // โหลด master data แบบ parallel พร้อม abort signal
+            const [booksResponse, formatsResponse] = await Promise.all([
+                getJournalBooks({ q: data.bookcode || '', page: 1, limit: 20 }, { signal: abortControllers.value.loadJournal.signal }),
+                getDocumentFormats({ q: data.docformat || '', page: 1, limit: 20 }, { signal: abortControllers.value.loadJournal.signal })
+            ]);
 
             // Map bookcode
             let mappedBookcode = null;
@@ -719,7 +1138,7 @@ const loadJournalData = async () => {
             if (account && account.guidfixed) {
                 try {
                     const debtApiCall = data.debtaccounttype === 1 ? getCreditors : getDebtors;
-                    const debtResponse = await debtApiCall({ q: account.code || '', page: 1, limit: 20 });
+                    const debtResponse = await debtApiCall({ q: account.code || '', page: 1, limit: 20 }, { signal: abortControllers.value.loadJournal.signal });
 
                     if (debtResponse.data.success) {
                         const foundAccount = debtResponse.data.data.find((acc) => acc.guidfixed === account.guidfixed);
@@ -739,37 +1158,39 @@ const loadJournalData = async () => {
                         }
                     }
                 } catch (error) {
-                    console.error('Error loading debt account:', error);
-                    // ถ้า error ใช้ข้อมูลจาก API
-                    const thName = account.names?.find((n) => n.code === 'th')?.name || '';
-                    mappedDebtAccount = {
-                        ...account,
-                        displayLabel: `${account.code} ~ ${thName}`
-                    };
+                    if (error.name !== 'AbortError') {
+                        console.error('Error loading debt account:', error);
+                        // ถ้า error ใช้ข้อมูลจาก API
+                        const thName = account.names?.find((n) => n.code === 'th')?.name || '';
+                        mappedDebtAccount = {
+                            ...account,
+                            displayLabel: `${account.code} ~ ${thName}`
+                        };
+                    }
                 }
             }
 
-            // Map API data to form data
+            // Map API data to form data (ใช้ safe parsing)
             formData.value = {
-                docdate: data.docdate ? new Date(data.docdate) : null,
+                docdate: safeParseDate(data.docdate),
                 docno: data.docno || '',
                 bookcode: mappedBookcode,
-                debtaccounttype: data.debtaccounttype || 0,
+                debtaccounttype: safeParseInt(data.debtaccounttype, 0),
                 debtaccountcode: mappedDebtAccount,
-                exdocrefdate: data.exdocrefdate && data.exdocrefdate !== '0001-01-01T00:00:00Z' ? new Date(data.exdocrefdate) : null,
+                exdocrefdate: safeParseDate(data.exdocrefdate),
                 exdocrefno: data.exdocrefno || '',
-                journaltype: data.journaltype || 0,
+                journaltype: safeParseInt(data.journaltype, 0),
                 accountdescription: data.accountdescription || '',
                 docformat: mappedDocformat,
                 documentref: data.documentref || '',
                 journaldetail: data.journaldetail || [],
                 vats: (data.vats || []).map((vat) => ({
                     ...vat,
-                    vatdate: vat.vatdate ? new Date(vat.vatdate) : new Date()
+                    vatdate: safeParseDate(vat.vatdate) || new Date()
                 })),
                 taxes: (data.taxes || []).map((tax) => ({
                     ...tax,
-                    taxdate: tax.taxdate ? new Date(tax.taxdate) : new Date()
+                    taxdate: safeParseDate(tax.taxdate) || new Date()
                 }))
             };
 
@@ -777,20 +1198,86 @@ const loadJournalData = async () => {
             if (data.documentref) {
                 await loadDocumentImages(data.documentref);
                 showImagePanel.value = true;
+                // ไม่กำหนด imageSourceType เพื่อให้แสดงทั้งสองปุ่ม (edit mode)
+                imageSourceType.value = null;
             }
+
+            // เก็บ snapshot ของข้อมูลเดิมสำหรับเปรียบเทียบการเปลี่ยนแปลง
+            originalFormData.value = JSON.parse(JSON.stringify(formData.value));
         }
     } catch (error) {
-        console.error('Error loading journal:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'ข้อผิดพลาด',
-            detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
-            life: 3000
-        });
+        if (error.name === 'AbortError') {
+            console.log('Load journal aborted');
+        } else {
+            console.error('Error loading journal:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'ข้อผิดพลาด',
+                detail: 'ไม่สามารถโหลดข้อมูลรายการบัญชีได้',
+                life: 3000
+            });
+        }
     } finally {
         loading.value = false;
+        hideLoading();
+        abortControllers.value.loadJournal = null;
     }
 };
+
+// Handle navigation confirmation
+const handleNavigationConfirm = () => {
+    showNavigationConfirm.value = false;
+    if (pendingNavigation.value) {
+        pendingNavigation.value();
+        pendingNavigation.value = null;
+    }
+};
+
+const handleNavigationCancel = () => {
+    showNavigationConfirm.value = false;
+    pendingNavigation.value = null;
+};
+
+// Navigation guard - เตือนเมื่อมีข้อมูลยังไม่ save
+onBeforeRouteLeave((_to, _from, next) => {
+    // ถ้ากำลัง save อยู่ หรือเพิ่ง save เสร็จ ให้ผ่านได้เลย
+    if (isSaving.value || justSaved.value) {
+        next();
+        return;
+    }
+
+    // ตรวจสอบว่ามีการแก้ไขข้อมูลหรือไม่
+    let hasUnsavedChanges = false;
+
+    if (isEditMode.value && originalFormData.value) {
+        // Edit mode: เปรียบเทียบกับข้อมูลเดิม
+        const currentData = JSON.stringify(formData.value);
+        const originalData = JSON.stringify(originalFormData.value);
+        hasUnsavedChanges = currentData !== originalData;
+    } else {
+        // Create mode: ตรวจสอบว่ามีการกรอกข้อมูลหรือไม่
+        hasUnsavedChanges = formData.value.docno || formData.value.journaldetail.length > 1 || (formData.value.journaldetail.length === 1 && formData.value.journaldetail[0].accountcode);
+    }
+
+    if (hasUnsavedChanges) {
+        // แสดง dialog แทน confirm
+        pendingNavigation.value = next;
+        showNavigationConfirm.value = true;
+    } else {
+        next();
+    }
+});
+
+// Watcher: Sync taskguid กับ selectedTask
+watch(
+    () => formData.value.documentref,
+    (newDocRef) => {
+        // ถ้ามี documentref ให้ตรวจสอบว่ามาจาก task หรือไม่
+        if (!newDocRef) {
+            imageSourceType.value = null;
+        }
+    }
+);
 
 onMounted(async () => {
     // Listen for window resize
@@ -807,31 +1294,51 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    // Cleanup event listeners
     window.removeEventListener('resize', handleResize);
+
+    // Abort ทุก API calls ที่ยังค้างอยู่
+    Object.values(abortControllers.value).forEach((controller) => {
+        if (controller) {
+            controller.abort();
+        }
+    });
 });
 </script>
 
 <template>
     <div>
         <Toast />
+        <LoadingDialog />
         <AlertDialog v-model:visible="showValidationAlert" header="ข้อมูลไม่ครบถ้วน" :message="validationMessage" severity="warning" icon="pi-exclamation-triangle" />
 
-        <!-- Confirm Dialog -->
+        <!-- Save Confirm Dialog -->
         <DialogForm :confirmDialog="showConfirmDialog" textContent="คุณต้องการบันทึกเอกสารรายวัน ใช่หรือไม่ ?" @close="showConfirmDialog = false" @confirm="submitForm" />
 
-        <!-- Cancel Image Confirm Dialog -->
-        <DialogApprove
-            :confirmDialog="showCancelImageDialog"
-            :randomNumber="cancelImageRandomNumber"
-            mode="cancel"
-            title="ยืนยันการยกเลิกรูปภาพ"
-            @close="showCancelImageDialog = false"
-            @confirmJob="confirmCancelImage"
-            @confirmJobFalse="cancelImageFailed"
+        <!-- Navigation Confirm Dialog -->
+        <DialogForm
+            :confirmDialog="showNavigationConfirm"
+            textContent="คุณมีข้อมูลที่ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่?"
+            cancelLabel="ออกจากหน้า"
+            confirmLabel="อยู่ต่อ (Enter)"
+            @close="handleNavigationConfirm"
+            @confirm="handleNavigationCancel"
         />
 
         <!-- Image Upload Preview Dialog -->
         <ImageUploadPreviewDialog v-model:visible="showUploadPreview" :file="selectedFile" :uploadedUri="uploadedImageUri" :loading="uploadingImage" @confirm="handleConfirmUpload" @cancel="handleCancelUpload" />
+
+        <!-- Task Selection Dialog -->
+        <TaskSelectionDialog v-model:visible="showTaskSelectionDialog" @taskSelected="handleTaskSelected" />
+
+        <!-- Task Image Selection Dialog -->
+        <TaskImageSelectionDialog v-model:visible="showTaskImageSelectionDialog" :task="selectedTask" @imagesSelected="handleImagesSelectedFromTask" @backToTaskSelection="handleBackToTaskSelection" />
+
+        <!-- AI Model Selection Dialog -->
+        <AiModelSelectionDialog v-model:visible="showAiModelDialog" @confirm="handleAiModelSelected" />
+
+        <!-- OCR Result Dialog -->
+        <OcrResultDialog v-model:visible="showOcrResultDialog" :ocrData="ocrResultData" @apply-data="handleApplyOcrData" @reanalyze="handleReanalyze" />
 
         <!-- Hidden file input -->
         <input ref="fileInputRef" type="file" accept="image/*,application/pdf" class="hidden" @change="handleFileSelect" />
@@ -846,6 +1353,9 @@ onUnmounted(() => {
                     </div>
                 </div>
                 <div class="flex gap-2 items-center">
+                    <!-- AI Analysis Button -->
+                    <Button icon="pi pi-sparkles" label="AI วิเคราะห์" severity="success" outlined @click="handleAiAnalyze" v-tooltip.left="hasImages ? 'วิเคราะห์เอกสารด้วย AI' : 'ต้องมีรูปภาพเอกสารก่อน'" :disabled="!hasImages || loading" />
+
                     <!-- Image Panel Buttons -->
                     <Button v-if="!showImagePanel" icon="pi pi-image" label="รูปภาพเอกสาร" text @click="toggleImagePanel" v-tooltip.left="'เปิดแผงรูปภาพเอกสาร'" :disabled="loading" />
                     <Button v-else icon="pi pi-times" label="ยกเลิกการใช้รูปภาพ" text severity="danger" @click="handleCancelImage" v-tooltip.left="'ยกเลิกการใช้รูปภาพเอกสาร'" :disabled="loading" />
@@ -913,16 +1423,53 @@ onUnmounted(() => {
                                 <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
                             </div>
                             <!-- Empty state with upload button -->
-                            <div v-else-if="!documentImageGroup" class="h-full flex flex-col justify-center items-center text-surface-500 min-h-80">
+                            <div v-else-if="!documentImageGroup" class="h-full flex flex-col justify-center items-center text-surface-500 min-h-80 px-4">
                                 <i class="pi pi-image text-6xl mb-4"></i>
-                                <p class="text-lg">ไม่พบรูปภาพเอกสาร</p>
-                                <p class="text-sm mt-2 text-surface-400 mb-4">กรุณาอัพโหลดรูปภาพหรือ PDF เพื่อแนบเอกสาร</p>
-                                <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
+                                <p class="text-lg font-semibold">ไม่พบรูปภาพเอกสาร</p>
+                                <p class="text-sm mt-2 text-surface-400 text-center max-w-md">กรุณาเลือกวิธีการเพิ่มรูปภาพเอกสาร</p>
+
+                                <!-- Instructions -->
+                                <div class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4 mt-4 mb-4 max-w-lg">
+                                    <div class="flex items-start gap-2 mb-3">
+                                        <i class="pi pi-info-circle text-primary-600 dark:text-primary-400 mt-0.5"></i>
+                                        <div class="text-sm text-primary-900 dark:text-primary-100">
+                                            <div class="font-semibold mb-2">วิธีการใช้งาน:</div>
+                                            <ul class="space-y-1.5 text-primary-800 dark:text-primary-200">
+                                                <li class="flex items-start gap-2">
+                                                    <span class="text-primary-600 dark:text-primary-400">•</span>
+                                                    <span><strong>อัพโหลดเอกสาร:</strong> เพิ่มรูปภาพจากคอมพิวเตอร์ของคุณ</span>
+                                                </li>
+                                                <li class="flex items-start gap-2">
+                                                    <span class="text-primary-600 dark:text-primary-400">•</span>
+                                                    <span><strong>เลือกจาก Task:</strong> เลือกรูปภาพที่มีอยู่แล้วใน Task</span>
+                                                </li>
+                                                <li class="flex items-start gap-2">
+                                                    <span class="text-primary-600 dark:text-primary-400">•</span>
+                                                    <span>หากเลือกจาก Task แล้ว สามารถ<strong>เพิ่มรูป</strong>ด้วยการอัพโหลดได้</span>
+                                                </li>
+                                                <li class="flex items-start gap-2">
+                                                    <span class="text-primary-600 dark:text-primary-400">•</span>
+                                                    <span>หากต้องการเลือกรูปจาก Task ใหม่ ให้<strong>ลบรูปเดิม</strong>ก่อน</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
+                                    <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" />
+                                </div>
                             </div>
                             <!-- Image panel with add button -->
                             <div v-else class="h-full flex flex-col">
-                                <div class="flex justify-end mb-2">
+                                <div class="flex justify-end mb-2 gap-2">
+                                    <!-- แสดงปุ่ม "เพิ่มรูป" เสมอ (สามารถเพิ่มรูปได้ทุกกรณี) -->
                                     <Button label="เพิ่มรูป" icon="pi pi-plus" size="small" severity="secondary" @click="triggerFileUpload" :loading="uploadingImage" />
+                                    <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
+                                    <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
+                                    <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
+                                    <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" />
                                 </div>
                                 <div class="flex-1 overflow-auto">
                                     <ImageDetailPanel

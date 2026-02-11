@@ -64,6 +64,7 @@ export default {
     getJournalById: journalAPI.getJournalById,
     getJournalByDocno: journalAPI.getJournalByDocno,
     deleteJournalEntry: journalAPI.deleteJournalEntry,
+    deleteJournalByBatchId: journalAPI.deleteJournalByBatchId,
     importJournals: journalAPI.importJournals,
 
     // Debtor APIs

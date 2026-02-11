@@ -3,12 +3,15 @@ import DialogForm from '@/components/DialogForm.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref, watch } from 'vue';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 
 const router = useRouter();
 const toast = useToast();
 const { showLoading, hideLoading } = useLoading();
+
+// LocalStorage key for filter persistence
+const FILTER_STORAGE_KEY = 'chartOfAccounts_filters';
 
 // ข้อมูลผังบัญชี
 const accounts = ref([]);
@@ -18,6 +21,7 @@ const selectedAccounts = ref([]);
 const totalRecords = ref(0);
 const currentPage = ref(1);
 const rowsPerPage = ref(10);
+const first = ref(0); // Index ของ row แรกที่แสดงใน DataTable (สำหรับ paginator)
 
 // Search & Filter
 const searchQuery = ref('');
@@ -49,6 +53,46 @@ const accountLevelTypes = {
 const balanceTypes = {
     1: 'เดบิต',
     2: 'เครดิต'
+};
+
+/**
+ * บันทึก filter state ลง localStorage
+ */
+const saveFilterState = () => {
+    const filterState = {
+        page: currentPage.value,
+        limit: rowsPerPage.value,
+        search: searchQuery.value
+    };
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState));
+};
+
+/**
+ * โหลด filter state จาก localStorage
+ */
+const loadFilterState = () => {
+    try {
+        const savedState = localStorage.getItem(FILTER_STORAGE_KEY);
+        if (savedState) {
+            const filterState = JSON.parse(savedState);
+            currentPage.value = filterState.page || 1;
+            rowsPerPage.value = filterState.limit || 10;
+            searchQuery.value = filterState.search || '';
+            // คำนวณ first index สำหรับ paginator (page - 1) * limit
+            first.value = (currentPage.value - 1) * rowsPerPage.value;
+            return true;
+        }
+    } catch (error) {
+        console.error('Error loading filter state:', error);
+    }
+    return false;
+};
+
+/**
+ * ล้าง filter state จาก localStorage
+ */
+const clearFilterState = () => {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
 };
 
 /**
@@ -93,7 +137,9 @@ const fetchAccounts = async (page = 1) => {
 const onPageChange = (event) => {
     const page = event.page + 1;
     rowsPerPage.value = event.rows;
+    first.value = event.first;
     fetchAccounts(page);
+    saveFilterState();
 };
 
 /**
@@ -102,6 +148,7 @@ const onPageChange = (event) => {
 const handleSearch = () => {
     currentPage.value = 1;
     fetchAccounts(1);
+    saveFilterState();
 };
 
 /**
@@ -190,7 +237,31 @@ const getIndentPadding = (level) => {
 
 // โหลดข้อมูลเมื่อเริ่มต้น
 onMounted(() => {
-    fetchAccounts();
+    // โหลด filter state จาก localStorage
+    const hasFilterState = loadFilterState();
+
+    // ถ้ามี filter state ที่บันทึกไว้ ให้ใช้ page ที่บันทึกไว้
+    if (hasFilterState) {
+        fetchAccounts(currentPage.value);
+    } else {
+        fetchAccounts();
+    }
+});
+
+// ตรวจสอบก่อนออกจากหน้า - ถ้าไปหน้า ChartOfAccountForm ให้เก็บ filter ไว้ ถ้าไปหน้าอื่นให้ลบ
+onBeforeRouteLeave((to) => {
+    // ตรวจสอบว่ากำลังจะไปหน้า ChartOfAccountForm หรือไม่
+    const isGoingToFormPage = to.name === 'chart-of-account-create' || to.name === 'chart-of-account-edit';
+
+    // ถ้าไม่ได้ไปหน้า form ให้ลบ filter state (เช่น เปลี่ยน menu)
+    if (!isGoingToFormPage) {
+        clearFilterState();
+    }
+});
+
+// Watch สำหรับบันทึก filter state เมื่อมีการเปลี่ยนแปลง
+watch([currentPage, rowsPerPage, searchQuery], () => {
+    saveFilterState();
 });
 </script>
 
@@ -229,12 +300,15 @@ onMounted(() => {
                 :paginator="true"
                 :rows="rowsPerPage"
                 :totalRecords="totalRecords"
+                :first="first"
                 :lazy="true"
                 @page="onPageChange"
+                @row-dblclick="editAccount($event.data)"
                 :rowsPerPageOptions="[10, 25, 50, 100]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 currentPageReportTemplate="แสดง {first} ถึง {last} จากทั้งหมด {totalRecords} รายการ"
                 :globalFilterFields="['accountcode', 'accountname']"
+                selectionMode="single"
                 class="w-full"
                 responsiveLayout="scroll"
                 stripedRows

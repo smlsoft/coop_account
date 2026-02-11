@@ -54,6 +54,7 @@ const pollingInterval = ref(null);
 const journalDetailDialog = ref(false);
 const selectedJournal = ref(null);
 const loadingJournal = ref(false);
+const gridSize = ref('medium'); // เล็ก, กลาง, ใหญ่, ใหญ่มาก
 
 // Menu refs
 const documentMenu = ref(null);
@@ -79,7 +80,7 @@ const documentMenuItems = computed(() => [
         label: 'แยกเอกสาร',
         icon: 'pi pi-clone',
         command: () => handleUngroup(),
-        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1
+        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1 || (isApprovalDisabled.value && selectedGroup.value?.references && selectedGroup.value.references.length > 0)
     }
 ]);
 
@@ -88,18 +89,64 @@ const toggleDocumentMenu = (event) => {
     documentMenu.value.toggle(event);
 };
 
+// Grid size cycle: small -> medium -> large -> xlarge -> small
+const cycleGridSize = () => {
+    const sizes = ['small', 'medium', 'large', 'xlarge'];
+    const currentIndex = sizes.indexOf(gridSize.value);
+    const nextIndex = (currentIndex + 1) % sizes.length;
+    gridSize.value = sizes[nextIndex];
+};
+
+// Get grid size icon
+const gridSizeIcon = computed(() => {
+    const icons = {
+        small: 'pi pi-th-large',
+        medium: 'pi pi-table',
+        large: 'pi pi-clone',
+        xlarge: 'pi pi-stop'
+    };
+    return icons[gridSize.value] || 'pi pi-table';
+});
+
 // Computed property to check if job is closed (status = 4)
 const isJobClosed = computed(() => {
     return taskData.value?.status === 4;
 });
 
+// Computed property to check if approval is disabled (status = 6)
+const isApprovalDisabled = computed(() => {
+    return taskData.value?.status === 6;
+});
+
+// Computed property to check if there are pending documents (status = 0)
+const hasPendingDocuments = computed(() => {
+    const pendingCount = getStatusCount(0); // status = 0 (รอตรวจสอบ)
+    return pendingCount > 0;
+});
+
 // Computed property to check if job can be closed
 const canCloseJob = computed(() => {
-    // ตรวจสอบว่า เอกสารทั้งหมดได้รับการบันทึกรายวันครบหรือไม่
+    // 1. ต้องไม่มีเอกสารรอตรวจสอบ (status=0)
+    if (hasPendingDocuments.value) {
+        return false;
+    }
+
+    // 2. ตรวจสอบว่า เอกสารทั้งหมดได้รับการบันทึกรายวันครบหรือไม่
     // ต้องบันทึก (status=1) ทั้งหมด และมี referencecount เท่ากับจำนวนเอกสาร
     const needToRecord = getStatusCount(1); // เอกสารที่ต้องบันทึก
     const recorded = taskData.value?.referencecount || 0; // บันทึกแล้ว
     return needToRecord > 0 && needToRecord === recorded;
+});
+
+// Computed property for close job button tooltip
+const closeJobTooltip = computed(() => {
+    if (hasPendingDocuments.value) {
+        return 'มีรูปที่ยังรอตรวจสอบค้างอยู่';
+    }
+    if (!canCloseJob.value) {
+        return 'ยังมีเอกสารที่ต้องบันทึกรายวันอยู่';
+    }
+    return 'ปิดงาน';
 });
 
 // Computed properties สำหรับจำนวนเอกสารตามสถานะ
@@ -615,6 +662,17 @@ const generateRandomNumber = () => {
 };
 
 const openCloseJobDialog = () => {
+    // ตรวจสอบว่ามีเอกสารรอตรวจสอบหรือไม่
+    if (hasPendingDocuments.value) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่สามารถปิดงานได้',
+            detail: 'มีรูปที่ยังรอตรวจสอบค้างอยู่ กรุณาตรวจสอบให้ครบทุกรายการ',
+            life: 5000
+        });
+        return;
+    }
+
     // ตรวจสอบว่าบันทึกรายวันครบหรือไม่
     if (!canCloseJob.value) {
         toast.add({
@@ -795,7 +853,7 @@ const handleViewJournalDetail = async (reference) => {
                     </template>
                     <!-- Normal Mode Actions -->
                     <template v-else>
-                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" :title="!canCloseJob ? 'ยังมีเอกสารที่ต้องบันทึกรายวันอยู่' : 'ปิดงาน'" />
+                        <Button v-if="!isJobClosed" label="ปิดงาน" icon="pi pi-lock" @click="openCloseJobDialog" :disabled="!canCloseJob" v-tooltip.left="closeJobTooltip" />
                     </template>
                 </template>
             </Toolbar>
@@ -820,8 +878,12 @@ const handleViewJournalDetail = async (reference) => {
                                 </template>
                             </div>
 
-                            <!-- แสดงจำนวนเอกสาร -->
-                            <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            <div class="flex items-center gap-2">
+                                <!-- ปุ่มเปลี่ยนขนาดการแสดงผล -->
+                                <Button :icon="gridSizeIcon" @click="cycleGridSize" size="small" outlined />
+                                <!-- แสดงจำนวนเอกสาร -->
+                                <div class="text-sm text-surface-600 dark:text-surface-400">{{ imageGroups.length }} รายการ</div>
+                            </div>
                         </div>
                         <div class="flex-1 overflow-hidden">
                             <ImageGridPanel
@@ -834,6 +896,7 @@ const handleViewJournalDetail = async (reference) => {
                                 :sort-mode="sortMode"
                                 :current-page="currentPage"
                                 :total-pages="totalPages"
+                                :grid-size="gridSize"
                                 :show-status="false"
                                 :is-job-closed="isJobClosed"
                                 :selected-by-users="selectedByUsers"

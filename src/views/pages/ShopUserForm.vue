@@ -3,7 +3,7 @@ import DialogForm from '@/components/DialogForm.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -160,11 +160,26 @@ const handleCancel = () => {
     router.push({ name: 'shop-users' });
 };
 
+/**
+ * Keyboard handler สำหรับ Ctrl + S
+ */
+const handleKeydown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        handleSubmit();
+    }
+};
+
 // โหลดข้อมูลเมื่อเริ่มต้น
 onMounted(async () => {
     if (isEditMode.value) {
         await fetchUserData();
     }
+    document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -213,7 +228,7 @@ onMounted(async () => {
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-2 pt-4 border-t border-surface">
-                    <Button type="submit" :label="isEditMode ? 'บันทึก (Enter)' : 'เพิ่ม (Enter)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.username" />
+                    <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'เพิ่ม (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.username" />
                 </div>
             </form>
         </div>

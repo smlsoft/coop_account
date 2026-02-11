@@ -21,7 +21,7 @@ const loadTasks = async (page = 1, limit = 10, searchQuery = '') => {
         const params = {
             page,
             limit,
-            status: '3,4',
+            status: '3,4,6',
             sort: 'ownerat:-1',
             jobfilter: 1,
             ...(searchQuery && { q: searchQuery })

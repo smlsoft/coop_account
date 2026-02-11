@@ -193,10 +193,12 @@ onMounted(() => {
                 :totalRecords="totalRecords"
                 :lazy="true"
                 @page="onPageChange"
+                @row-dblclick="editJournalBook($event.data)"
                 :rowsPerPageOptions="[10, 25, 50, 100]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 currentPageReportTemplate="แสดง {first} ถึง {last} จากทั้งหมด {totalRecords} รายการ"
                 :globalFilterFields="['code', 'name1']"
+                selectionMode="single"
                 class="w-full"
                 responsiveLayout="scroll"
                 stripedRows

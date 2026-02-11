@@ -1,7 +1,7 @@
 import AppLayout from '@/layout/AppLayout.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'DEDE ACCOUNT';
+const appTitle = import.meta.env.VITE_APP_TITLE || 'BC ACCOUNT';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -193,6 +193,12 @@ const router = createRouter({
                     name: 'journal-from-image-form',
                     meta: { title: 'บันทึกรายการบัญชีจากรูปภาพ' },
                     component: () => import('@/views/pages/accounting/JournalFromImageForm.vue')
+                },
+                {
+                    path: '/accounting/entry-from-statement',
+                    name: 'journal-from-statement',
+                    meta: { title: 'บันทึกรายการบัญชีจาก Statement' },
+                    component: () => import('@/views/pages/accounting/JournalFromStatement.vue')
                 },
                 {
                     path: '/masterdata/company',

@@ -5,7 +5,7 @@ export const getTasks = (params = {}) => {
     const defaultParams = {
         limit: 20,
         page: 1,
-        status: '0,1,2,3,4,5',
+        status: '0,1,2,3,4,5,6',
         sort: 'ownerat:-1'
     };
     return apiClient.get('task', {

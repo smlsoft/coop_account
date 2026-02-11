@@ -1,12 +1,17 @@
 <script setup>
-import AlertDialog from '@/components/AlertDialog.vue';
+import AiModelSelectionDialog from '@/components/accounting/AiModelSelectionDialog.vue';
 import JournalDailyInfoTab from '@/components/accounting/JournalDailyInfoTab.vue';
 import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
 import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
+import OcrResultDialog from '@/components/accounting/OcrResultDialog.vue';
+import AlertDialog from '@/components/AlertDialog.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageThumbnailStrip from '@/components/image/ImageThumbnailStrip.vue';
+import LoadingDialog from '@/components/LoadingDialog.vue';
+import { useLoading } from '@/composables/useLoading';
 import { getDocumentImageGroup, recountTaskDocuments } from '@/services/api/image';
-import { createJournal, deselectDocref, updateJournal } from '@/services/api/journal';
+import { createJournal, deselectDocref, getJournalBooks, updateJournal } from '@/services/api/journal';
+import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
 import { useToast } from 'primevue/usetoast';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
@@ -14,6 +19,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 const router = useRouter();
 const route = useRoute();
 const toast = useToast();
+const { showLoading, hideLoading } = useLoading();
 
 // Helper function to convert date to local ISO string (without UTC conversion)
 const toLocalISOString = (date) => {
@@ -57,6 +63,12 @@ const showConfirmDialog = ref(false);
 const confirmMessage = ref('');
 const isSaving = ref(false); // ป้องกันการ save ซ้ำ
 
+// AI OCR Dialog state
+const showAiModelDialog = ref(false);
+const showOcrResultDialog = ref(false);
+const ocrResultData = ref(null);
+const isDataFromAI = ref(false); // Track if data is from AI OCR
+
 // Flag to prevent duplicate deselect
 const hasDeselected = ref(false);
 const isDeselecting = ref(false); // Prevent race condition
@@ -80,6 +92,9 @@ const toggleShortcutInfo = (event) => {
 const loadingImages = ref(false);
 const documentImageGroup = ref(null);
 const selectedImageDetail = ref(null);
+
+// Journal books for OCR mapping
+const journalBooks = ref([]);
 
 // Thumbnail strip ref
 const thumbnailStripRef = ref(null);
@@ -157,16 +172,16 @@ const deselectCurrentDocument = async () => {
     }
 };
 
-// ลบแถวว่างใน journaldetail (แถวที่ไม่มีข้อมูลเลย)
+// ลบแถวว่างใน journaldetail (แถวที่ไม่มียอด debit หรือ credit)
 const removeEmptyJournalDetails = () => {
     if (!formData.value.journaldetail) return;
 
     const filteredDetails = formData.value.journaldetail.filter((detail) => {
-        const hasAccountCode = detail.accountcode && detail.accountcode.trim() !== '';
-        const hasAccountName = detail.accountname && detail.accountname.trim() !== '';
+        // เก็บเฉพาะแถวที่มียอด debit หรือ credit
         const hasDebit = parseFloat(detail.debitamount) !== 0;
         const hasCredit = parseFloat(detail.creditamount) !== 0;
-        return hasAccountCode || hasAccountName || hasDebit || hasCredit;
+
+        return hasDebit || hasCredit;
     });
 
     formData.value.journaldetail = filteredDetails;
@@ -204,15 +219,16 @@ const validateForm = () => {
         errors.push('- รายละเอียดรายการ (ต้องมีอย่างน้อย 1 รายการ)');
         isJournalDetailInvalid.value = true;
     } else {
+        // ตรวจสอบว่าแต่ละรายการมี accountcode (เพราะแถวที่ไม่มียอดถูกลบไปแล้ว)
         const invalidRows = [];
         formData.value.journaldetail.forEach((detail, index) => {
-            if (!detail.accountcode || (!detail.debitamount && !detail.creditamount)) {
+            if (!detail.accountcode) {
                 invalidRows.push(index + 1);
             }
         });
 
         if (invalidRows.length > 0) {
-            errors.push(`- รายการบัญชีแถวที่ ${invalidRows.join(', ')} (ข้อมูลไม่ครบถ้วน)`);
+            errors.push(`- รายการบัญชีแถวที่ ${invalidRows.join(', ')} (ไม่มีรหัสบัญชี)`);
             isJournalDetailInvalid.value = true;
         }
 
@@ -342,6 +358,184 @@ const handleDocumentChange = async (newDocumentRef) => {
     activeTab.value = '0';
 };
 
+// AI Analysis Functions
+const handleAiAnalyze = () => {
+    // ตรวจสอบว่ามีข้อมูล OCR เดิมหรือไม่
+    if (documentImageGroup.value?.ocranalyzeai) {
+        try {
+            // Parse ข้อมูล OCR ที่เคยบันทึกไว้
+            const existingOcrData = JSON.parse(documentImageGroup.value.ocranalyzeai);
+            ocrResultData.value = existingOcrData;
+            showOcrResultDialog.value = true;
+            console.log('📋 Loaded existing OCR data from ocranalyzeai');
+            return;
+        } catch (error) {
+            console.error('❌ Error parsing existing OCR data:', error);
+        }
+    }
+
+    // ถ้าไม่มีข้อมูลเดิม ให้เลือก AI Model
+    showAiModelDialog.value = true;
+};
+
+const handleAiModelSelected = async (model) => {
+    // แสดง Loading Dialog
+    showLoading('กำลังวิเคราะห์เอกสารด้วย AI...');
+
+    try {
+        const shopid = localStorage.getItem('shopid');
+
+        // สร้าง payload
+        const payload = {
+            shopid: shopid,
+            model: model,
+            imagereferences: documentImageGroup.value.imagereferences.map((img) => ({
+                documentimageguid: img.documentimageguid,
+                imageuri: img.imageuri
+            }))
+        };
+
+        console.log('🤖 Analyzing with AI model:', model, payload);
+
+        // เรียก OCR API
+        const response = await analyzeReceipt(payload);
+
+        if (response.data) {
+            ocrResultData.value = response.data;
+            console.log('✅ OCR Analysis successful:', response.data);
+
+            // บันทึกผลลัพธ์ลง documentimagegroup
+            await saveOcrResult(response.data);
+
+            // แสดงผลลัพธ์
+            showOcrResultDialog.value = true;
+        }
+    } catch (error) {
+        console.error('❌ Error analyzing with AI:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'เกิดข้อผิดพลาด',
+            detail: error.response?.data?.message || 'ไม่สามารถวิเคราะห์เอกสารด้วย AI ได้',
+            life: 5000
+        });
+    } finally {
+        hideLoading();
+    }
+};
+
+const saveOcrResult = async (ocrData) => {
+    try {
+        const payload = {
+            guidfixed: documentImageGroup.value.guidfixed,
+            title: documentImageGroup.value.title,
+            ocranalyzeai: JSON.stringify(ocrData),
+            billcount: documentImageGroup.value.billcount,
+            references: documentImageGroup.value.references || [],
+            tags: documentImageGroup.value.tags || [],
+            imagereferences: documentImageGroup.value.imagereferences,
+            uploadedby: documentImageGroup.value.uploadedby,
+            uploadedat: documentImageGroup.value.uploadedat,
+            status: documentImageGroup.value.status,
+            description: documentImageGroup.value.description || '',
+            taskguid: documentImageGroup.value.taskguid,
+            pathtask: documentImageGroup.value.pathtask || '',
+            iscompleted: documentImageGroup.value.iscompleted,
+            rejectfromgroupguid: documentImageGroup.value.rejectfromgroupguid || '',
+            xorder: documentImageGroup.value.xorder,
+            rejectremark: documentImageGroup.value.rejectremark || '',
+            statuschangedby: documentImageGroup.value.statuschangedby || '',
+            statuschangedat: documentImageGroup.value.statuschangedat || '0001-01-01T00:00:00Z',
+            statushistories: documentImageGroup.value.statushistories || []
+        };
+
+        await updateDocumentImageGroup(documentImageGroup.value.guidfixed, payload);
+        console.log('✅ OCR result saved to documentimagegroup');
+    } catch (error) {
+        console.error('❌ Error saving OCR result:', error);
+    }
+};
+
+const handleApplyOcrData = async () => {
+    if (!ocrResultData.value?.accounting_entry) {
+        toast.add({
+            severity: 'warn',
+            summary: 'ไม่พบข้อมูล',
+            detail: 'ไม่พบข้อมูลรายการบัญชีจาก OCR',
+            life: 3000
+        });
+        return;
+    }
+
+    const entry = ocrResultData.value.accounting_entry;
+
+    // นำข้อมูลมาใส่ใน form
+    formData.value.docdate = entry.document_date || new Date().toISOString().split('T')[0];
+    formData.value.docno = entry.reference_number || '';
+
+    // ตั้งค่า journal book
+    if (entry.journal_book_code) {
+        try {
+            // โหลด journal books ถ้ายังไม่มี
+            if (journalBooks.value.length === 0) {
+                const response = await getJournalBooks({ q: entry.journal_book_code, page: 1, limit: 20 });
+                if (response.data.success) {
+                    journalBooks.value = response.data.data.map((item) => ({
+                        ...item,
+                        displayLabel: `${item.code} ~ ${item.name1}`
+                    }));
+                }
+            }
+
+            // หา journal book จาก code
+            const foundBook = journalBooks.value.find((book) => book.code === entry.journal_book_code);
+            if (foundBook) {
+                formData.value.bookcode = foundBook;
+            } else {
+                console.warn(`Journal book with code ${entry.journal_book_code} not found`);
+            }
+        } catch (error) {
+            console.error('Error loading journal books:', error);
+        }
+    }
+
+    // ตั้งค่า debtor/creditor
+    if (entry.creditor_code) {
+        formData.value.debtaccounttype = 1; // Creditor
+        // TODO: หา creditor จาก code
+    } else if (entry.debtor_code) {
+        formData.value.debtaccounttype = 0; // Debtor
+        // TODO: หา debtor จาก code
+    }
+
+    // ใส่รายการบัญชี
+    if (entry.entries && entry.entries.length > 0) {
+        formData.value.journaldetail = entry.entries.map((item) => ({
+            accountcode: item.account_code || '',
+            accountname: item.account_name || '',
+            debitamount: item.debit || 0,
+            creditamount: item.credit || 0
+        }));
+    }
+
+    // Mark that data is from AI
+    isDataFromAI.value = true;
+
+    toast.add({
+        severity: 'success',
+        summary: 'สำเร็จ',
+        detail: 'นำข้อมูลจาก AI มาใช้เรียบร้อยแล้ว',
+        life: 3000
+    });
+
+    hasUnsavedChanges.value = true;
+};
+
+const handleReanalyze = () => {
+    showOcrResultDialog.value = false;
+    ocrResultData.value = null;
+    showAiModelDialog.value = true;
+};
+
 const handleSave = () => {
     // ป้องกันการกด save ซ้ำ
     if (isSaving.value || showConfirmDialog.value) {
@@ -404,7 +598,7 @@ const submitForm = async () => {
             docdate: toLocalISOString(formData.value.docdate) || toLocalISOString(new Date()),
             docno: formData.value.docno,
             bookcode: formData.value.bookcode?.code || '',
-            appname: '',
+            appname: isDataFromAI.value ? 'AI' : '',
             jobguidfixed: taskId.value,
             docformat: formData.value.docformat || '',
             journaldetail: formData.value.journaldetail.map((detail) => ({
@@ -462,6 +656,9 @@ const submitForm = async () => {
         }
 
         if (response.data.success) {
+            // Reset AI flag after successful save
+            isDataFromAI.value = false;
+
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
@@ -581,6 +778,7 @@ onBeforeUnmount(() => {
 <template>
     <div>
         <Toast />
+        <LoadingDialog />
         <AlertDialog v-model:visible="showValidationAlert" header="ข้อมูลไม่ครบถ้วน" :message="validationMessage" severity="warning" icon="pi-exclamation-triangle" />
 
         <!-- Confirm Dialog -->
@@ -594,6 +792,12 @@ onBeforeUnmount(() => {
                 <Button label="ยืนยัน" icon="pi pi-save" @click="submitForm" :loading="loading" autofocus />
             </template>
         </Dialog>
+
+        <!-- AI Model Selection Dialog -->
+        <AiModelSelectionDialog v-model:visible="showAiModelDialog" @confirm="handleAiModelSelected" />
+
+        <!-- OCR Result Dialog -->
+        <OcrResultDialog v-model:visible="showOcrResultDialog" :ocrData="ocrResultData" @apply-data="handleApplyOcrData" @reanalyze="handleReanalyze" />
 
         <div class="card">
             <!-- Header -->
@@ -645,6 +849,7 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
                     </Popover>
+                    <Button label="AI วิเคราะห์" icon="pi pi-sparkles" severity="secondary" @click="handleAiAnalyze" :disabled="loading || !documentImageGroup" v-tooltip.left="'วิเคราะห์เอกสารด้วย AI'" />
                     <Button label="บันทึก" icon="pi pi-save" @click="handleSave" :loading="loading" />
                 </div>
             </div>

@@ -69,6 +69,14 @@ const getModeConfig = () => {
             buttonLabel: 'ปิดงาน (Enter)'
         };
     }
+    if (props.mode === 'save') {
+        return {
+            icon: 'pi pi-save',
+            iconClass: 'text-primary-500',
+            buttonClass: '',
+            buttonLabel: 'บันทึก (Enter)'
+        };
+    }
     return {
         icon: 'pi pi-exclamation-triangle',
         iconClass: 'text-yellow-500',
@@ -92,7 +100,7 @@ const getModeConfig = () => {
             </div>
             <div class="flex flex-col gap-2">
                 <label for="confirmNumber" class="font-medium text-surface-700 dark:text-surface-300">ตัวเลขยืนยัน</label>
-                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus class="text-center text-2xl" @keyup.enter="handleConfirm" />
+                <InputText id="confirmNumber" v-model="inputNumber" type="number" placeholder="กรอกตัวเลข" autofocus class="text-center text-2xl" @keydown.enter.prevent="handleConfirm" />
             </div>
         </div>
         <template #footer>

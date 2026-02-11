@@ -4,8 +4,28 @@ import { useDebtAccount } from '@/composables/useDebtAccount';
 import { onMounted, ref } from 'vue';
 
 // ใช้ composable สำหรับ Debtor
-const { config, accounts, totalRecords, currentPage, rowsPerPage, searchQuery, isLoading, personalTypes, customerTypes, fetchAccounts, onPageChange, handleSearch, clearSearch, navigateToCreate, navigateToEdit, deleteAccount, getAccountName } =
-    useDebtAccount('debtor');
+const {
+    config,
+    accounts,
+    totalRecords,
+    currentPage,
+    rowsPerPage,
+    first,
+    searchQuery,
+    isLoading,
+    personalTypes,
+    customerTypes,
+    fetchAccounts,
+    onPageChange,
+    handleSearch,
+    clearSearch,
+    navigateToCreate,
+    navigateToEdit,
+    deleteAccount,
+    getAccountName,
+    loadFilterState,
+    setupFilterPersistence
+} = useDebtAccount('debtor');
 
 // Dialog confirmation
 const showDeleteDialog = ref(false);
@@ -40,7 +60,18 @@ const handleCancelDelete = () => {
 
 // โหลดข้อมูลเมื่อเริ่มต้น
 onMounted(() => {
-    fetchAccounts();
+    // Setup filter persistence (watch และ route guard)
+    setupFilterPersistence();
+
+    // โหลด filter state จาก localStorage
+    const hasFilterState = loadFilterState();
+
+    // ถ้ามี filter state ที่บันทึกไว้ ให้ใช้ page ที่บันทึกไว้
+    if (hasFilterState) {
+        fetchAccounts(currentPage.value);
+    } else {
+        fetchAccounts();
+    }
 });
 </script>
 
@@ -79,11 +110,14 @@ onMounted(() => {
                 :paginator="true"
                 :rows="rowsPerPage"
                 :totalRecords="totalRecords"
+                :first="first"
                 :lazy="true"
                 @page="onPageChange"
+                @row-dblclick="navigateToEdit($event.data.guidfixed)"
                 :rowsPerPageOptions="[10, 25, 50, 100]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 currentPageReportTemplate="แสดง {first} ถึง {last} จากทั้งหมด {totalRecords} รายการ"
+                selectionMode="single"
                 class="w-full"
                 responsiveLayout="scroll"
                 stripedRows

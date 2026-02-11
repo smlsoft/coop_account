@@ -2,7 +2,9 @@
 import DialogApprove from '@/components/DialogApprove.vue';
 import DialogConfigJob from '@/components/DialogConfigJob.vue';
 import DialogForm from '@/components/DialogForm.vue';
+import LoadingDialog from '@/components/LoadingDialog.vue';
 import TaskDataTable from '@/components/TaskDataTable.vue';
+import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -10,6 +12,7 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const toast = useToast();
+const { showLoading, hideLoading } = useLoading();
 
 // Data list state
 const tasks = ref([]);
@@ -84,6 +87,7 @@ const formatDateInput = (date) => {
 
 // Fetch tasks
 const fetchTasks = async () => {
+    showLoading('กำลังโหลดข้อมูล...');
     loading.value = true;
     try {
         const params = {
@@ -111,6 +115,7 @@ const fetchTasks = async () => {
             life: 3000
         });
     } finally {
+        hideLoading();
         loading.value = false;
     }
 };
@@ -176,7 +181,7 @@ const saveJob = async () => {
         code: jobId.value,
         name: jobName.value.trim(),
         description: jobDescription.value.trim(),
-        status: disableApproval.value ? 99 : 0
+        status: disableApproval.value ? 6 : 0
     };
 
     try {
@@ -249,31 +254,54 @@ const showDialogConfigJob = (data) => {
 
 // Update job data
 const updateDataJob = async (data) => {
-    if (data.name === dataConfigJob.value.name && data.description === dataConfigJob.value.description) {
+    // เช็คว่ามีการเปลี่ยนแปลงหรือไม่
+    const hasNameChange = data.name !== dataConfigJob.value.name;
+    const hasDescriptionChange = data.description !== dataConfigJob.value.description;
+    const hasStatusChange = data.status !== undefined && data.status !== dataConfigJob.value.status;
+
+    if (!hasNameChange && !hasDescriptionChange && !hasStatusChange) {
         dialogConfigJob.value = false;
         return;
     }
 
+    showLoading('กำลังบันทึกข้อมูล...');
     loading.value = true;
 
     try {
-        const updatedData = {
-            ...dataConfigJob.value,
-            name: data.name,
-            description: data.description
-        };
+        // 1. Update name และ description ก่อน (ถ้ามีการเปลี่ยน)
+        if (hasNameChange || hasDescriptionChange) {
+            const updatedData = {
+                ...dataConfigJob.value,
+                name: data.name,
+                description: data.description
+            };
 
-        const response = await api.updateTask(dataConfigJob.value.guidfixed, updatedData);
-        if (response.data.success) {
-            dialogConfigJob.value = false;
-            toast.add({
-                severity: 'success',
-                summary: 'สำเร็จ',
-                detail: 'บันทึกข้อมูลสำเร็จ',
-                life: 3000
-            });
-            fetchTasks();
+            const response = await api.updateTask(dataConfigJob.value.guidfixed, updatedData);
+            if (!response.data.success) {
+                throw new Error('Failed to update task');
+            }
         }
+
+        // 2. Update status แยกต่างหาก (ถ้ามีการเปลี่ยนและไม่ตรงกับเดิม)
+        if (hasStatusChange) {
+            showLoading('กำลังอัปเดตสถานะ...');
+            const statusResponse = await api.updateTaskStatus(dataConfigJob.value.guidfixed, {
+                status: data.status
+            });
+            if (!statusResponse.data.success) {
+                throw new Error('Failed to update status');
+            }
+        }
+
+        // สำเร็จทั้งหมด
+        dialogConfigJob.value = false;
+        toast.add({
+            severity: 'success',
+            summary: 'สำเร็จ',
+            detail: 'บันทึกข้อมูลสำเร็จ',
+            life: 3000
+        });
+        await fetchTasks();
     } catch (error) {
         console.error('Error updating job:', error);
         toast.add({
@@ -282,7 +310,7 @@ const updateDataJob = async (data) => {
             detail: 'บันทึกไม่สำเร็จ ' + (error.response?.data?.message || error.message),
             life: 3000
         });
-    } finally {
+        hideLoading();
         loading.value = false;
     }
 };
@@ -312,6 +340,7 @@ const confirmJobFalse = () => {
 
 // Update job status (for cancel)
 const jobUpdateStatus = async (status) => {
+    showLoading('กำลังยกเลิกงาน...');
     loading.value = true;
     try {
         const response = await api.updateTaskStatus(dataConfigJob.value.guidfixed, {
@@ -327,7 +356,7 @@ const jobUpdateStatus = async (status) => {
                 detail: 'ยกเลิกงานเรียบร้อยแล้ว',
                 life: 3000
             });
-            fetchTasks();
+            await fetchTasks();
         }
     } catch (error) {
         console.error('Error updating job status:', error);
@@ -337,13 +366,14 @@ const jobUpdateStatus = async (status) => {
             detail: 'ยกเลิกไม่สำเร็จ ' + (error.response?.data?.message || error.message),
             life: 3000
         });
-    } finally {
+        hideLoading();
         loading.value = false;
     }
 };
 
 // Delete job from server
 const jobDelete = async () => {
+    showLoading('กำลังลบงาน...');
     loading.value = true;
     try {
         const response = await api.deleteTask(dataConfigJob.value.guidfixed);
@@ -356,7 +386,7 @@ const jobDelete = async () => {
                 detail: 'ลบงานเรียบร้อยแล้ว',
                 life: 3000
             });
-            fetchTasks();
+            await fetchTasks();
         }
     } catch (error) {
         console.error('Error deleting job:', error);
@@ -366,7 +396,7 @@ const jobDelete = async () => {
             detail: 'ลบไม่สำเร็จ ' + (error.response?.data?.message || error.message),
             life: 3000
         });
-    } finally {
+        hideLoading();
         loading.value = false;
     }
 };
@@ -507,5 +537,8 @@ onUnmounted(() => {
 
         <!-- Delete Job Dialog -->
         <DialogApprove mode="delete" title="ยืนยันการลบงาน" :randomNumber="randomNumber" :confirmDialog="dialogJobDelete" @close="dialogJobDelete = false" @confirmJob="jobDelete()" @confirmJobFalse="confirmJobFalse()" />
+
+        <!-- Loading Dialog -->
+        <LoadingDialog />
     </div>
 </template>

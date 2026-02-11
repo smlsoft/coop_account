@@ -308,6 +308,7 @@ onMounted(() => {
                 :totalRecords="totalRecords"
                 :lazy="true"
                 @page="onPageChange"
+                @row-dblclick="editPeriod($event.data)"
                 :rowsPerPageOptions="[12, 25, 50, 100]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 currentPageReportTemplate="แสดง {first} ถึง {last} จากทั้งหมด {totalRecords} รายการ"
