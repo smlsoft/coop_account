@@ -1,7 +1,7 @@
 <script setup>
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
-import { getJournalEntries } from '@/services/api/journal';
+import { getJournalBooks, getJournalEntries } from '@/services/api/journal';
 import { getJournalByDocNo } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -20,7 +20,12 @@ const loadingJournal = ref(false);
 // Search filters
 const startDate = ref(null);
 const endDate = ref(null);
+const selectedBookCode = ref(null);
 const rowsPerPage = ref(20);
+
+// Journal Books for filter
+const journalBooks = ref([]);
+const journalBooksLoading = ref(false);
 
 // Rows per page options
 const rowsPerPageOptions = [
@@ -46,6 +51,32 @@ const toggleSearchPopover = (event) => {
 
 const clearFilters = () => {
     initDefaultDates();
+    selectedBookCode.value = null;
+};
+
+// Search journal books
+const searchJournalBooks = async (event) => {
+    journalBooksLoading.value = true;
+    try {
+        const response = await getJournalBooks({ q: event.query, page: 1, limit: 20 });
+        if (response.data.success) {
+            journalBooks.value = response.data.data.map((item) => ({
+                ...item,
+                displayLabel: `${item.code} ~ ${item.name1}`
+            }));
+        }
+    } catch (error) {
+        console.error('Error fetching journal books:', error);
+    } finally {
+        journalBooksLoading.value = false;
+    }
+};
+
+// Get journal book name from code
+const getJournalBookName = (bookcode) => {
+    if (!bookcode) return null;
+    const book = journalBooks.value.find((b) => b.code === bookcode);
+    return book ? book.displayLabel : bookcode;
 };
 
 const formatDateThai = (dateString) => {
@@ -103,6 +134,11 @@ const fetchJournalData = async (page = 1) => {
             startdate: formatDateForApi(startDate.value),
             enddate: formatDateForApi(endDate.value)
         };
+
+        // Add bookcode filter if selected
+        if (selectedBookCode.value) {
+            params.bookcode = selectedBookCode.value;
+        }
 
         const response = await getJournalEntries(params);
 
@@ -216,7 +252,10 @@ const tableData = computed(() => {
     return rows;
 });
 
-onMounted(() => {
+onMounted(async () => {
+    // Load journal books
+    await searchJournalBooks({ query: '' });
+
     initDefaultDates();
     fetchJournalData();
 });
@@ -241,7 +280,8 @@ onMounted(() => {
         <!-- Report Header -->
         <div class="text-center mb-4">
             <div class="font-bold text-xl text-surface-900 dark:text-surface-0">รายงานรายวัน</div>
-            <p class="text-sm text-surface-600 dark:text-surface-400 mt-1">ตั้งแต่วันที่ {{ formatDateThai(startDate) }} ถึงวันที่ {{ formatDateThai(endDate) }}</p>
+            <p class="text-sm text-surface-600 dark:text-surface-400">ตั้งแต่วันที่ {{ formatDateThai(startDate) }} ถึงวันที่ {{ formatDateThai(endDate) }}</p>
+            <p v-if="selectedBookCode" class="text-sm text-surface-600 dark:text-surface-400">สมุดรายวัน: {{ getJournalBookName(selectedBookCode) }}</p>
         </div>
 
         <!-- Report Table -->
@@ -359,6 +399,27 @@ onMounted(() => {
                     <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
                 </div>
 
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">สมุดรายวัน</label>
+                    <AutoComplete
+                        :modelValue="selectedBookCode"
+                        @update:modelValue="selectedBookCode = $event?.code || $event"
+                        :suggestions="journalBooks"
+                        optionLabel="displayLabel"
+                        :loading="journalBooksLoading"
+                        @complete="searchJournalBooks"
+                        placeholder="เลือกสมุดรายวัน"
+                        dropdown
+                        showClear
+                        forceSelection
+                        fluid
+                    >
+                        <template #option="{ option }">
+                            <div>{{ option.displayLabel }}</div>
+                        </template>
+                    </AutoComplete>
+                </div>
+
                 <div class="flex justify-between mt-2">
                     <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
                     <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
@@ -390,5 +451,9 @@ onMounted(() => {
 /* Dark mode hover - สีฟ้าเข้มขึ้น */
 html.dark .journal-report-table :deep(.p-datatable-tbody > tr:hover) {
     background-color: rgba(96, 165, 250, 0.15) !important;
+}
+p {
+    margin: 0 0 0 0;
+    line-height: 1.5;
 }
 </style>
