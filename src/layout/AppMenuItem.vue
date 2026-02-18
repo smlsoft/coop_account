@@ -43,11 +43,27 @@ const isRouteActive = computed(() => {
     return false;
 });
 
-// สำหรับ item ที่มี children ให้ track สถานะเปิด/ปิด (ค่าเริ่มต้นปิด ยกเว้น route ที่ active)
-const expanded = ref(isRouteActive.value);
+// ตรวจสอบว่า child ใดๆ ใน group นี้ active หรือไม่ (สำหรับ group ที่ไม่มี path เช่น Home)
+const hasActiveChild = computed(() => {
+    if (!props.item.items) return false;
+    const currentPath = route.path;
+    return props.item.items.some((child) => {
+        if (child.to) {
+            return currentPath === child.to || currentPath.startsWith(child.to + '/');
+        }
+        return false;
+    });
+});
+
+// สำหรับ item ที่มี children ให้ track สถานะเปิด/ปิด (ค่าเริ่มต้นปิด ยกเว้น route ที่ active หรือ child ที่ active)
+const expanded = ref(isRouteActive.value || hasActiveChild.value);
 
 // เมื่อ route เปลี่ยน ให้ auto-expand group ที่ active
 watch(isRouteActive, (val) => {
+    if (val) expanded.value = true;
+});
+
+watch(hasActiveChild, (val) => {
     if (val) expanded.value = true;
 });
 

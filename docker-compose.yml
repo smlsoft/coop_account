@@ -1,0 +1,15 @@
+services:
+  coopaccount:
+    image: ghcr.io/smlsoft/coopaccount:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-COOP ACCOUNT}
+        VITE_APP_API: ${VITE_APP_API:-https://api.dedepos.com/}
+    container_name: coopaccount
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    labels:
+      - "com.example.description=COOP ACCOUNT Web App"

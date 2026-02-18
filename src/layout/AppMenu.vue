@@ -119,12 +119,12 @@ const model = ref([
                 path: '/income-statement'
             },
             /// งบกำไรขาดทุน 12 เดือน
-            {
-                label: 'งบกำไรขาดทุน 12 เดือน',
-                icon: 'pi pi-fw pi-chart-line',
-                to: '/financial-reports/income-statement-12-months',
-                path: '/income-statement-12-months'
-            },
+            // {
+            //     label: 'งบกำไรขาดทุน 12 เดือน',
+            //     icon: 'pi pi-fw pi-chart-line',
+            //     to: '/financial-reports/income-statement-12-months',
+            //     path: '/income-statement-12-months'
+            // },
             /// งบแสดงฐานะการเงิน
             {
                 label: 'งบแสดงฐานะการเงิน',

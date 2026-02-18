@@ -122,7 +122,7 @@ const availableColumns = [
     { field: 'exdocrefno', header: 'เลขที่เอกสารอ้างอิง', visible: true },
     { field: 'exdocrefdate', header: 'วันที่เอกสารอ้างอิง', visible: true },
     { field: 'accountperiod', header: 'งวด/ปี', visible: true },
-    { field: 'contactname', header: 'ชื่อ', visible: true },
+    // { field: 'contactname', header: 'ชื่อ', visible: true },
     { field: 'amount', header: 'จำนวนเงิน', visible: true },
     { field: 'accountdescription', header: 'คำอธิบาย', visible: true },
     { field: 'createdby', header: 'สร้างโดย', visible: true }
@@ -953,7 +953,7 @@ onMounted(async () => {
                     </template>
                 </Column>
 
-                <!-- Contact Name (ชื่อลูกหนี้/เจ้าหนี้) -->
+                <!-- Contact Name (ชื่อลูกหนี้/เจ้าหนี้) - ซ่อนไว้ชั่วคราว
                 <Column v-if="isColumnVisible('contactname')" field="contactname" header="ชื่อ" style="min-width: 12rem" :showFilterMatchModes="false">
                     <template #body="{ data }">
                         <div v-tooltip.top="getContactName(data)" class="truncate">
@@ -964,6 +964,7 @@ onMounted(async () => {
                         <InputText v-model="filterModel.value" type="text" placeholder="ค้นหาชื่อ..." />
                     </template>
                 </Column>
+                -->
 
                 <!-- Amount -->
                 <Column v-if="isColumnVisible('amount')" field="amount" header="จำนวนเงิน" sortable dataType="numeric" style="min-width: 10rem" :showFilterMatchModes="false">

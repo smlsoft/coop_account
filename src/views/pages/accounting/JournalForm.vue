@@ -1358,7 +1358,7 @@ onUnmounted(() => {
                     <Button v-if="!showImagePanel" icon="pi pi-image" label="รูปภาพเอกสาร" text @click="toggleImagePanel" v-tooltip.left="'เปิดแผงรูปภาพเอกสาร'" :disabled="loading" />
                     <Button v-else icon="pi pi-times" label="ยกเลิกการใช้รูปภาพ" text severity="danger" @click="handleCancelImage" v-tooltip.left="'ยกเลิกการใช้รูปภาพเอกสาร'" :disabled="loading" />
 
-                    <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" />
+                    <!-- <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" /> -->
 
                     <Popover ref="shortcutInfoRef">
                         <div class="p-3 w-72">
