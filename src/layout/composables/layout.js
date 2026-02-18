@@ -1,7 +1,7 @@
 import { computed, reactive, watch } from 'vue';
 
 // โหลดค่าจาก localStorage
-const savedPrimary = localStorage.getItem('primaryColor') || 'cyan';
+const savedPrimary = localStorage.getItem('primaryColor') || 'indigo';
 const savedDarkTheme = localStorage.getItem('darkTheme') === 'true';
 
 const layoutConfig = reactive({

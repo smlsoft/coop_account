@@ -1119,15 +1119,15 @@ onUnmounted(() => {
 
         <!-- Row 2 -->
         <!-- Debt Account Type -->
-        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+        <!-- <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label class="block font-medium mb-2">ประเภท</label>
             <div class="select-button-full">
                 <SelectButton :key="debtAccountTypeKey" :modelValue="formData.debtaccounttype" @update:modelValue="handleDebtAccountTypeChange" :options="debtAccountTypes" optionLabel="label" optionValue="value" />
             </div>
-        </div>
+        </div> -->
 
         <!-- Debt Account -->
-        <div class="col-span-12 sm:col-span-6 md:col-span-8">
+        <!-- <div class="col-span-12 sm:col-span-6 md:col-span-8">
             <label for="debtaccountcode" class="block font-medium mb-2">
                 {{ formData.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้' }}
             </label>
@@ -1146,7 +1146,7 @@ onUnmounted(() => {
                 :disabled="formData.debtaccounttype === undefined || formData.debtaccounttype === null"
                 fluid
             />
-        </div>
+        </div> -->
 
         <!-- Row 3 -->
         <!-- Reference Document Date -->

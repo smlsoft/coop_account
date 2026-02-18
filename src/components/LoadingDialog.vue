@@ -15,7 +15,7 @@ const { isLoading, loadingMessage } = useLoading();
                 <div class="ripple ripple-3"></div>
 
                 <!-- Logo -->
-                <img src="/demo/images/dedeaccountlogo.svg" alt="BC Account" class="logo-image" />
+                <img src="/demo/images/logoCoop.png" alt="COOP Account" class="logo-image" />
             </div>
 
             <!-- Text & Progress Section -->

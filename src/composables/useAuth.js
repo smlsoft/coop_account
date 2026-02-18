@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import { signOutFirebase } from '@/services/firebase';
+// import { signOutFirebase } from '@/services/firebase';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -98,7 +98,7 @@ export function useAuth() {
 
         try {
             // Logout จาก Firebase (สำหรับ Google Sign-In)
-            await signOutFirebase();
+            // await signOutFirebase();
         } catch (error) {
             console.error('Firebase signout error:', error);
         }

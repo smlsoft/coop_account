@@ -13,24 +13,24 @@ const model = ref([
             }
         ]
     },
-    {
-        label: 'Image',
-        path: '/image',
-        items: [
-            {
-                label: 'อัพโหลดรูปภาพเอกสาร',
-                icon: 'pi pi-fw pi-cloud-upload',
-                to: '/image/upload',
-                path: '/upload'
-            },
-            {
-                label: 'ตรวจสอบรูปภาพเอกสาร',
-                icon: 'pi pi-fw pi-eye',
-                to: '/image/review',
-                path: '/review'
-            }
-        ]
-    },
+    // {
+    //     label: 'Image',
+    //     path: '/image',
+    //     items: [
+    //         {
+    //             label: 'อัพโหลดรูปภาพเอกสาร',
+    //             icon: 'pi pi-fw pi-cloud-upload',
+    //             to: '/image/upload',
+    //             path: '/upload'
+    //         },
+    //         {
+    //             label: 'ตรวจสอบรูปภาพเอกสาร',
+    //             icon: 'pi pi-fw pi-eye',
+    //             to: '/image/review',
+    //             path: '/review'
+    //         }
+    //     ]
+    // },
     {
         label: 'Accounting',
         path: '/accounting',
@@ -41,64 +41,64 @@ const model = ref([
                 icon: 'pi pi-fw pi-book',
                 to: '/accounting/entry',
                 path: '/entry'
-            },
+            }
             /// บันทึกรายการบัญชี จากรูปภาพเอกสาร
-            {
-                label: 'บันทึกบัญชี จากรูปภาพ',
-                icon: 'pi pi-fw pi-image',
-                to: '/accounting/entry-from-image',
-                path: '/entry-from-image'
-            },
+            // {
+            //     label: 'บันทึกบัญชี จากรูปภาพ',
+            //     icon: 'pi pi-fw pi-image',
+            //     to: '/accounting/entry-from-image',
+            //     path: '/entry-from-image'
+            // },
             /// บันทึกรายการบัญชี จาก Statement ธนาคาร
-            {
-                label: 'บันทึกบัญชี จาก Statement',
-                icon: 'pi pi-fw pi-file-pdf',
-                to: '/accounting/entry-from-statement',
-                path: '/entry-from-statement'
-            }
+            // {
+            //     label: 'บันทึกบัญชี จาก Statement',
+            //     icon: 'pi pi-fw pi-file-pdf',
+            //     to: '/accounting/entry-from-statement',
+            //     path: '/entry-from-statement'
+            // }
         ]
     },
-    {
-        label: 'Tax Reports',
-        path: '/tax-reports',
-        items: [
-            {
-                /// รายงานภาษีซื้อ
-                label: 'ภาษีซื้อ',
-                icon: 'pi pi-fw pi-file',
-                to: '/tax-reports/purchase-tax',
-                path: '/purchase-tax'
-            },
-            {
-                /// รายงานภาษีขาย
-                label: 'ภาษีขาย',
-                icon: 'pi pi-fw pi-file',
-                to: '/tax-reports/sale-tax',
-                path: '/sale-tax'
-            },
-            /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)
-            {
-                label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)',
-                icon: 'pi pi-fw pi-file',
-                to: '/tax-reports/withholding-tax-3',
-                path: '/withholding-tax-3'
-            },
-            /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)
-            {
-                label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)',
-                icon: 'pi pi-fw pi-file',
-                to: '/tax-reports/withholding-tax-53',
-                path: '/withholding-tax-53'
-            },
-            /// ภาษีถูกหัก ณ ที่จ่าย
-            {
-                label: 'ภาษีถูกหัก ณ ที่จ่าย',
-                icon: 'pi pi-fw pi-file',
-                to: '/tax-reports/withheld-tax',
-                path: '/withheld-tax'
-            }
-        ]
-    },
+    // {
+    //     label: 'Tax Reports',
+    //     path: '/tax-reports',
+    //     items: [
+    //         {
+    //             /// รายงานภาษีซื้อ
+    //             label: 'ภาษีซื้อ',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/tax-reports/purchase-tax',
+    //             path: '/purchase-tax'
+    //         },
+    //         {
+    //             /// รายงานภาษีขาย
+    //             label: 'ภาษีขาย',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/tax-reports/sale-tax',
+    //             path: '/sale-tax'
+    //         },
+    //         /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)
+    //         {
+    //             label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.3)',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/tax-reports/withholding-tax-3',
+    //             path: '/withholding-tax-3'
+    //         },
+    //         /// ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)
+    //         {
+    //             label: 'ภาษีหัก ณ ที่จ่าย (ภ.ง.ด.53)',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/tax-reports/withholding-tax-53',
+    //             path: '/withholding-tax-53'
+    //         },
+    //         /// ภาษีถูกหัก ณ ที่จ่าย
+    //         {
+    //             label: 'ภาษีถูกหัก ณ ที่จ่าย',
+    //             icon: 'pi pi-fw pi-file',
+    //             to: '/tax-reports/withheld-tax',
+    //             path: '/withheld-tax'
+    //         }
+    //     ]
+    // },
     /// รายงานทางการเงิน
     {
         label: 'Financial Reports',
@@ -159,21 +159,21 @@ const model = ref([
                 icon: 'pi pi-fw pi-chart-line',
                 to: '/financial-reports/journal-report',
                 path: '/journal-report'
-            },
-            /// รายงานสถานะเจ้าหนี้
-            {
-                label: 'รายงานสถานะเจ้าหนี้',
-                icon: 'pi pi-fw pi-chart-line',
-                to: '/financial-reports/creditor-status-report',
-                path: '/creditor-status-report'
-            },
-            /// รายงานสถานะลูกหนี้
-            {
-                label: 'รายงานสถานะลูกหนี้',
-                icon: 'pi pi-fw pi-chart-line',
-                to: '/financial-reports/debtor-status-report',
-                path: '/debtor-status-report'
             }
+            /// รายงานสถานะเจ้าหนี้
+            // {
+            //     label: 'รายงานสถานะเจ้าหนี้',
+            //     icon: 'pi pi-fw pi-chart-line',
+            //     to: '/financial-reports/creditor-status-report',
+            //     path: '/creditor-status-report'
+            // },
+            /// รายงานสถานะลูกหนี้
+            // {
+            //     label: 'รายงานสถานะลูกหนี้',
+            //     icon: 'pi pi-fw pi-chart-line',
+            //     to: '/financial-reports/debtor-status-report',
+            //     path: '/debtor-status-report'
+            // }
         ]
     },
     {
@@ -202,19 +202,19 @@ const model = ref([
                 path: '/journal-books'
             },
             /// กำหนดลูกหนี้ debtor
-            {
-                label: 'กำหนดลูกหนี้',
-                icon: 'pi pi-fw pi-users',
-                to: '/masterdata/debtors',
-                path: '/debtors'
-            },
+            // {
+            //     label: 'กำหนดลูกหนี้',
+            //     icon: 'pi pi-fw pi-users',
+            //     to: '/masterdata/debtors',
+            //     path: '/debtors'
+            // },
             /// กำหนดเจ้าหนี้ creditor
-            {
-                label: 'กำหนดเจ้าหนี้',
-                icon: 'pi pi-fw pi-users',
-                to: '/masterdata/creditors',
-                path: '/creditors'
-            },
+            // {
+            //     label: 'กำหนดเจ้าหนี้',
+            //     icon: 'pi pi-fw pi-users',
+            //     to: '/masterdata/creditors',
+            //     path: '/creditors'
+            // },
             /// กำหนดงวดบัญชี
             {
                 label: 'กำหนดงวดบัญชี',
@@ -258,33 +258,33 @@ const model = ref([
         path: '/import-data',
         items: [
             /// นำเข้าข้อมูลการบันทึกบัญชี
-            {
-                label: 'นำเข้าข้อมูลการบันทึกบัญชี',
-                icon: 'pi pi-fw pi-file-import',
-                to: '/import-data/accounting-entries',
-                path: '/accounting-entries'
-            },
+            // {
+            //     label: 'นำเข้าข้อมูลการบันทึกบัญชี',
+            //     icon: 'pi pi-fw pi-file-import',
+            //     to: '/import-data/accounting-entries',
+            //     path: '/accounting-entries'
+            // },
             /// นำเข้าข้อมูลผังบัญชี
             {
                 label: 'นำเข้าข้อมูลผังบัญชี',
                 icon: 'pi pi-fw pi-file-import',
                 to: '/import-data/chart-of-accounts',
                 path: '/chart-of-accounts'
-            },
-            /// นำเข้าข้อมูลลูกหนี้
-            {
-                label: 'นำเข้าข้อมูลลูกหนี้',
-                icon: 'pi pi-fw pi-file-import',
-                to: '/import-data/debtors',
-                path: '/debtors'
-            },
-            /// นำเข้าข้อมูลเจ้าหนี้
-            {
-                label: 'นำเข้าข้อมูลเจ้าหนี้',
-                icon: 'pi pi-fw pi-file-import',
-                to: '/import-data/creditors',
-                path: '/creditors'
             }
+            /// นำเข้าข้อมูลลูกหนี้
+            // {
+            //     label: 'นำเข้าข้อมูลลูกหนี้',
+            //     icon: 'pi pi-fw pi-file-import',
+            //     to: '/import-data/debtors',
+            //     path: '/debtors'
+            // },
+            /// นำเข้าข้อมูลเจ้าหนี้
+            // {
+            //     label: 'นำเข้าข้อมูลเจ้าหนี้',
+            //     icon: 'pi pi-fw pi-file-import',
+            //     to: '/import-data/creditors',
+            //     path: '/creditors'
+            // }
         ]
     }
 

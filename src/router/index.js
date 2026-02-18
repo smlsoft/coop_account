@@ -1,7 +1,7 @@
 import AppLayout from '@/layout/AppLayout.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 
-const appTitle = import.meta.env.VITE_APP_TITLE || 'BC ACCOUNT';
+const appTitle = import.meta.env.VITE_APP_TITLE || 'COOP ACCOUNT';
 
 const router = createRouter({
     history: createWebHistory(),

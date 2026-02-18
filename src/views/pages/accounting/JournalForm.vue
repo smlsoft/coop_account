@@ -1,8 +1,6 @@
 <script setup>
 import AiModelSelectionDialog from '@/components/accounting/AiModelSelectionDialog.vue';
 import JournalDailyInfoTab from '@/components/accounting/JournalDailyInfoTab.vue';
-import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
-import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
 import OcrResultDialog from '@/components/accounting/OcrResultDialog.vue';
 import TaskImageSelectionDialog from '@/components/accounting/TaskImageSelectionDialog.vue';
 import TaskSelectionDialog from '@/components/accounting/TaskSelectionDialog.vue';
@@ -1354,7 +1352,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex gap-2 items-center">
                     <!-- AI Analysis Button -->
-                    <Button icon="pi pi-sparkles" label="AI วิเคราะห์" severity="success" outlined @click="handleAiAnalyze" v-tooltip.left="hasImages ? 'วิเคราะห์เอกสารด้วย AI' : 'ต้องมีรูปภาพเอกสารก่อน'" :disabled="!hasImages || loading" />
+                    <!-- <Button icon="pi pi-sparkles" label="AI วิเคราะห์" severity="success" outlined @click="handleAiAnalyze" v-tooltip.left="hasImages ? 'วิเคราะห์เอกสารด้วย AI' : 'ต้องมีรูปภาพเอกสารก่อน'" :disabled="!hasImages || loading" /> -->
 
                     <!-- Image Panel Buttons -->
                     <Button v-if="!showImagePanel" icon="pi pi-image" label="รูปภาพเอกสาร" text @click="toggleImagePanel" v-tooltip.left="'เปิดแผงรูปภาพเอกสาร'" :disabled="loading" />
@@ -1458,7 +1456,7 @@ onUnmounted(() => {
 
                                 <div class="flex gap-2">
                                     <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
-                                    <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" />
+                                    <!-- <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" /> -->
                                 </div>
                             </div>
                             <!-- Image panel with add button -->
@@ -1469,7 +1467,7 @@ onUnmounted(() => {
                                     <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
                                     <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
                                     <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
-                                    <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" />
+                                    <!-- <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" /> -->
                                 </div>
                                 <div class="flex-1 overflow-auto">
                                     <ImageDetailPanel
@@ -1495,14 +1493,14 @@ onUnmounted(() => {
                                         <i class="pi pi-calendar mr-2"></i>
                                         ข้อมูลรายวัน
                                     </Tab>
-                                    <Tab value="1">
+                                    <!-- <Tab value="1">
                                         <i class="pi pi-file-edit mr-2"></i>
                                         ข้อมูลภาษี
                                     </Tab>
                                     <Tab value="2">
                                         <i class="pi pi-percentage mr-2"></i>
                                         ภาษีถูกหัก ณ ที่จ่าย
-                                    </Tab>
+                                    </Tab> -->
                                 </TabList>
                                 <TabPanels class="flex-1 overflow-auto">
                                     <TabPanel value="0">
@@ -1519,16 +1517,16 @@ onUnmounted(() => {
                                             />
                                         </div>
                                     </TabPanel>
-                                    <TabPanel value="1">
+                                    <!-- <TabPanel value="1">
                                         <div class="pt-4 pb-2">
                                             <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
                                         </div>
-                                    </TabPanel>
-                                    <TabPanel value="2">
+                                    </TabPanel> -->
+                                    <!-- <TabPanel value="2">
                                         <div class="pt-4 pb-2">
                                             <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
                                         </div>
-                                    </TabPanel>
+                                    </TabPanel> -->
                                 </TabPanels>
                             </Tabs>
                         </div>
@@ -1542,14 +1540,14 @@ onUnmounted(() => {
                             <i class="pi pi-calendar mr-2"></i>
                             ข้อมูลรายวัน
                         </Tab>
-                        <Tab value="1">
+                        <!-- <Tab value="1">
                             <i class="pi pi-file-edit mr-2"></i>
                             ข้อมูลภาษี
                         </Tab>
                         <Tab value="2">
                             <i class="pi pi-percentage mr-2"></i>
                             ภาษีถูกหัก ณ ที่จ่าย
-                        </Tab>
+                        </Tab> -->
                     </TabList>
                     <TabPanels class="flex-1 overflow-auto">
                         <TabPanel value="0">
@@ -1566,7 +1564,7 @@ onUnmounted(() => {
                                 />
                             </div>
                         </TabPanel>
-                        <TabPanel value="1">
+                        <!-- <TabPanel value="1">
                             <div class="pt-4">
                                 <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
                             </div>
@@ -1575,7 +1573,7 @@ onUnmounted(() => {
                             <div class="pt-4">
                                 <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
                             </div>
-                        </TabPanel>
+                        </TabPanel> -->
                     </TabPanels>
                 </Tabs>
             </div>

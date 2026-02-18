@@ -781,7 +781,7 @@ onMounted(async () => {
                 <div class="flex items-center gap-3">
                     <div class="text-2xl font-bold m-0 text-surface-900 dark:text-surface-0">บันทึกรายการบัญชี</div>
                 </div>
-                <Button label="เพิ่มรายการ" icon="pi pi-plus" @click="handleCreate" severity="success" />
+                <Button label="เพิ่มรายการ" icon="pi pi-plus" @click="handleCreate" />
             </div>
 
             <!-- DataTable with Advanced Features -->

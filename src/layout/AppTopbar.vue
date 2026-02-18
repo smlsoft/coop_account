@@ -3,7 +3,6 @@ import { useAuth } from '@/composables/useAuth';
 import { useLayout } from '@/layout/composables/layout';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import AppConfigurator from './AppConfigurator.vue';
 
 const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 const { currentShop, displayName, username, logout } = useAuth();
@@ -38,8 +37,8 @@ const handleLogout = () => {
                 <i class="pi pi-bars"></i>
             </button>
             <router-link to="/" class="layout-topbar-logo">
-                <img src="/demo/images/dedeaccountlogo.svg" alt="BC Account Logo" class="w-12 h-12" />
-                <span>{{ currentShop.name || 'BC Account' }}</span>
+                <img src="/demo/images/logoCoop.png" alt="COOP Account Logo" class="w-12 h-12" />
+                <span>{{ currentShop.name || 'COOP Account' }}</span>
             </router-link>
         </div>
 
@@ -49,7 +48,7 @@ const handleLogout = () => {
                     <i class="pi pi-building"></i>
                     <span class="ml-2">{{ currentShop.name }}</span>
                 </button>
-                <button type="button" class="layout-topbar-action" @click="toggleDarkMode">
+                <!-- <button type="button" class="layout-topbar-action" @click="toggleDarkMode">
                     <i :class="['pi', { 'pi-moon': isDarkTheme, 'pi-sun': !isDarkTheme }]"></i>
                 </button>
                 <div class="relative">
@@ -61,7 +60,7 @@ const handleLogout = () => {
                         <i class="pi pi-palette"></i>
                     </button>
                     <AppConfigurator />
-                </div>
+                </div> -->
             </div>
 
             <button

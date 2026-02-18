@@ -581,13 +581,13 @@ onMounted(async () => {
                 </div>
 
                 <!-- Debt Account Type -->
-                <div>
+                <!-- <div>
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ประเภท</label>
                     <Select v-model="debtAccountType" :options="debtAccountTypes" optionLabel="label" optionValue="value" placeholder="เลือกประเภท" showClear fluid @change="onDebtAccountTypeChange" />
-                </div>
+                </div> -->
 
                 <!-- Debt Account -->
-                <div v-if="debtAccountType">
+                <!-- <div v-if="debtAccountType">
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">
                         {{ debtAccountType === 'creditor' ? 'เจ้าหนี้' : 'ลูกหนี้' }}
                     </label>
@@ -603,7 +603,7 @@ onMounted(async () => {
                         forceSelection
                         fluid
                     />
-                </div>
+                </div> -->
 
                 <!-- Journal Book -->
                 <div>

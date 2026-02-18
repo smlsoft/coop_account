@@ -1,6 +1,4 @@
 <script setup>
-import DocumentImageStatsWidget from '@/components/dashboard/DocumentImageStatsWidget.vue';
-import JournalStatsWidget from '@/components/dashboard/JournalStatsWidget.vue';
 import StatsWidget from '@/components/dashboard/StatsWidget.vue';
 </script>
 
@@ -11,12 +9,12 @@ import StatsWidget from '@/components/dashboard/StatsWidget.vue';
         <!-- สถิติการบันทึกบัญชี และ สถิติรูปภาพเอกสาร -->
         <div class="col-span-12 xl:col-span-6">
             <!-- สถิติการบันทึกบัญชี -->
-            <JournalStatsWidget />
+            <!-- <JournalStatsWidget /> -->
         </div>
 
         <div class="col-span-12 xl:col-span-6">
             <!-- สถิติรูปภาพเอกสาร -->
-            <DocumentImageStatsWidget />
+            <!-- <DocumentImageStatsWidget /> -->
         </div>
 
         <!-- <div class="col-span-12 xl:col-span-6">

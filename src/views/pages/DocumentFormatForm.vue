@@ -493,10 +493,10 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Row 2: Prompt Description -->
-                <div class="flex flex-col gap-2">
+                <!-- <div class="flex flex-col gap-2">
                     <label for="promptdescription" class="font-semibold text-surface-900 dark:text-surface-0">Prompt Description</label>
                     <Textarea id="promptdescription" v-model="formData.promptdescription" rows="3" placeholder="กรอก Prompt Description" fluid />
-                </div>
+                </div> -->
 
                 <!-- Details Section -->
                 <div class="flex flex-col gap-4">
@@ -597,8 +597,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex justify-between items-center pt-4 border-t border-surface">
-                    <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined />
+                <div class="flex justify-end items-center pt-4 border-t border-surface">
+                    <!-- <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined /> -->
                     <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'สร้าง (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.doccode || !formData.description" />
                 </div>
             </form>

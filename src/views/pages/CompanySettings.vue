@@ -313,11 +313,11 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Row 3: Full width -->
-                <div class="flex flex-col gap-2">
+                <!-- <div class="flex flex-col gap-2">
                     <label for="promptShopInfo" class="font-semibold text-surface-900 dark:text-surface-0"> ข้อมูลร้านค้าเพิ่มเติม (Prompt Shop Info) </label>
                     <Textarea id="promptShopInfo" v-model="formData.promptShopInfo" rows="5" placeholder="กรอกข้อมูลเพิ่มเติมเกี่ยวกับกิจการ เช่น ประเภทธุรกิจ สินค้า/บริการ ฯลฯ" />
                     <small class="text-surface-500 dark:text-surface-400"> ข้อมูลนี้จะช่วยในการประมวลผลและวิเคราะห์ข้อมูลทางบัญชีของคุณได้ดีขึ้น </small>
-                </div>
+                </div> -->
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end gap-2 pt-4 border-t border-surface">

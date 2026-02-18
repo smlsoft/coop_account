@@ -366,16 +366,14 @@ const isPDF = (uri) => {
             <!-- Right Panel: Details (ขยายเต็มความกว้างเมื่อไม่มีรูป) -->
             <div :class="[loadingImages || documentImages.length > 0 ? 'w-3/5' : 'w-full px-8', 'flex flex-col overflow-hidden']">
                 <!-- Summary Cards -->
-                <div class="p-4 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-800">
+                <!-- <div class="p-4 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-800">
                     <div class="grid grid-cols-4 gap-3">
-                        <!-- Total Amount -->
                         <div class="bg-primary-50 dark:bg-primary-900/30 p-4 rounded-xl border border-primary-200 dark:border-primary-700">
                             <div class="text-sm text-primary-600 dark:text-primary-400">ยอดรวม</div>
                             <div class="text-2xl font-bold text-primary-700 dark:text-primary-300">{{ formatCurrency(journal.amount) }}</div>
                             <div class="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1">{{ journal.docformat || '-' }}</div>
                         </div>
 
-                        <!-- Debit/Credit Balance -->
                         <div class="bg-surface-100 dark:bg-surface-700 p-4 rounded-xl">
                             <div class="text-sm text-surface-500 dark:text-surface-400">Debit / Credit</div>
                             <div class="flex items-center gap-2 mt-1">
@@ -386,21 +384,19 @@ const isPDF = (uri) => {
                             <Tag :value="isBalanced ? 'สมดุล' : 'ไม่สมดุล'" :severity="isBalanced ? 'success' : 'danger'" class="mt-2" />
                         </div>
 
-                        <!-- VAT Summary -->
                         <div class="bg-green-50 dark:bg-green-900/30 p-4 rounded-xl">
                             <div class="text-sm text-green-600 dark:text-green-400">ภาษีมูลค่าเพิ่ม</div>
                             <div class="text-2xl font-bold text-green-700 dark:text-green-300">{{ formatCurrency(getTotalVatAmount) }}</div>
                             <div class="text-xs text-green-600/70 mt-1">{{ journal.vats?.length || 0 }} รายการ</div>
                         </div>
 
-                        <!-- WHT Summary -->
                         <div class="bg-orange-50 dark:bg-orange-900/30 p-4 rounded-xl">
                             <div class="text-sm text-orange-600 dark:text-orange-400">ภาษีหัก ณ ที่จ่าย</div>
                             <div class="text-2xl font-bold text-orange-700 dark:text-orange-300">{{ formatCurrency(getTotalWhtAmount) }}</div>
                             <div class="text-xs text-orange-600/70 mt-1">{{ journal.taxes?.length || 0 }} รายการ</div>
                         </div>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- Tabs Content -->
                 <div class="flex-1 overflow-hidden">
@@ -412,7 +408,7 @@ const isPDF = (uri) => {
                                     <span>ข้อมูลรายวัน</span>
                                 </div>
                             </Tab>
-                            <Tab value="1" :disabled="!hasVatData">
+                            <!-- <Tab value="1" :disabled="!hasVatData">
                                 <div class="flex items-center gap-2">
                                     <i class="pi pi-file-edit"></i>
                                     <span>ข้อมูลภาษี</span>
@@ -425,7 +421,7 @@ const isPDF = (uri) => {
                                     <span>ภาษีถูกหัก ณ ที่จ่าย</span>
                                     <Badge v-if="hasTaxData" :value="journal.taxes?.length || 0" severity="warn" />
                                 </div>
-                            </Tab>
+                            </Tab> -->
                         </TabList>
                         <TabPanels>
                             <!-- Tab 0: ข้อมูลรายวัน (ตาม JournalDailyInfoTab) -->
@@ -461,15 +457,15 @@ const isPDF = (uri) => {
 
                                         <!-- Row 2 -->
                                         <!-- ประเภท -->
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                        <!-- <div class="col-span-12 sm:col-span-6 md:col-span-4">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">ประเภท</label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded">
                                                 <Tag :value="journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้'" :severity="journal.debtaccounttype === 1 ? 'warn' : 'info'" />
                                             </div>
-                                        </div>
+                                        </div> -->
 
                                         <!-- ลูกหนี้/เจ้าหนี้ -->
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-8">
+                                        <!-- <div class="col-span-12 sm:col-span-6 md:col-span-8">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">
                                                 {{ journal.debtaccounttype === 1 ? 'เจ้าหนี้' : 'ลูกหนี้' }}
                                             </label>
@@ -481,7 +477,7 @@ const isPDF = (uri) => {
                                                 </template>
                                                 <span v-else class="text-surface-400">-</span>
                                             </div>
-                                        </div>
+                                        </div> -->
 
                                         <!-- Row 3 -->
                                         <!-- วันที่เอกสารอ้างอิง -->

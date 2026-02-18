@@ -55,7 +55,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+    <div class="col-span-12 lg:col-span-6 xl:col-span-4">
         <div class="card mb-0">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">
@@ -81,7 +81,7 @@ onMounted(() => {
             </div>
         </div>
     </div>
-    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+    <div class="col-span-12 lg:col-span-6 xl:col-span-4">
         <div class="card mb-0">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">
@@ -107,7 +107,8 @@ onMounted(() => {
             </div>
         </div>
     </div>
-    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+    <!-- รูปภาพ - ซ่อนไว้ชั่วคราว
+    <div class="col-span-12 lg:col-span-6 xl:col-span-4">
         <div class="card mb-0">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">
@@ -133,7 +134,8 @@ onMounted(() => {
             </div>
         </div>
     </div>
-    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+    -->
+    <div class="col-span-12 lg:col-span-6 xl:col-span-4">
         <div class="card mb-0">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">

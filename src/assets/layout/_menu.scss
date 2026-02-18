@@ -86,7 +86,18 @@
 
             &.active-route {
                 font-weight: 700;
-                color: var(--primary-color);
+                background-color: var(--primary-color);
+                color: #ffffff;
+
+                .layout-menuitem-icon {
+                    color: #ffffff;
+                }
+
+                &:hover {
+                    background-color: var(--primary-600, var(--primary-color));
+                    filter: brightness(0.9);
+                    color: #ffffff;
+                }
             }
 
             &:hover {
