@@ -225,17 +225,17 @@ const getTaxTypeName = (taxtype) => {
     return '-';
 };
 
-// Customer type: 1=บุคคลธรรมดา, 2=นิติบุคคล
+// Customer type: 0=บุคคลธรรมดา, 1=นิติบุคคล
 const getCustomerTypeName = (custtype) => {
-    if (custtype === 1) return 'บุคคลธรรมดา';
-    if (custtype === 2) return 'นิติบุคคล';
+    if (custtype === 0) return 'บุคคลธรรมดา';
+    if (custtype === 1) return 'นิติบุคคล';
     return '-';
 };
 
-// Organization: 1=สำนักงานใหญ่, 2=สาขา
+// Organization: 0=สำนักงานใหญ่, 1=สาขา
 const getOrganizationName = (org) => {
-    if (org === 1) return 'สำนักงานใหญ่';
-    if (org === 2) return 'สาขา';
+    if (org === 0) return 'สำนักงานใหญ่';
+    if (org === 1) return 'สาขา';
     return '-';
 };
 

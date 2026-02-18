@@ -1,8 +1,7 @@
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
-import { onBeforeRouteLeave } from 'vue-router';
 import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import { useLoading } from './useLoading';
 
 /**

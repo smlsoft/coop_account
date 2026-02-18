@@ -298,6 +298,53 @@ watch(
     }
 );
 
+// Watch ประเภทหนี้ เพื่ออัปเดต taxtype ในภาษีหัก ณ ที่จ่าย
+// debtaccounttype = 0 (ลูกหนี้) → taxtype = 0 (ภาษีถูกหัก ณ ที่จ่าย)
+// debtaccounttype = 1 (เจ้าหนี้) → taxtype = 1 (ภาษีหัก ณ ที่จ่าย)
+const isUpdatingTaxType = ref(false);
+const lastDebtAccountType = ref(null);
+watch(
+    () => props.modelValue.debtaccounttype,
+    (newType, oldType) => {
+        // ป้องกัน infinite loop - ตรวจสอบหลายชั้น
+        if (isUpdatingTaxType.value) {
+            return;
+        }
+
+        // ตรวจสอบว่าค่าเปลี่ยนจริงๆ และไม่ใช่ค่า undefined/null
+        if (newType !== undefined && newType !== null && newType !== oldType && newType !== lastDebtAccountType.value) {
+            isUpdatingTaxType.value = true;
+            lastDebtAccountType.value = newType;
+
+            // อัปเดต taxtype ของทุก tax entry ที่มีอยู่
+            if (props.modelValue.taxes && props.modelValue.taxes.length > 0) {
+                // ตรวจสอบว่ามี tax entry ที่ต้องอัปเดตจริงๆ ก่อน emit
+                const needsUpdate = props.modelValue.taxes.some((tax) => tax.taxtype !== newType);
+
+                if (needsUpdate) {
+                    const updatedTaxes = props.modelValue.taxes.map((tax) => ({
+                        ...tax,
+                        taxtype: newType // 0=ลูกหนี้→ถูกหัก, 1=เจ้าหนี้→หัก
+                    }));
+
+                    const updatedValue = {
+                        ...props.modelValue,
+                        taxes: updatedTaxes
+                    };
+
+                    emit('update:modelValue', updatedValue);
+                }
+            }
+
+            // ใช้ setTimeout แทน nextTick เพื่อความปลอดภัยสูงสุด
+            setTimeout(() => {
+                isUpdatingTaxType.value = false;
+            }, 50);
+        }
+    },
+    { flush: 'post' } // ทำงานหลัง DOM update เสร็จ
+);
+
 // Search document formats
 const searchDocumentFormats = async (event) => {
     documentFormatsLoading.value = true;

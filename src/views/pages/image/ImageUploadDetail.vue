@@ -77,7 +77,7 @@ const documentMenuItems = computed(() => [
         label: 'แยกเอกสาร',
         icon: 'pi pi-clone',
         command: () => handleUngroup(),
-        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1
+        disabled: isJobClosed.value || !selectedGroup.value || (selectedGroup.value?.imagereferences?.length || 0) <= 1 || (isApprovalDisabled.value && selectedGroup.value?.references && selectedGroup.value.references.length > 0)
     },
     {
         label: 'ลบเอกสาร',

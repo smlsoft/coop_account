@@ -13,8 +13,8 @@ const emit = defineEmits(['update:modelValue']);
 
 // Dropdown options
 const organizationOptions = [
-    { label: 'สำนักงานใหญ่', value: 1 },
-    { label: 'สาขา', value: 2 }
+    { label: 'สำนักงานใหญ่', value: 0 },
+    { label: 'สาขา', value: 1 }
 ];
 
 // Function to get vatTypeOptions based on vatmode
@@ -117,7 +117,7 @@ const addVatEntry = () => {
         custtaxid: debtInfo.custtaxid,
         custname: debtInfo.custname,
         custtype: 0,
-        organization: debtInfo.organization || 1, // ค่าเริ่มต้น = 1 (สำนักงานใหญ่)
+        organization: debtInfo.organization || 0, // ค่าเริ่มต้น = 0 (สำนักงานใหญ่)
         branchcode: debtInfo.branchcode,
         address: debtInfo.address
     };
@@ -158,10 +158,15 @@ const getDebtAccountInfo = () => {
     const debtAccount = localValue.value.debtaccountcode;
     if (debtAccount) {
         const thName = debtAccount.names?.find((n) => n.code === 'th')?.name || '';
+        // customertype: 1 = สำนักงานใหญ่, 2 = สาขา
+        // organization: 0 = สำนักงานใหญ่, 1 = สาขา
+        // ดังนั้น organization = customertype - 1
+        const customertype = debtAccount.customertype || 1;
+        const organization = customertype === 2 ? 1 : 0;
         return {
             custname: thName || debtAccount.name || '',
             custtaxid: debtAccount.taxid || '',
-            organization: debtAccount.customertype || 0,
+            organization: organization,
             branchcode: debtAccount.branchnumber || '00000',
             address: debtAccount.addressforbilling?.address?.[0] || ''
         };
@@ -390,7 +395,7 @@ watch(
                         <!-- เดือนภาษี -->
                         <div class="flex flex-col gap-2">
                             <label class="font-medium text-sm">เดือนภาษี</label>
-                            <InputNumber v-model="vat.vatperiod" :min="1" :max="12" :useGrouping="false" disabled class="bg-surface-100 dark:bg-surface-700" />
+                            <InputNumber v-model="vat.vatperiod" :min="1" :max="12" :useGrouping="false" class="bg-surface-100 dark:bg-surface-700" />
                         </div>
 
                         <!-- ฐานภาษี -->

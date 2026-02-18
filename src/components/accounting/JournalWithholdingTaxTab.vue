@@ -18,8 +18,8 @@ const taxTypeOptions = [
 ];
 
 const custTypeOptions = [
-    { label: 'บุคคลธรรมดา', value: 1 },
-    { label: 'นิติบุคคล', value: 2 }
+    { label: 'บุคคลธรรมดา', value: 0 },
+    { label: 'นิติบุคคล', value: 1 }
 ];
 
 // Reactive keys สำหรับ force re-render SelectButton เมื่อ block null value (per Tax entry)
@@ -67,10 +67,10 @@ const getDebtAccountInfo = () => {
     if (debtAccount) {
         const thName = debtAccount.names?.find((n) => n.code === 'th')?.name || '';
         // personaltype: 1 = บุคคลธรรมดา, 2 = นิติบุคคล
-        // custtype: 1 = บุคคลธรรมดา, 2 = นิติบุคคล
-        // ดังนั้น custtype = personaltype
+        // custtype: 0 = บุคคลธรรมดา, 1 = นิติบุคคล
+        // ดังนั้น custtype = personaltype - 1
         const personaltype = debtAccount.personaltype || 1;
-        const custtype = personaltype === 2 ? 2 : 1;
+        const custtype = personaltype === 2 ? 1 : 0;
         return {
             custname: thName || debtAccount.name || '',
             custtaxid: debtAccount.taxid || '',
@@ -88,9 +88,14 @@ const addTaxEntry = () => {
     // ใช้ docdate จาก JournalDailyInfoTab ถ้ามี ไม่เช่นนั้นใช้วันที่ปัจจุบัน
     const taxdate = localValue.value.docdate ? new Date(localValue.value.docdate) : new Date();
 
+    // กำหนด taxtype ตามประเภทหนี้
+    // debtaccounttype = 0 (ลูกหนี้) → taxtype = 0 (ภาษีถูกหัก ณ ที่จ่าย)
+    // debtaccounttype = 1 (เจ้าหนี้) → taxtype = 1 (ภาษีหัก ณ ที่จ่าย)
+    const taxtype = localValue.value.debtaccounttype === 1 ? 1 : 0;
+
     const newEntry = {
-        taxtype: 0,
-        custtype: debtInfo.custtype || 1, // ค่าเริ่มต้น = 1 (บุคคลธรรมดา)
+        taxtype: taxtype,
+        custtype: debtInfo.custtype || 0, // ค่าเริ่มต้น = 0 (บุคคลธรรมดา)
         taxdate: taxdate,
         taxdocno: '',
         custname: debtInfo.custname,
