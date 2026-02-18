@@ -12,7 +12,7 @@ COPY . .
 
 # Build args สำหรับ VITE env (ฝังตอน build)
 ARG VITE_APP_TITLE="COOP ACCOUNT"
-ARG VITE_APP_API=https://api.dedepos.com/
+ARG VITE_APP_API=https://glapi-uat.rspcoop.com/
 
 ENV VITE_APP_TITLE=$VITE_APP_TITLE
 ENV VITE_APP_API=$VITE_APP_API

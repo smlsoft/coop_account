@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_APP_TITLE: ${VITE_APP_TITLE:-COOP ACCOUNT}
-        VITE_APP_API: ${VITE_APP_API:-https://api.dedepos.com/}
+        VITE_APP_API: ${VITE_APP_API:-https://glapi-uat.rspcoop.com/}
     container_name: coopaccount
     restart: unless-stopped
     ports:
