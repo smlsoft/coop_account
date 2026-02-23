@@ -267,7 +267,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Form -->
-            <form v-else @submit.prevent="saveShopData" class="flex flex-col gap-6">
+            <form v-else @submit.prevent="saveShopData" @keydown.enter.prevent class="flex flex-col gap-6">
                 <!-- Row 1: 2 columns on large screens -->
                 <div class="flex flex-col md:flex-row gap-6">
                     <!-- ชื่อกิจการ -->

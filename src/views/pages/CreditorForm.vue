@@ -233,7 +233,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Form -->
-            <form v-else @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6">
+            <form v-else @submit.prevent="openConfirmDialog" @keydown.enter.prevent class="flex flex-col gap-6">
                 <!-- Row 1: รหัสเจ้าหนี้ และ ชื่อเจ้าหนี้ -->
                 <div class="flex flex-col md:flex-row gap-6">
                     <div class="flex flex-col gap-2 md:w-1/2">
