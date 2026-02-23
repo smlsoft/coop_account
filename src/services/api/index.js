@@ -1,4 +1,5 @@
 // Export all API modules
+import * as accountgroupAPI from './accountgroup';
 import * as accountperiodAPI from './accountperiod';
 import * as authAPI from './auth';
 import * as chartofaccountAPI from './chartofaccount';
@@ -51,6 +52,13 @@ export default {
     updateChartOfAccount: chartofaccountAPI.updateChartOfAccount,
     deleteChartOfAccount: chartofaccountAPI.deleteChartOfAccount,
     importChartOfAccounts: chartofaccountAPI.importChartOfAccounts,
+
+    // Account Group APIs
+    getAccountGroups: accountgroupAPI.getAccountGroups,
+    getAccountGroupById: accountgroupAPI.getAccountGroup,
+    createAccountGroup: accountgroupAPI.createAccountGroup,
+    updateAccountGroup: accountgroupAPI.updateAccountGroup,
+    deleteAccountGroup: accountgroupAPI.deleteAccountGroup,
 
     // Journal Book APIs
     getJournalBooks: journalbookAPI.getJournalBooks,
@@ -163,4 +171,4 @@ export default {
 };
 
 // Also export modules separately for selective imports
-export { accountperiodAPI, authAPI, chartofaccountAPI, creditorAPI, dashboardAPI, debtorAPI, documentformatAPI, journalAPI, journalbookAPI, masterexpenseAPI, masterincomeAPI, shopAPI, shopuserAPI, taskAPI };
+export { accountgroupAPI, accountperiodAPI, authAPI, chartofaccountAPI, creditorAPI, dashboardAPI, debtorAPI, documentformatAPI, journalAPI, journalbookAPI, masterexpenseAPI, masterincomeAPI, shopAPI, shopuserAPI, taskAPI };

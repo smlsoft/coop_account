@@ -1,7 +1,7 @@
 <script setup>
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { EPSILON } from '@/constants/numberConstants';
-import { getAccountPeriodByDate, getChartOfAccounts, getCreditors, getDebtors, getDocumentFormats, getJournalBooks } from '@/services/api/journal';
+import { getAccountGroups, getAccountPeriodByDate, getChartOfAccounts, getCreditors, getDebtors, getDocumentFormats, getJournalBooks } from '@/services/api/journal';
 import { formatAmountDisplay, formatNumber, parseAmountInput, roundDecimal, toDecimalNumber } from '@/utils/numberFormat';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import * as XLSX from 'xlsx';
@@ -44,6 +44,8 @@ const formData = computed({
 // Local state for dropdowns
 const journalBooks = ref([]);
 const journalBooksLoading = ref(false);
+const accountGroups = ref([]);
+const accountGroupsLoading = ref(false);
 const debtAccounts = ref([]);
 const debtAccountsLoading = ref(false);
 const chartOfAccounts = ref([]);
@@ -64,12 +66,14 @@ const debtAccountTypes = ref([
 // Journal type options
 const journalTypes = ref([
     { label: 'ทั่วไป', value: 0 },
-    { label: 'ปิดบัญชี', value: 1 }
+    { label: 'ปิดบัญชี', value: 1 },
+    { label: 'ยกมา', value: 3 },
+    { label: 'ยกไป', value: 4 },
+    { label: 'ปรับปรุง', value: 5 }
 ]);
 
 // Reactive keys สำหรับ force re-render SelectButton เมื่อ block null value
 const debtAccountTypeKey = ref(0);
-const journalTypeKey = ref(0);
 
 // ฟังก์ชันสำหรับจัดการการเปลี่ยนแปลงของ SelectButton โดยป้องกัน unselect
 const handleDebtAccountTypeChange = (val) => {
@@ -78,15 +82,6 @@ const handleDebtAccountTypeChange = (val) => {
     } else {
         // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
         debtAccountTypeKey.value++;
-    }
-};
-
-const handleJournalTypeChange = (val) => {
-    if (val !== null && val !== undefined) {
-        updateField('journaltype', val);
-    } else {
-        // Force re-render เพื่อให้ SelectButton แสดง UI ตามค่าปัจจุบัน
-        journalTypeKey.value++;
     }
 };
 
@@ -170,6 +165,24 @@ const handleDocDateChange = async (newDate) => {
         showPeriodAlert.value = true;
         isDocDateInvalid.value = true;
         emit('validation-change', { isDocDateInvalid: true });
+    }
+};
+
+// Search account groups
+const searchAccountGroups = async (event) => {
+    accountGroupsLoading.value = true;
+    try {
+        const response = await getAccountGroups({ q: event.query, page: 1, limit: 100 });
+        if (response.data.success) {
+            accountGroups.value = response.data.data.map((item) => ({
+                ...item,
+                displayLabel: `${item.code} ~ ${item.name1}`
+            }));
+        }
+    } catch (error) {
+        console.error('Error fetching account groups:', error);
+    } finally {
+        accountGroupsLoading.value = false;
     }
 };
 
@@ -1151,6 +1164,7 @@ const handleFileImport = async (event) => {
 // Load initial journal books
 onMounted(async () => {
     await searchJournalBooks({ query: '' });
+    await searchAccountGroups({ query: '' });
     await searchDocumentFormats({ query: '' });
     await loadAllChartOfAccounts(); // โหลดผังบัญชีทั้งหมดครั้งเดียว
     document.addEventListener('keydown', handleKeydown);
@@ -1168,7 +1182,7 @@ onUnmounted(() => {
 
         <!-- Row 1 -->
         <!-- Document Date -->
-        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+        <div class="col-span-12 sm:col-span-6 md:col-span-3">
             <label for="docdate" class="block font-medium mb-2">วันที่เอกสาร <span class="text-red-500">*</span></label>
             <ThaiDatePicker id="docdate" :modelValue="formData.docdate" @update:modelValue="handleDocDateChange" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่" :invalid="isDocDateInvalid" fluid />
             <small v-if="isDocDateInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1 mt-1">
@@ -1178,11 +1192,13 @@ onUnmounted(() => {
         </div>
 
         <!-- Document Number -->
-        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+        <div class="col-span-12 sm:col-span-6 md:col-span-3">
             <label for="docno" class="block font-medium mb-2">เลขที่เอกสาร <span class="text-red-500">*</span></label>
             <div class="flex gap-2">
-                <InputText id="docno" :modelValue="formData.docno" @update:modelValue="updateField('docno', $event)" placeholder="เลขที่เอกสาร" class="flex-1" :invalid="isDocNoInvalid" />
-                <Button icon="pi pi-sync" severity="secondary" @click="generateDocNo" v-tooltip.top="'สร้างเลขที่เอกสารอัตโนมัติ'" />
+                <InputGroup>
+                    <InputText id="docno" :modelValue="formData.docno" @update:modelValue="updateField('docno', $event)" placeholder="เลขที่เอกสาร" class="flex-1" :invalid="isDocNoInvalid" />
+                    <Button icon="pi pi-sync" @click="generateDocNo" v-tooltip.top="'สร้างเลขที่เอกสารอัตโนมัติ'" />
+                </InputGroup>
             </div>
             <small v-if="isDocNoInvalid" class="text-red-500 dark:text-red-400 flex items-center gap-1 mt-1">
                 <i class="pi pi-exclamation-circle"></i>
@@ -1191,7 +1207,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Journal Book -->
-        <div class="col-span-12 md:col-span-4">
+        <div class="col-span-12 sm:col-span-6 md:col-span-3">
             <label for="bookcode" class="block font-medium mb-2">สมุดรายวัน <span class="text-red-500">*</span></label>
             <AutoComplete
                 id="bookcode"
@@ -1212,6 +1228,25 @@ onUnmounted(() => {
                 <i class="pi pi-exclamation-circle"></i>
                 กรุณาเลือกสมุดรายวัน
             </small>
+        </div>
+
+        <!-- Account Group -->
+        <div class="col-span-12 sm:col-span-6 md:col-span-3">
+            <label for="accountgroup" class="block font-medium mb-2">กลุ่มบัญชี</label>
+            <AutoComplete
+                id="accountgroup"
+                :modelValue="formData.accountgroup"
+                @update:modelValue="updateField('accountgroup', $event)"
+                :suggestions="accountGroups"
+                optionLabel="displayLabel"
+                :loading="accountGroupsLoading"
+                @complete="searchAccountGroups"
+                placeholder="ค้นหากลุ่มบัญชี..."
+                dropdown
+                showClear
+                forceSelection
+                fluid
+            />
         </div>
 
         <!-- Row 2 -->
@@ -1261,9 +1296,7 @@ onUnmounted(() => {
         <!-- Journal Type -->
         <div class="col-span-12 sm:col-span-6 md:col-span-4">
             <label class="block font-medium mb-2">ประเภทรายการ</label>
-            <div class="select-button-full">
-                <SelectButton :key="journalTypeKey" :modelValue="formData.journaltype" @update:modelValue="handleJournalTypeChange" :options="journalTypes" optionLabel="label" optionValue="value" />
-            </div>
+            <Select :modelValue="formData.journaltype" @update:modelValue="updateField('journaltype', $event)" :options="journalTypes" optionLabel="label" optionValue="value" fluid />
         </div>
 
         <!-- Row 4 -->

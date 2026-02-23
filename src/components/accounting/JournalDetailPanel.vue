@@ -2,9 +2,8 @@
 import ImageZoomViewer from '@/components/image/ImageZoomViewer.vue';
 import PdfViewer from '@/components/image/PdfViewer.vue';
 import { getDocumentImageGroup } from '@/services/api/image';
-import { getJournalBooks, getJournalByDocno } from '@/services/api/journal';
+import { getAccountGroups, getJournalBooks, getJournalByDocno } from '@/services/api/journal';
 import { computed, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 
 const props = defineProps({
     docno: {
@@ -12,8 +11,6 @@ const props = defineProps({
         default: ''
     }
 });
-
-const router = useRouter();
 
 const journal = ref(null);
 const loading = ref(false);
@@ -23,16 +20,20 @@ const currentImageIndex = ref(0);
 
 // Masterdata
 const journalBooks = ref([]);
+const accountGroups = ref([]);
 
 // Fetch masterdata on component mount
 const fetchMasterdata = async () => {
     try {
-        const response = await getJournalBooks();
-        if (response.data?.success) {
-            journalBooks.value = response.data.data || [];
+        const [booksResponse, groupsResponse] = await Promise.all([getJournalBooks(), getAccountGroups({ limit: 200 })]);
+        if (booksResponse.data?.success) {
+            journalBooks.value = booksResponse.data.data || [];
+        }
+        if (groupsResponse.data?.success) {
+            accountGroups.value = groupsResponse.data.data || [];
         }
     } catch (error) {
-        console.error('Failed to fetch journal books:', error);
+        console.error('Failed to fetch masterdata:', error);
     }
 };
 
@@ -156,10 +157,20 @@ const getBookName = (bookcode) => {
     return book?.name1 || bookcode;
 };
 
-// Journal type: 0=ทั่วไป, 1=ปิดบัญชี
+// Get account group name from masterdata
+const getAccountGroupName = (code) => {
+    if (!code) return '-';
+    const group = accountGroups.value.find((g) => g.code === code);
+    return group?.name1 || code;
+};
+
+// Journal type: 0=ทั่วไป, 1=ปิดบัญชี , 3=ยกมา, 4=ยกไป, 5=ปรับปรุง
 const getJournalTypeName = (journaltype) => {
     if (journaltype === 0) return 'ทั่วไป';
     if (journaltype === 1) return 'ปิดบัญชี';
+    if (journaltype === 3) return 'ยกมา';
+    if (journaltype === 4) return 'ยกไป';
+    if (journaltype === 5) return 'ปรับปรุง';
     return '-';
 };
 
@@ -282,7 +293,7 @@ const isPDF = (uri) => {
 // Navigate to edit page
 const navigateToEdit = () => {
     if (journal.value?.guidfixed) {
-        router.push(`/accounting/entry/${journal.value.guidfixed}`);
+        window.open(`/accounting/entry/${journal.value.guidfixed}`, '_blank');
     }
 };
 </script>
@@ -394,26 +405,39 @@ const navigateToEdit = () => {
                                 <div class="p-3 overflow-auto h-full">
                                     <div class="grid grid-cols-12 gap-3">
                                         <!-- Row 1 -->
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-sm text-surface-600 dark:text-surface-400">วันที่เอกสาร</label>
                                             <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-sm text-surface-900 dark:text-surface-0">
                                                 {{ formatDate(journal.docdate) }}
                                             </div>
                                         </div>
 
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-sm text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
                                             <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded font-bold text-sm text-primary-600 dark:text-primary-400">
                                                 {{ journal.docno }}
                                             </div>
                                         </div>
 
-                                        <div class="col-span-12 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-sm text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
                                             <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-sm text-surface-900 dark:text-surface-0">
                                                 <span class="text-sm text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
                                                 <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                                                 <span>{{ getBookName(journal.bookcode) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- กลุ่มบัญชี -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
+                                            <label class="block font-medium mb-2 text-sm text-surface-600 dark:text-surface-400">กลุ่มบัญชี</label>
+                                            <div class="p-2.5 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-sm text-surface-900 dark:text-surface-0">
+                                                <template v-if="journal.accountgroup">
+                                                    <span class="text-sm text-primary-600 dark:text-primary-400">{{ journal.accountgroup }}</span>
+                                                    <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
+                                                    <span>{{ getAccountGroupName(journal.accountgroup) }}</span>
+                                                </template>
+                                                <template v-else>-</template>
                                             </div>
                                         </div>
 

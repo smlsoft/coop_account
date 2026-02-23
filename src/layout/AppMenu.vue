@@ -194,6 +194,13 @@ const model = ref([
                 to: '/masterdata/chart-of-accounts',
                 path: '/chart-of-accounts'
             },
+            /// กลุ่มบัญชี
+            {
+                label: 'กลุ่มบัญชี',
+                icon: 'pi pi-fw pi-tags',
+                to: '/masterdata/account-groups',
+                path: '/account-groups'
+            },
             /// กำหนดสมุดรายวัน
             {
                 label: 'กำหนดสมุดรายวัน',

@@ -2,9 +2,8 @@
 import ImageZoomViewer from '@/components/image/ImageZoomViewer.vue';
 import PdfViewer from '@/components/image/PdfViewer.vue';
 import { getDocumentImageGroup } from '@/services/api/image';
-import { getJournalBooks } from '@/services/api/journal';
+import { getAccountGroups, getJournalBooks } from '@/services/api/journal';
 import { computed, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 
 const props = defineProps({
     visible: {
@@ -23,13 +22,10 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible']);
 
-const router = useRouter();
-
 // Navigate to edit page
 const navigateToEdit = () => {
     if (props.journal?.guidfixed) {
-        router.push(`/accounting/entry/${props.journal.guidfixed}`);
-        emit('update:visible', false); // Close dialog
+        window.open(`/accounting/entry/${props.journal.guidfixed}`, '_blank');
     }
 };
 
@@ -41,27 +37,33 @@ const currentImageIndex = ref(0);
 
 // Masterdata
 const journalBooks = ref([]);
+const accountGroups = ref([]);
 
 // Fetch masterdata - เรียกเมื่อ dialog เปิดและยังไม่มีข้อมูล
 const fetchMasterdata = async () => {
     // ถ้าส่ง journalBooksData มาแล้วไม่ต้องโหลด
     if (props.journalBooksData && props.journalBooksData.length > 0) {
         journalBooks.value = props.journalBooksData;
-        return;
-    }
-
-    // ถ้าโหลดแล้วไม่ต้องโหลดซ้ำ
-    if (journalBooks.value.length > 0) {
-        return;
-    }
-
-    try {
-        const response = await getJournalBooks();
-        if (response.data?.success) {
-            journalBooks.value = response.data.data || [];
+    } else if (journalBooks.value.length === 0) {
+        try {
+            const response = await getJournalBooks();
+            if (response.data?.success) {
+                journalBooks.value = response.data.data || [];
+            }
+        } catch (error) {
+            console.error('Failed to fetch journal books:', error);
         }
-    } catch (error) {
-        console.error('Failed to fetch journal books:', error);
+    }
+
+    if (accountGroups.value.length === 0) {
+        try {
+            const response = await getAccountGroups({ limit: 200 });
+            if (response.data?.success) {
+                accountGroups.value = response.data.data || [];
+            }
+        } catch (error) {
+            console.error('Failed to fetch account groups:', error);
+        }
     }
 };
 
@@ -187,10 +189,20 @@ const getBookName = (bookcode) => {
     return book?.name1 || bookcode;
 };
 
-// Journal type: 0=ทั่วไป, 1=ปิดบัญชี
+// Get account group name from masterdata
+const getAccountGroupName = (code) => {
+    if (!code) return '-';
+    const group = accountGroups.value.find((g) => g.code === code);
+    return group?.name1 || code;
+};
+
+// Journal type: 0=ทั่วไป, 1=ปิดบัญชี, 3=ยกมา, 4=ยกไป, 5=ปรับปรุง
 const getJournalTypeName = (journaltype) => {
     if (journaltype === 0) return 'ทั่วไป';
     if (journaltype === 1) return 'ปิดบัญชี';
+    if (journaltype === 3) return 'ยกมา';
+    if (journaltype === 4) return 'ยกไป';
+    if (journaltype === 5) return 'ปรับปรุง';
     return '-';
 };
 
@@ -366,14 +378,16 @@ const isPDF = (uri) => {
             <!-- Right Panel: Details (ขยายเต็มความกว้างเมื่อไม่มีรูป) -->
             <div :class="[loadingImages || documentImages.length > 0 ? 'w-3/5' : 'w-full px-8', 'flex flex-col overflow-hidden']">
                 <!-- Summary Cards -->
-                <!-- <div class="p-4 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-800">
+                <div class="p-4 border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-800">
                     <div class="grid grid-cols-4 gap-3">
+                        <!-- Total Amount -->
                         <div class="bg-primary-50 dark:bg-primary-900/30 p-4 rounded-xl border border-primary-200 dark:border-primary-700">
                             <div class="text-sm text-primary-600 dark:text-primary-400">ยอดรวม</div>
                             <div class="text-2xl font-bold text-primary-700 dark:text-primary-300">{{ formatCurrency(journal.amount) }}</div>
                             <div class="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1">{{ journal.docformat || '-' }}</div>
                         </div>
 
+                        <!-- Debit/Credit Balance -->
                         <div class="bg-surface-100 dark:bg-surface-700 p-4 rounded-xl">
                             <div class="text-sm text-surface-500 dark:text-surface-400">Debit / Credit</div>
                             <div class="flex items-center gap-2 mt-1">
@@ -384,19 +398,21 @@ const isPDF = (uri) => {
                             <Tag :value="isBalanced ? 'สมดุล' : 'ไม่สมดุล'" :severity="isBalanced ? 'success' : 'danger'" class="mt-2" />
                         </div>
 
+                        <!-- VAT Summary -->
                         <div class="bg-green-50 dark:bg-green-900/30 p-4 rounded-xl">
                             <div class="text-sm text-green-600 dark:text-green-400">ภาษีมูลค่าเพิ่ม</div>
                             <div class="text-2xl font-bold text-green-700 dark:text-green-300">{{ formatCurrency(getTotalVatAmount) }}</div>
                             <div class="text-xs text-green-600/70 mt-1">{{ journal.vats?.length || 0 }} รายการ</div>
                         </div>
 
+                        <!-- WHT Summary -->
                         <div class="bg-orange-50 dark:bg-orange-900/30 p-4 rounded-xl">
                             <div class="text-sm text-orange-600 dark:text-orange-400">ภาษีหัก ณ ที่จ่าย</div>
                             <div class="text-2xl font-bold text-orange-700 dark:text-orange-300">{{ formatCurrency(getTotalWhtAmount) }}</div>
                             <div class="text-xs text-orange-600/70 mt-1">{{ journal.taxes?.length || 0 }} รายการ</div>
                         </div>
                     </div>
-                </div> -->
+                </div>
 
                 <!-- Tabs Content -->
                 <div class="flex-1 overflow-hidden">
@@ -430,7 +446,7 @@ const isPDF = (uri) => {
                                     <div class="grid grid-cols-12 gap-4">
                                         <!-- Row 1 -->
                                         <!-- วันที่เอกสาร -->
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">วันที่เอกสาร</label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-base text-surface-900 dark:text-surface-0">
                                                 {{ formatDate(journal.docdate) }}
@@ -438,7 +454,7 @@ const isPDF = (uri) => {
                                         </div>
 
                                         <!-- เลขที่เอกสาร -->
-                                        <div class="col-span-12 sm:col-span-6 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">เลขที่เอกสาร</label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-bold text-base text-primary-600 dark:text-primary-400">
                                                 {{ journal.docno }}
@@ -446,12 +462,25 @@ const isPDF = (uri) => {
                                         </div>
 
                                         <!-- สมุดรายวัน -->
-                                        <div class="col-span-12 md:col-span-4">
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
                                             <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">สมุดรายวัน</label>
                                             <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-base text-surface-900 dark:text-surface-0">
                                                 <span class="text-base text-primary-600 dark:text-primary-400">{{ journal.bookcode }}</span>
                                                 <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
                                                 <span>{{ getBookName(journal.bookcode) }}</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- กลุ่มบัญชี -->
+                                        <div class="col-span-12 sm:col-span-6 md:col-span-3">
+                                            <label class="block font-medium mb-2 text-base text-surface-600 dark:text-surface-400">กลุ่มบัญชี</label>
+                                            <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded font-semibold text-base text-surface-900 dark:text-surface-0">
+                                                <template v-if="journal.accountgroup">
+                                                    <span class="text-base text-primary-600 dark:text-primary-400">{{ journal.accountgroup }}</span>
+                                                    <span class="text-surface-500 dark:text-surface-400 mx-1">~</span>
+                                                    <span>{{ getAccountGroupName(journal.accountgroup) }}</span>
+                                                </template>
+                                                <template v-else>-</template>
                                             </div>
                                         </div>
 

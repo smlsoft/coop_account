@@ -266,7 +266,7 @@ const handleCopyDocument = () => {
                                 <Tag :value="ref.module" severity="info" />
                                 <span class="font-semibold">{{ ref.docno }}</span>
                                 <div class="ml-auto">
-                                    <Button icon="pi pi-eye" label="ดูรายละเอียด" size="small" severity="success" @click="handleViewJournalDetail(ref)" />
+                                    <Button icon="pi pi-eye" label="ดูรายละเอียด" size="small" @click="handleViewJournalDetail(ref)" />
                                 </div>
                             </div>
                         </div>

@@ -2,6 +2,9 @@
 import DuplicateDocnoDialog from '@/components/dashboard/DuplicateDocnoDialog.vue';
 import api from '@/services/api';
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const loading = ref(true);
 const stats = ref({
@@ -56,7 +59,7 @@ onMounted(() => {
 
 <template>
     <div class="col-span-12 lg:col-span-6 xl:col-span-4">
-        <div class="card mb-0">
+        <div class="card mb-0 cursor-pointer hover:shadow-lg transition-shadow" @click="router.push('/masterdata/chart-of-accounts')">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">
                     <div class="flex-1">
@@ -82,7 +85,7 @@ onMounted(() => {
         </div>
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-4">
-        <div class="card mb-0">
+        <div class="card mb-0 cursor-pointer hover:shadow-lg transition-shadow" @click="router.push('/accounting/entry')">
             <div v-if="loading" class="space-y-4">
                 <div class="flex justify-between">
                     <div class="flex-1">

@@ -97,7 +97,7 @@ const onMouseEnter = () => {
 <template>
     <li :class="{ 'layout-root-menuitem': root, 'active-menuitem': isRouteActive }">
         <div v-if="root && item.visible !== false" class="layout-menuitem-root-text flex items-center justify-between cursor-pointer select-none py-3 px-2" @click="item.items && itemClick($event, item)">
-            <span class="text-sm font-semibold tracking-wide">{{ item.label }}</span>
+            <span class="text-base font-semibold tracking-wide">{{ item.label }}</span>
             <i v-if="item.items" :class="['pi pi-fw', expanded ? 'pi-angle-up' : 'pi-angle-down']" class="text-sm opacity-70" />
         </div>
         <a v-if="(!item.to || item.items) && item.visible !== false" :href="item.url" @click="itemClick($event, item)" :class="item.class" :target="item.target" tabindex="0" @mouseenter="onMouseEnter">

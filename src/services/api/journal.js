@@ -108,6 +108,17 @@ export const getAccountPeriodByDate = (date) => {
 };
 
 /**
+ * Get account groups (กลุ่มบัญชี) with pagination and search
+ * @param {Object} params - Query parameters
+ * @param {string} params.q - Search query
+ * @param {number} params.page - Page number
+ * @param {number} params.limit - Items per page
+ */
+export const getAccountGroups = (params = {}) => {
+    return apiClient.get('/gl/accountgroup', { params: { limit: 20, ...params } });
+};
+
+/**
  * Get document formats (รูปแบบการบันทึกบัญชี) with pagination and search
  * @param {Object} params - Query parameters
  * @param {string} params.q - Search query
