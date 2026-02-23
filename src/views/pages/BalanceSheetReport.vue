@@ -2,6 +2,7 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
+import { useReportExport } from '@/composables/useReportExport';
 import { getBalanceSheet, getJournalByDocNo, getLedgerAccount } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -350,6 +351,62 @@ const onLedgerRowClick = async (docno) => {
     }
 };
 
+const { exportToExcel, exportToPdf } = useReportExport();
+
+// Export Excel
+const exportExcel = () => {
+    const headerRows = [['รายการ', 'จำนวนเงิน (บาท)']];
+    const dataRows = tableData.value.map((r) => {
+        const isSectionHeader = r.rowType === 'section-header';
+        const label = isSectionHeader ? r.label : r.rowType === 'item' ? `${'  '.repeat(Math.max(0, (r.accountLevel || 1) - 1))}${r.accountName}` : r.label;
+        const amount = r.rowType === 'section-header' ? '' : formatCurrencyWithParentheses(r.amount);
+        return [label, amount];
+    });
+
+    exportToExcel({
+        headerRows,
+        dataRows,
+        colWidths: [{ wch: 50 }, { wch: 20 }],
+        sheetName: 'งบแสดงฐานะการเงิน',
+        filename: `งบแสดงฐานะการเงิน_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+// Export PDF
+const exportPdf = () => {
+    const head = [['รายการ', 'จำนวนเงิน (บาท)']];
+    const body = tableData.value.map((r) => {
+        const isBold = r.rowType === 'section-header' || r.rowType === 'section-total' || r.rowType === 'grand-total';
+        let label = '';
+        if (r.rowType === 'item') {
+            const indent = '  '.repeat(Math.max(0, (r.accountLevel || 1) - 1));
+            label = indent + (r.accountName || '');
+        } else {
+            label = r.label || '';
+        }
+        return [
+            { content: label, styles: { fontStyle: isBold ? 'bold' : 'normal' } },
+            {
+                content: r.rowType === 'section-header' ? '' : formatCurrencyWithParentheses(r.amount),
+                styles: { fontStyle: isBold ? 'bold' : 'normal', halign: 'right' }
+            }
+        ];
+    });
+
+    exportToPdf({
+        orientation: 'portrait',
+        title: 'งบแสดงฐานะการเงิน',
+        subtitle: displayPeriod.value,
+        head,
+        body,
+        columnStyles: {
+            0: { cellWidth: 140 },
+            1: { cellWidth: 50, halign: 'right' }
+        },
+        filename: `งบแสดงฐานะการเงิน_${formatDateForApi(endDate.value)}.pdf`
+    });
+};
+
 // Toggle search popover
 const toggleSearchPopover = (event) => {
     searchPopover.value.toggle(event);
@@ -380,7 +437,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" severity="secondary" @click="exportExcel" :disabled="!tableData.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" severity="secondary" @click="exportPdf" :disabled="!tableData.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 

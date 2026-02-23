@@ -3,6 +3,7 @@ import DialogForm from '@/components/DialogForm.vue';
 import OcrTestDialog from '@/components/accounting/OcrTestDialog.vue';
 import { useLoading } from '@/composables/useLoading';
 import api from '@/services/api';
+import { formatAmountDisplay, parseAmountInput } from '@/utils/numberFormat';
 import { useToast } from 'primevue/usetoast';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -257,6 +258,9 @@ const onAccountSelect = (index, account) => {
     if (account) {
         formData.value.details[index].accountcode = account.accountcode;
         formData.value.details[index].accountname = account.accountname;
+        if (!formData.value.details[index].detail) {
+            formData.value.details[index].detail = account.accountname;
+        }
     } else {
         formData.value.details[index].accountcode = '';
         formData.value.details[index].accountname = '';
@@ -426,6 +430,38 @@ const formatNumber = (value) => {
     return parseFloat(value).toFixed(2);
 };
 
+// Track which amount cell is being edited
+const editingAmountCell = ref(null); // { index, field }
+const editingValue = ref('');
+
+const getAmountDisplayValue = (index, field, value) => {
+    if (editingAmountCell.value?.index === index && editingAmountCell.value?.field === field) {
+        return editingValue.value;
+    }
+    return formatAmountDisplay(value);
+};
+
+const handleAmountInput = (index, field, event) => {
+    editingValue.value = event.target.value;
+};
+
+const handleAmountBlur = (index, field, event) => {
+    const value = parseAmountInput(event.target.value);
+    formData.value.details[index][field] = value;
+    editingAmountCell.value = null;
+    editingValue.value = '';
+};
+
+const handleAmountFocus = (index, field, event) => {
+    editingAmountCell.value = { index, field };
+    const currentValue = formData.value.details[index]?.[field] || 0;
+    editingValue.value = currentValue === 0 ? '' : String(currentValue);
+    nextTick(() => {
+        event.target.value = editingValue.value;
+        event.target.select();
+    });
+};
+
 // โหลดข้อมูลเมื่อเริ่มต้น
 onMounted(async () => {
     try {
@@ -464,7 +500,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Form -->
-            <form @submit.prevent="handleSubmit" class="flex flex-col gap-6">
+            <form @submit.prevent class="flex flex-col gap-6">
                 <!-- Row 1: รหัสเอกสาร   -->
                 <div class="flex flex-col md:flex-row gap-6">
                     <div class="flex flex-col gap-2 md:w-1/3">
@@ -493,10 +529,10 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Row 2: Prompt Description -->
-                <!-- <div class="flex flex-col gap-2">
+                <div class="flex flex-col gap-2">
                     <label for="promptdescription" class="font-semibold text-surface-900 dark:text-surface-0">Prompt Description</label>
                     <Textarea id="promptdescription" v-model="formData.promptdescription" rows="3" placeholder="กรอก Prompt Description" fluid />
-                </div> -->
+                </div>
 
                 <!-- Details Section -->
                 <div class="flex flex-col gap-4">
@@ -534,6 +570,10 @@ onUnmounted(() => {
                                     @update:modelValue="onAccountSelect(index, $event)"
                                     class="w-full"
                                 >
+                                    <template #value="slotProps">
+                                        <span v-if="slotProps.value">{{ slotProps.value.accountcode }}</span>
+                                        <span v-else class="text-surface-400 dark:text-surface-500">เลือกรหัสบัญชี...</span>
+                                    </template>
                                     <template #option="slotProps">
                                         <div
                                             :class="{
@@ -551,19 +591,35 @@ onUnmounted(() => {
 
                         <Column field="detail" header="รายละเอียด" style="min-width: 150px">
                             <template #body="{ data }">
-                                <span class="text-surface-600 dark:text-surface-400">{{ data.detail || '-' }}</span>
+                                <InputText v-model="data.detail" placeholder="รายละเอียด" class="w-full" />
                             </template>
                         </Column>
 
                         <Column field="debit" header="เดบิต" style="width: 130px">
-                            <template #body="{ data }">
-                                <InputNumber v-model="data.debit" :minFractionDigits="2" :maxFractionDigits="2" :disabled="data.actioncode === 'CR'" class="w-full" />
+                            <template #body="{ data, index }">
+                                <InputText
+                                    :value="getAmountDisplayValue(index, 'debit', data.debit)"
+                                    @input="handleAmountInput(index, 'debit', $event)"
+                                    @blur="handleAmountBlur(index, 'debit', $event)"
+                                    @focus="handleAmountFocus(index, 'debit', $event)"
+                                    :disabled="data.actioncode === 'CR'"
+                                    class="text-right w-full"
+                                    placeholder="0.00"
+                                />
                             </template>
                         </Column>
 
                         <Column field="credit" header="เครดิต" style="width: 130px">
-                            <template #body="{ data }">
-                                <InputNumber v-model="data.credit" :minFractionDigits="2" :maxFractionDigits="2" :disabled="data.actioncode === 'DR'" class="w-full" />
+                            <template #body="{ data, index }">
+                                <InputText
+                                    :value="getAmountDisplayValue(index, 'credit', data.credit)"
+                                    @input="handleAmountInput(index, 'credit', $event)"
+                                    @blur="handleAmountBlur(index, 'credit', $event)"
+                                    @focus="handleAmountFocus(index, 'credit', $event)"
+                                    :disabled="data.actioncode === 'DR'"
+                                    class="text-right w-full"
+                                    placeholder="0.00"
+                                />
                             </template>
                         </Column>
 
@@ -597,8 +653,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex justify-end items-center pt-4 border-t border-surface">
-                    <!-- <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined /> -->
+                <div class="flex justify-between items-center pt-4 border-t border-surface">
+                    <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined />
                     <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'สร้าง (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.doccode || !formData.description" />
                 </div>
             </form>

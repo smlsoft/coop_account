@@ -115,7 +115,7 @@ export const getAccountPeriodByDate = (date) => {
  * @param {number} params.limit - Items per page
  */
 export const getDocumentFormats = (params = {}) => {
-    return apiClient.get('/transaction/document-formate', { params: { limit: 20, ...params } });
+    return apiClient.get('/transaction/document-formate', { params: { limit: 100, ...params } });
 };
 
 /**

@@ -1,7 +1,10 @@
 <script setup>
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
+import { EPSILON } from '@/constants/numberConstants';
 import { getAccountPeriodByDate, getChartOfAccounts, getCreditors, getDebtors, getDocumentFormats, getJournalBooks } from '@/services/api/journal';
+import { formatAmountDisplay, formatNumber, parseAmountInput, roundDecimal, toDecimalNumber } from '@/utils/numberFormat';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import * as XLSX from 'xlsx';
 
 const props = defineProps({
     modelValue: {
@@ -349,7 +352,7 @@ watch(
 const searchDocumentFormats = async (event) => {
     documentFormatsLoading.value = true;
     try {
-        const response = await getDocumentFormats({ q: event.query, page: 1, limit: 20 });
+        const response = await getDocumentFormats({ q: event.query, page: 1, limit: 100 });
         if (response.data.success) {
             documentFormats.value = response.data.data.map((item) => ({
                 ...item,
@@ -498,27 +501,12 @@ const updateRow = (index, field, value) => {
 const editingAmountCell = ref(null); // { index, field }
 const editingValue = ref('');
 
-// Format number for display (with commas and 2 decimals)
-const formatAmountDisplay = (value) => {
-    const num = parseFloat(value) || 0;
-    if (num === 0) return '';
-    return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
 // Get display value - show raw value when editing, formatted when not
 const getAmountDisplayValue = (index, field, value) => {
     if (editingAmountCell.value?.index === index && editingAmountCell.value?.field === field) {
         return editingValue.value;
     }
     return formatAmountDisplay(value);
-};
-
-// Parse formatted string back to number
-const parseAmountInput = (value) => {
-    if (!value || value === '') return 0;
-    // Remove commas and parse
-    const cleaned = String(value).replace(/,/g, '');
-    return parseFloat(cleaned) || 0;
 };
 
 // Handle amount input change (for debit/credit)
@@ -528,7 +516,7 @@ const handleAmountInput = (index, field, event) => {
 
 // Handle amount blur (format the display and save)
 const handleAmountBlur = (index, field, event) => {
-    const value = parseAmountInput(event.target.value);
+    const value = parseAmountInput(event.target.value); // ใช้ helper function (มี round decimal แล้ว)
     updateRow(index, field, value);
     editingAmountCell.value = null;
     editingValue.value = '';
@@ -594,26 +582,39 @@ const focusDebitInputAtRow = (rowIndex) => {
 };
 
 // Get selected account object from accountcode
-const getSelectedAccount = (accountcode) => {
+// ถ้าไม่เจอใน chartOfAccounts (เช่น import มาจาก Excel) ให้สร้าง pseudo object เพื่อให้ Select แสดงได้
+const getSelectedAccount = (accountcode, accountname) => {
     if (!accountcode) return null;
-    return chartOfAccounts.value.find((item) => item.accountcode === accountcode) || null;
+    const found = chartOfAccounts.value.find((item) => item.accountcode === accountcode);
+    if (found) return found;
+    // คืน pseudo object สำหรับ accountcode ที่ไม่อยู่ใน chartOfAccounts
+    return {
+        accountcode,
+        accountname: accountname || accountcode,
+        displayLabel: `${accountcode} ~ ${accountname || accountcode}`,
+        disabled: false,
+        isHeader: false,
+        _isImported: true // flag บอกว่ามาจาก import
+    };
 };
 
 // Summary calculations
 const totalDebit = computed(() => {
-    return journalDetails.value.reduce((sum, row) => sum + (parseFloat(row.debitamount) || 0), 0);
+    const total = journalDetails.value.reduce((sum, row) => sum + toDecimalNumber(row.debitamount, 0), 0);
+    return roundDecimal(total); // รวมแล้ว round อีกครั้ง
 });
 
 const totalCredit = computed(() => {
-    return journalDetails.value.reduce((sum, row) => sum + (parseFloat(row.creditamount) || 0), 0);
+    const total = journalDetails.value.reduce((sum, row) => sum + toDecimalNumber(row.creditamount, 0), 0);
+    return roundDecimal(total); // รวมแล้ว round อีกครั้ง
 });
 
 const difference = computed(() => {
-    return totalDebit.value - totalCredit.value;
+    return roundDecimal(totalDebit.value - totalCredit.value);
 });
 
 const formatCurrency = (value) => {
-    return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
+    return formatNumber(value); // ใช้ helper function
 };
 
 // ตรวจสอบว่าอยู่ในแถวสุดท้ายของตารางหรือไม่
@@ -695,10 +696,10 @@ const handleKeydown = (event) => {
 
     // Ctrl/Cmd + Delete - Delete current row (when in table)
     if (isCtrl && (key === 'delete' || code === 'Delete' || code === 'Backspace')) {
-        console.log('✅ Delete row shortcut triggered');
-        event.preventDefault();
+        // ต้องอ่าน activeRow ก่อน preventDefault เพื่อให้ focus ยังอยู่ที่เดิม
         const activeRow = getCurrentRowFromFocus();
         if (activeRow >= 0) {
+            event.preventDefault();
             removeRowAndFocus(activeRow);
         }
         return;
@@ -706,21 +707,29 @@ const handleKeydown = (event) => {
 
     // Alt/Option + ArrowUp - Move row up
     if (isAlt && (key === 'arrowup' || code === 'ArrowUp')) {
-        console.log('✅ Move row up shortcut triggered');
-        event.preventDefault();
         const activeRow = getCurrentRowFromFocus();
         if (activeRow > 0) {
+            event.preventDefault();
+            // จำ column ที่กำลัง focus ไว้ก่อนย้าย
+            const focusedInput = document.activeElement;
+            const focusedRow = focusedInput?.closest('tr[data-pc-section="bodyrow"]');
+            const focusedInputs = focusedRow ? Array.from(focusedRow.querySelectorAll('.amount-input')) : [];
+            const focusedColIndex = focusedInputs.indexOf(focusedInput);
+
             moveRowUp(activeRow);
             currentRowIndex.value = activeRow - 1;
-            // Focus back to the moved row
+
             nextTick(() => {
                 const table = journalTableRef.value?.$el || document.querySelector('.journal-detail-table');
                 if (table) {
                     const rows = table.querySelectorAll('tbody tr[data-pc-section="bodyrow"]');
                     const targetRow = rows[activeRow - 1];
                     if (targetRow) {
-                        const input = targetRow.querySelector('input');
-                        input?.focus();
+                        // คืน focus ไปที่ column เดิม
+                        const inputs = targetRow.querySelectorAll('.amount-input');
+                        const targetInput = focusedColIndex >= 0 && inputs[focusedColIndex] ? inputs[focusedColIndex] : targetRow.querySelector('input');
+                        targetInput?.focus();
+                        if (targetInput?.select) targetInput.select();
                     }
                 }
             });
@@ -730,21 +739,29 @@ const handleKeydown = (event) => {
 
     // Alt/Option + ArrowDown - Move row down
     if (isAlt && (key === 'arrowdown' || code === 'ArrowDown')) {
-        console.log('✅ Move row down shortcut triggered');
-        event.preventDefault();
         const activeRow = getCurrentRowFromFocus();
         if (activeRow >= 0 && activeRow < journalDetails.value.length - 1) {
+            event.preventDefault();
+            // จำ column ที่กำลัง focus ไว้ก่อนย้าย
+            const focusedInput = document.activeElement;
+            const focusedRow = focusedInput?.closest('tr[data-pc-section="bodyrow"]');
+            const focusedInputs = focusedRow ? Array.from(focusedRow.querySelectorAll('.amount-input')) : [];
+            const focusedColIndex = focusedInputs.indexOf(focusedInput);
+
             moveRowDown(activeRow);
             currentRowIndex.value = activeRow + 1;
-            // Focus back to the moved row
+
             nextTick(() => {
                 const table = journalTableRef.value?.$el || document.querySelector('.journal-detail-table');
                 if (table) {
                     const rows = table.querySelectorAll('tbody tr[data-pc-section="bodyrow"]');
                     const targetRow = rows[activeRow + 1];
                     if (targetRow) {
-                        const input = targetRow.querySelector('input');
-                        input?.focus();
+                        // คืน focus ไปที่ column เดิม
+                        const inputs = targetRow.querySelectorAll('.amount-input');
+                        const targetInput = focusedColIndex >= 0 && inputs[focusedColIndex] ? inputs[focusedColIndex] : targetRow.querySelector('input');
+                        targetInput?.focus();
+                        if (targetInput?.select) targetInput.select();
                     }
                 }
             });
@@ -976,8 +993,8 @@ const handleAmountKeydown = (event, amountType) => {
         return;
     }
 
-    // ถ้าไม่ใช่ตัวเลขและไม่ใช่ key ที่อนุญาต → block
-    if (!isNumber && !isAllowedKey && !isCtrlCmd) {
+    // ถ้าไม่ใช่ตัวเลขและไม่ใช่ key ที่อนุญาต → block (ยกเว้น Alt+key ซึ่งเป็น shortcut ระดับ global)
+    if (!isNumber && !isAllowedKey && !isCtrlCmd && !event.altKey) {
         event.preventDefault();
         return;
     }
@@ -994,15 +1011,15 @@ const handleAmountKeydown = (event, amountType) => {
         return;
     }
 
-    // ArrowUp - ย้ายไปแถวก่อนหน้า
-    if (key === 'arrowup') {
+    // ArrowUp - ย้ายไปแถวก่อนหน้า (เฉพาะ ArrowUp ธรรมดา ไม่ใช่ Alt+ArrowUp)
+    if (key === 'arrowup' && !event.altKey) {
         event.preventDefault();
         moveToPreviousRow();
         return;
     }
 
-    // ArrowDown - ย้ายไปแถวถัดไป
-    if (key === 'arrowdown') {
+    // ArrowDown - ย้ายไปแถวถัดไป (เฉพาะ ArrowDown ธรรมดา ไม่ใช่ Alt+ArrowDown)
+    if (key === 'arrowdown' && !event.altKey) {
         event.preventDefault();
         moveToNextRow();
         return;
@@ -1048,6 +1065,86 @@ const handleAmountKeydown = (event, amountType) => {
         event.preventDefault();
         addRowAndFocus();
         return;
+    }
+};
+
+// ========== Excel Import / Export ==========
+
+const excelFileInput = ref(null);
+const importingExcel = ref(false);
+
+// Download template
+const downloadTemplate = () => {
+    const link = document.createElement('a');
+    link.href = '/demo/file/template_daily.xls';
+    link.download = 'template_daily.xls';
+    link.click();
+};
+
+// Trigger file input click
+const triggerImportExcel = () => {
+    excelFileInput.value?.click();
+};
+
+// Handle file selected
+const handleFileImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Reset input เพื่อให้ select ไฟล์เดิมซ้ำได้
+    event.target.value = '';
+
+    importingExcel.value = true;
+    try {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array', codepage: 874 });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+
+        // อ่านแบบ raw array (row 0 = header, row 1+ = data)
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+        // แปลงเป็น journal detail format (ข้าม row 0 ที่เป็น header)
+        const imported = rows
+            .slice(1)
+            .filter((row) => row[0] !== '' || row[1] !== '') // ข้าม row ว่าง
+            .map((row) => ({
+                accountcode: String(row[0] || '').trim(),
+                accountname: String(row[1] || '').trim(),
+                debitamount: parseFloat(row[2]) || 0,
+                creditamount: parseFloat(row[3]) || 0
+            }));
+
+        if (imported.length === 0) {
+            return;
+        }
+
+        // เพิ่ม accountcode ที่ไม่มีใน chartOfAccounts เข้าไปเป็น pseudo entry
+        // เพื่อให้ PrimeVue Select สามารถ match modelValue ได้ (ต้องอยู่ใน options array)
+        const existingCodes = new Set(chartOfAccounts.value.map((a) => a.accountcode));
+        const pseudoEntries = [];
+        for (const row of imported) {
+            if (row.accountcode && !existingCodes.has(row.accountcode)) {
+                existingCodes.add(row.accountcode); // ป้องกัน duplicate
+                pseudoEntries.push({
+                    accountcode: row.accountcode,
+                    accountname: row.accountname || row.accountcode,
+                    displayLabel: `${row.accountcode} ~ ${row.accountname || row.accountcode}`,
+                    disabled: false,
+                    isHeader: false,
+                    _isImported: true
+                });
+            }
+        }
+        if (pseudoEntries.length > 0) {
+            chartOfAccounts.value = [...chartOfAccounts.value, ...pseudoEntries];
+        }
+
+        // แทนที่ journaldetail ด้วยข้อมูลที่นำเข้า
+        updateField('journaldetail', imported);
+    } catch (error) {
+        console.error('Error importing Excel:', error);
+    } finally {
+        importingExcel.value = false;
     }
 };
 
@@ -1203,6 +1300,10 @@ onUnmounted(() => {
                         </template>
                     </AutoComplete>
                     <Button icon="pi pi-plus" label="เพิ่มรายการ" size="small" @click="addRow" style="height: 32.8px" />
+                    <Button icon="pi pi-upload" size="small" severity="secondary" outlined @click="triggerImportExcel" :loading="importingExcel" v-tooltip.top="'นำเข้าจาก Excel'" style="height: 32.8px" />
+                    <Button icon="pi pi-download" size="small" severity="secondary" outlined @click="downloadTemplate" v-tooltip.top="'ดาวน์โหลด Template'" style="height: 32.8px" />
+                    <!-- Hidden file input -->
+                    <input ref="excelFileInput" type="file" accept=".xls,.xlsx" style="display: none" @change="handleFileImport" />
                 </div>
             </div>
 
@@ -1217,7 +1318,7 @@ onUnmounted(() => {
                     <Column header="รหัสบัญชี" style="width: 250px">
                         <template #body="{ data, index }">
                             <Select
-                                :modelValue="getSelectedAccount(data.accountcode)"
+                                :modelValue="getSelectedAccount(data.accountcode, data.accountname)"
                                 @update:modelValue="onAccountSelect(index, $event)"
                                 :options="chartOfAccounts"
                                 optionLabel="displayLabel"
@@ -1232,6 +1333,10 @@ onUnmounted(() => {
                                 class="account-select w-full"
                                 fluid
                             >
+                                <template #value="slotProps">
+                                    <span v-if="slotProps.value">{{ slotProps.value.accountcode }}</span>
+                                    <span v-else class="text-surface-400 dark:text-surface-500">เลือกรหัสบัญชี...</span>
+                                </template>
                                 <template #option="slotProps">
                                     <div
                                         :class="{
@@ -1312,10 +1417,10 @@ onUnmounted(() => {
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="text-surface-600 dark:text-surface-400">ผลต่าง:</span>
-                                <span :class="difference === 0 ? 'text-green-600 dark:text-green-400' : isBalanceInvalid ? 'text-red-600 dark:text-red-400 font-bold' : 'text-red-600 dark:text-red-400'">
+                                <span :class="Math.abs(difference) <= EPSILON ? 'text-green-600 dark:text-green-400' : isBalanceInvalid ? 'text-red-600 dark:text-red-400 font-bold' : 'text-red-600 dark:text-red-400'">
                                     {{ formatCurrency(difference) }}
                                 </span>
-                                <i v-if="difference === 0" class="pi pi-check-circle text-green-600 dark:text-green-400"></i>
+                                <i v-if="Math.abs(difference) <= EPSILON" class="pi pi-check-circle text-green-600 dark:text-green-400"></i>
                                 <i v-else class="pi pi-exclamation-triangle" :class="isBalanceInvalid ? 'text-red-600 dark:text-red-400' : 'text-red-600 dark:text-red-400'"></i>
                             </div>
                         </div>

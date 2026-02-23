@@ -2,6 +2,7 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
+import { useReportExport } from '@/composables/useReportExport';
 import { getJournalByDocNo, getLedgerAccount, getProfitAndLoss } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -340,6 +341,62 @@ const searchAndClosePopover = () => {
     fetchReport();
 };
 
+// ========== Export ==========
+const { exportToExcel, exportToPdf } = useReportExport();
+
+const exportExcel = () => {
+    if (!tableData.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const dataRows = tableData.value.map((r) => [r.accountcode || '', r.accountname || '', r.rowType === 'header' ? '' : formatCurrencyWithParentheses(r.amount)]);
+
+    exportToExcel({
+        headerRows: [['รหัสบัญชี', 'รายการ', 'จำนวนเงิน (บาท)']],
+        dataRows,
+        colWidths: [{ wch: 14 }, { wch: 50 }, { wch: 20 }],
+        sheetName: 'งบกำไรขาดทุน',
+        filename: `งบกำไรขาดทุน_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+const exportPdf = () => {
+    if (!tableData.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const body = tableData.value.map((r) => {
+        const isBold = r.rowType === 'header' || r.rowType === 'total' || r.rowType === 'profit-loss';
+        const indent = r.rowType === 'item' ? '  '.repeat(Math.max(0, (r.accountlevel || 1) - 1)) : '';
+        return [
+            { content: r.accountcode || '', styles: { fontStyle: isBold ? 'bold' : 'normal' } },
+            { content: indent + (r.accountname || ''), styles: { fontStyle: isBold ? 'bold' : 'normal' } },
+            {
+                content: r.rowType === 'header' ? '' : formatCurrencyWithParentheses(r.amount),
+                styles: { fontStyle: isBold ? 'bold' : 'normal', halign: 'right' }
+            }
+        ];
+    });
+
+    // A4 portrait usable = 210 - 16 = 194mm
+    exportToPdf({
+        orientation: 'portrait',
+        title: 'งบกำไรขาดทุน',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
+        head: [['รหัสบัญชี', 'รายการ', 'จำนวนเงิน (บาท)']],
+        body,
+        columnStyles: {
+            0: { cellWidth: 24, halign: 'center' },
+            1: { cellWidth: 120 },
+            2: { cellWidth: 50, halign: 'right' }
+        },
+        marginH: 8,
+        filename: `งบกำไรขาดทุน_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.pdf`
+    });
+};
+
 // Initialize on mount
 onMounted(() => {
     initDefaultDates();
@@ -359,7 +416,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" outlined :disabled="!tableData.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" outlined :disabled="!tableData.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 
@@ -437,6 +496,7 @@ onMounted(() => {
                         <div class="mb-3 font-semibold text-surface-900 dark:text-surface-0">
                             <i class="pi pi-list mr-2"></i>
                             บัญชีแยกประเภท: {{ data.accountcode }} - {{ data.accountname }}
+                            <span class="ml-2 text-sm font-normal text-surface-500 dark:text-surface-400">({{ displayPeriod }})</span>
                         </div>
 
                         <DataTable :value="getLedgerData(data.accountcode).details || []" size="small" showGridlines :rowHover="true" @row-click="(e) => onLedgerRowClick(e.data.docno)">

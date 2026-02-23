@@ -273,7 +273,7 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 

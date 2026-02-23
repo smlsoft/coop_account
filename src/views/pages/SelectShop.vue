@@ -40,7 +40,7 @@ const isCreatingShop = ref(false);
 
 const fetchShops = async (page = 1) => {
     loading.value = true;
-    showLoading('กำลังโหลดข้อมูลร้านค้า...');
+    showLoading('กำลังโหลดข้อมูลสหกรณ์...');
     try {
         const response = await api.listShop({ page, perPage: 100, limit: 100 });
         if (response.data.success) {
@@ -63,7 +63,7 @@ const fetchShops = async (page = 1) => {
         toast.add({
             severity: 'error',
             summary: 'เกิดข้อผิดพลาด',
-            detail: 'ไม่สามารถโหลดข้อมูลร้านค้าได้',
+            detail: 'ไม่สามารถโหลดข้อมูลสหกรณ์ได้',
             life: 3000
         });
     } finally {
@@ -99,7 +99,7 @@ const filterShops = () => {
 };
 
 const toggleFavorite = async (shop, event) => {
-    event.stopPropagation(); // ป้องกันไม่ให้เลือกร้าน
+    event.stopPropagation(); // ป้องกันไม่ให้เลือกสหกรณ์
 
     const newFavoriteStatus = !shop.isfavorite;
 
@@ -122,7 +122,7 @@ const toggleFavorite = async (shop, event) => {
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
-                detail: newFavoriteStatus ? 'เพิ่มร้านค้าในรายการโปรด' : 'ลบร้านค้าออกจากรายการโปรด',
+                detail: newFavoriteStatus ? 'เพิ่มสหกรณ์ในรายการโปรด' : 'ลบสหกรณ์ออกจากรายการโปรด',
                 life: 2000
             });
         }
@@ -153,7 +153,7 @@ const handleSelectShop = async (shop) => {
         name: getShopName(shop)
     };
 
-    showLoading('กำลังเลือกร้านค้า...');
+    showLoading('กำลังเลือกสหกรณ์...');
 
     const result = await selectShopAuth(shopData);
 
@@ -213,7 +213,7 @@ const handleCreateShop = async () => {
         toast.add({
             severity: 'warn',
             summary: 'กรุณากรอกข้อมูล',
-            detail: 'กรุณากรอกชื่อร้านค้า',
+            detail: 'กรุณากรอกชื่อสหกรณ์',
             life: 3000
         });
         return;
@@ -221,7 +221,7 @@ const handleCreateShop = async () => {
 
     try {
         isCreatingShop.value = true;
-        showLoading('กำลังสร้างร้านค้า...');
+        showLoading('กำลังสร้างสหกรณ์...');
 
         const payload = {
             names: [
@@ -239,13 +239,13 @@ const handleCreateShop = async () => {
             toast.add({
                 severity: 'success',
                 summary: 'สำเร็จ',
-                detail: 'สร้างร้านค้าเรียบร้อยแล้ว',
+                detail: 'สร้างสหกรณ์เรียบร้อยแล้ว',
                 life: 3000
             });
 
             closeCreateDialog();
 
-            // โหลดข้อมูลร้านค้าใหม่
+            // โหลดข้อมูลสหกรณ์ใหม่
             await fetchShops(1);
         }
     } catch (error) {
@@ -253,7 +253,7 @@ const handleCreateShop = async () => {
         toast.add({
             severity: 'error',
             summary: 'เกิดข้อผิดพลาด',
-            detail: error.response?.data?.message || 'ไม่สามารถสร้างร้านค้าได้',
+            detail: error.response?.data?.message || 'ไม่สามารถสร้างสหกรณ์ได้',
             life: 3000
         });
     } finally {
@@ -277,7 +277,7 @@ const handleCreateShop = async () => {
 
                 <!-- Right: Welcome + Logout Button -->
                 <div class="flex items-center gap-2 text-sm">
-                    <Button @click="openCreateDialog" icon="pi pi-plus" label="สร้างร้านค้า" text />
+                    <Button @click="openCreateDialog" icon="pi pi-plus" label="สร้างสหกรณ์" text />
 
                     <span v-if="getUserDisplayName()" class="text-surface-600 dark:text-surface-400">ยินดีต้อนรับ:</span>
                     <span v-if="getUserDisplayName()" class="font-semibold text-surface-900 dark:text-surface-0">{{ getUserDisplayName() }}</span>
@@ -405,7 +405,7 @@ const handleCreateShop = async () => {
                                 <Tag v-if="isCurrentShop(shop)" value="กำลังใช้งาน" severity="success" icon="pi pi-check-circle" class="text-xs" />
                             </div>
                             <p class="text-sm text-surface-500 dark:text-surface-400 mt-0.5">
-                                {{ isCurrentShop(shop) ? 'ร้านที่กำลังเปิดใช้งาน' : 'คลิกเพื่อเข้าใช้งาน' }}
+                                {{ isCurrentShop(shop) ? 'สหกรณ์ที่กำลังเปิดใช้งาน' : 'คลิกเพื่อเข้าใช้งาน' }}
                             </p>
                         </div>
 
@@ -482,16 +482,16 @@ const handleCreateShop = async () => {
             </div>
         </div>
 
-        <!-- Create Shop Dialog -->
-        <Dialog v-model:visible="showCreateDialog" modal header="สร้างร้านค้าใหม่" :style="{ width: '30rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
+        <!-- Create Coop Dialog -->
+        <Dialog v-model:visible="showCreateDialog" modal header="สร้างสหกรณ์ใหม่" :style="{ width: '30rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }">
             <div class="flex flex-col gap-4 pt-4">
-                <!-- ชื่อร้านค้า -->
+                <!-- ชื่อสหกรณ์ -->
                 <div class="flex flex-col gap-2">
-                    <label for="shopName" class="font-semibold text-surface-900 dark:text-surface-0">
-                        ชื่อร้านค้า
+                    <label for="coopName" class="font-semibold text-surface-900 dark:text-surface-0">
+                        ชื่อสหกรณ์
                         <span class="text-red-500">*</span>
                     </label>
-                    <InputText id="shopName" v-model="newShopForm.name" placeholder="กรอกชื่อร้านค้า" autofocus />
+                    <InputText id="coopName" v-model="newShopForm.name" placeholder="กรอกชื่อสหกรณ์" autofocus />
                 </div>
 
                 <!-- เบอร์โทรศัพท์ -->

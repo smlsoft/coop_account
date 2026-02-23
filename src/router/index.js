@@ -542,7 +542,7 @@ router.beforeEach((to, from, next) => {
             return;
         }
 
-        // ถ้าไม่ใช่หน้า selectshop และยังไม่ได้เลือกร้าน ให้ไปหน้าเลือกร้านก่อน
+        // ถ้าไม่ใช่หน้า selectshop และยังไม่ได้เลือกสหกรณ์ ให้ไปหน้าเลือกสหกรณ์ก่อน
         if (to.name !== 'selectshop' && !shopid) {
             next({ name: 'selectshop' });
             return;

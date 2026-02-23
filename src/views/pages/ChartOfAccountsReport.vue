@@ -1,5 +1,6 @@
 <script setup>
 import { useLoading } from '@/composables/useLoading';
+import { useReportExport } from '@/composables/useReportExport';
 import api from '@/services/api';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
@@ -115,6 +116,73 @@ const fetchAccounts = async () => {
     }
 };
 
+const { exportToExcel, exportToPdf } = useReportExport();
+
+// Export Excel
+const exportExcel = () => {
+    const headerRows = [['รหัสบัญชี', 'ชื่อผังบัญชี', 'หมวดบัญชี', 'ระดับบัญชี', 'ด้านบัญชี', 'รหัสผังบัญชีกลาง']];
+    const dataRows = accounts.value.map((item) => [
+        item.accountcode,
+        getIndentedAccountName(item),
+        accountCategoryTypes[item.accountcategory] || 'ไม่ระบุ',
+        accountLevelTypes[item.accountlevel] || item.accountlevel,
+        balanceTypes[item.accountbalancetype] || 'ไม่ระบุ',
+        item.consolidateaccountcode || '-'
+    ]);
+
+    exportToExcel({
+        headerRows,
+        dataRows,
+        colWidths: [{ wch: 14 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 20 }],
+        sheetName: 'รายงานรหัสผังบัญชี',
+        filename: 'รายงานรหัสผังบัญชี.xlsx'
+    });
+};
+
+// Export PDF
+const exportPdf = () => {
+    const subtitle = fromAccountCode.value && toAccountCode.value ? `จาก ${fromAccountCode.value.displayLabel} ถึง ${toAccountCode.value.displayLabel}` : 'แสดงทั้งหมด';
+
+    const head = [['รหัสบัญชี', 'ชื่อผังบัญชี', 'หมวดบัญชี', 'ระดับบัญชี', 'ด้านบัญชี', 'รหัสผังบัญชีกลาง']];
+    const body = accounts.value.map((item) => {
+        const isBold = (item.accountlevel || 1) <= 2;
+        const style = { fontStyle: isBold ? 'bold' : 'normal' };
+        return [
+            { content: item.accountcode, styles: { ...style, halign: 'center' } },
+            { content: getIndentedAccountName(item), styles: style },
+            { content: accountCategoryTypes[item.accountcategory] || 'ไม่ระบุ', styles: { ...style, halign: 'center' } },
+            { content: accountLevelTypes[item.accountlevel] || String(item.accountlevel), styles: { ...style, halign: 'center' } },
+            { content: balanceTypes[item.accountbalancetype] || 'ไม่ระบุ', styles: { ...style, halign: 'center' } },
+            { content: item.consolidateaccountcode || '-', styles: { ...style, halign: 'center' } }
+        ];
+    });
+
+    // portrait A4 usable = 194mm (margin 8 each side)
+    const codeW = 22;
+    const categoryW = 20;
+    const levelW = 18;
+    const balanceW = 16;
+    const consolidateW = 26;
+    const nameW = 194 - codeW - categoryW - levelW - balanceW - consolidateW; // 92mm
+
+    exportToPdf({
+        orientation: 'portrait',
+        title: 'รายงานรหัสผังบัญชี',
+        subtitle,
+        head,
+        body,
+        columnStyles: {
+            0: { cellWidth: codeW, halign: 'center' },
+            1: { cellWidth: nameW },
+            2: { cellWidth: categoryW, halign: 'center' },
+            3: { cellWidth: levelW, halign: 'center' },
+            4: { cellWidth: balanceW, halign: 'center' },
+            5: { cellWidth: consolidateW, halign: 'center' }
+        },
+        filename: 'รายงานรหัสผังบัญชี.pdf'
+    });
+};
+
 // Toggle search popover
 const toggleSearchPopover = (event) => {
     searchPopover.value.toggle(event);
@@ -151,7 +219,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" :disabled="!accounts.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" :disabled="!accounts.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 

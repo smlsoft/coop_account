@@ -2,7 +2,8 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
-import { getJournalByDocNo, getLedgerAccount, getTrialBalanceSheet } from '@/services/api/report';
+import { useReportExport } from '@/composables/useReportExport';
+import { getJournalByDocNo, getTrialBalanceSheet } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
 
@@ -210,55 +211,55 @@ const fetchReport = async () => {
     }
 };
 
-// Fetch ledger account data when row expands
-const fetchLedgerAccount = async (accountCode) => {
-    if (ledgerDataCache.value[accountCode]) {
-        return;
-    }
+// // Fetch ledger account data when row expands
+// const fetchLedgerAccount = async (accountCode) => {
+//     if (ledgerDataCache.value[accountCode]) {
+//         return;
+//     }
 
-    loadingLedger.value[accountCode] = true;
+//     loadingLedger.value[accountCode] = true;
 
-    try {
-        const params = {
-            startdate: '2000-01-01',
-            enddate: formatDateForApi(endDate.value),
-            accountcode: `${accountCode}:${accountCode}`
-        };
+//     try {
+//         const params = {
+//             startdate: '2000-01-01',
+//             enddate: formatDateForApi(endDate.value),
+//             accountcode: `${accountCode}:${accountCode}`
+//         };
 
-        const response = await getLedgerAccount(params);
+//         const response = await getLedgerAccount(params);
 
-        if (response.success && response.data?.length > 0) {
-            ledgerDataCache.value[accountCode] = response.data[0];
-        }
-    } catch (error) {
-        console.error('Error fetching ledger account:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'ข้อผิดพลาด',
-            detail: 'เกิดข้อผิดพลาดในการดึงข้อมูลบัญชีแยกประเภท',
-            life: 3000
-        });
-    } finally {
-        loadingLedger.value[accountCode] = false;
-    }
-};
+//         if (response.success && response.data?.length > 0) {
+//             ledgerDataCache.value[accountCode] = response.data[0];
+//         }
+//     } catch (error) {
+//         console.error('Error fetching ledger account:', error);
+//         toast.add({
+//             severity: 'error',
+//             summary: 'ข้อผิดพลาด',
+//             detail: 'เกิดข้อผิดพลาดในการดึงข้อมูลบัญชีแยกประเภท',
+//             life: 3000
+//         });
+//     } finally {
+//         loadingLedger.value[accountCode] = false;
+//     }
+// };
 
-// Handle row expand
-const onRowExpand = (event) => {
-    const accountCode = event.data.accountcode;
-    fetchLedgerAccount(accountCode);
-};
+// // Handle row expand
+// const onRowExpand = (event) => {
+//     const accountCode = event.data.accountcode;
+//     fetchLedgerAccount(accountCode);
+// };
 
-// Handle row click to toggle expand
-const onWorkSheetRowClick = (event) => {
-    const accountCode = event.data.accountcode;
-    if (expandedRows.value[accountCode]) {
-        delete expandedRows.value[accountCode];
-    } else {
-        expandedRows.value[accountCode] = true;
-        fetchLedgerAccount(accountCode);
-    }
-};
+// // Handle row click to toggle expand
+// const onWorkSheetRowClick = (event) => {
+//     const accountCode = event.data.accountcode;
+//     if (expandedRows.value[accountCode]) {
+//         delete expandedRows.value[accountCode];
+//     } else {
+//         expandedRows.value[accountCode] = true;
+//         fetchLedgerAccount(accountCode);
+//     }
+// };
 
 // Handle ledger row click to show journal detail
 const onLedgerRowClick = async (docno) => {
@@ -319,6 +320,164 @@ const getIndentedName = (data) => {
     return indent + data.accountname;
 };
 
+const { exportToExcel, exportToPdf } = useReportExport();
+
+// Export Excel
+const exportExcel = () => {
+    const headerRows = [['รหัสบัญชี', 'ชื่อบัญชี', 'ยอดสะสม เดบิต', 'ยอดสะสม เครดิต', 'งบกำไรขาดทุน เดบิต', 'งบกำไรขาดทุน เครดิต', 'งบดุล เดบิต', 'งบดุล เครดิต']];
+
+    const dataRows = filteredAccountDetails.value.map((item) => [
+        item.accountcode,
+        getIndentedName(item),
+        formatCurrency(item.nextbalancedebitamount),
+        formatCurrency(item.nextbalancecreditamount),
+        formatCurrency(getProfitLossDebit(item)),
+        formatCurrency(getProfitLossCredit(item)),
+        formatCurrency(getBalanceSheetDebit(item)),
+        formatCurrency(getBalanceSheetCredit(item))
+    ]);
+
+    // Footer rows
+    if (reportData.value) {
+        const adj = profitLossAdjustment.value;
+        dataRows.push([
+            'รวม',
+            '',
+            formatCurrency(reportData.value.totalnextbalancedebit),
+            formatCurrency(reportData.value.totalnextbalancecredit),
+            formatCurrency(profitLossTotals.value.debit),
+            formatCurrency(profitLossTotals.value.credit),
+            formatCurrency(balanceSheetTotals.value.debit),
+            formatCurrency(balanceSheetTotals.value.credit)
+        ]);
+        dataRows.push([
+            'กำไร (ขาดทุน) สุทธิ',
+            '',
+            '-',
+            '-',
+            adj.profitLossDebit > 0 ? formatCurrency(adj.profitLossDebit) : '-',
+            adj.profitLossCredit > 0 ? formatCurrency(adj.profitLossCredit) : '-',
+            adj.balanceSheetDebit > 0 ? formatCurrency(adj.balanceSheetDebit) : '-',
+            adj.balanceSheetCredit > 0 ? formatCurrency(adj.balanceSheetCredit) : '-'
+        ]);
+        dataRows.push([
+            'ผลรวมสุทธิ',
+            '',
+            '-',
+            '-',
+            formatCurrency(finalTotals.value.profitLossDebit),
+            formatCurrency(finalTotals.value.profitLossCredit),
+            formatCurrency(finalTotals.value.balanceSheetDebit),
+            formatCurrency(finalTotals.value.balanceSheetCredit)
+        ]);
+    }
+
+    exportToExcel({
+        headerRows,
+        dataRows,
+        colWidths: [{ wch: 14 }, { wch: 36 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }],
+        sheetName: 'กระดาษทำการ',
+        filename: `กระดาษทำการ_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+// Export PDF
+const exportPdf = () => {
+    // landscape A4 usable = 281mm, 2-level header
+    const head = [
+        [
+            { content: 'รหัสบัญชี', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'ชื่อบัญชี', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'ยอดสะสม', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'งบกำไรขาดทุน', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'งบดุล', colSpan: 2, styles: { halign: 'center' } }
+        ],
+        [
+            { content: 'เดบิต', styles: { halign: 'center' } },
+            { content: 'เครดิต', styles: { halign: 'center' } },
+            { content: 'เดบิต', styles: { halign: 'center' } },
+            { content: 'เครดิต', styles: { halign: 'center' } },
+            { content: 'เดบิต', styles: { halign: 'center' } },
+            { content: 'เครดิต', styles: { halign: 'center' } }
+        ]
+    ];
+
+    const body = filteredAccountDetails.value.map((item) => {
+        const isBold = (item.accountlevel || 1) <= 2;
+        const style = { fontStyle: isBold ? 'bold' : 'normal' };
+        const rightStyle = { ...style, halign: 'right' };
+        return [
+            { content: item.accountcode, styles: { ...style, halign: 'center' } },
+            { content: getIndentedName(item), styles: style },
+            { content: formatCurrency(item.nextbalancedebitamount), styles: rightStyle },
+            { content: formatCurrency(item.nextbalancecreditamount), styles: rightStyle },
+            { content: formatCurrency(getProfitLossDebit(item)), styles: rightStyle },
+            { content: formatCurrency(getProfitLossCredit(item)), styles: rightStyle },
+            { content: formatCurrency(getBalanceSheetDebit(item)), styles: rightStyle },
+            { content: formatCurrency(getBalanceSheetCredit(item)), styles: rightStyle }
+        ];
+    });
+
+    // Footer rows
+    if (reportData.value) {
+        const adj = profitLossAdjustment.value;
+        const footerStyle = { fontStyle: 'bold' };
+        const footerRight = { fontStyle: 'bold', halign: 'right' };
+        body.push([
+            { content: 'รวม', styles: { ...footerStyle, halign: 'center' } },
+            { content: '', styles: footerStyle },
+            { content: formatCurrency(reportData.value.totalnextbalancedebit), styles: footerRight },
+            { content: formatCurrency(reportData.value.totalnextbalancecredit), styles: footerRight },
+            { content: formatCurrency(profitLossTotals.value.debit), styles: footerRight },
+            { content: formatCurrency(profitLossTotals.value.credit), styles: footerRight },
+            { content: formatCurrency(balanceSheetTotals.value.debit), styles: footerRight },
+            { content: formatCurrency(balanceSheetTotals.value.credit), styles: footerRight }
+        ]);
+        body.push([
+            { content: 'กำไร (ขาดทุน) สุทธิ', colSpan: 2, styles: { fontStyle: 'normal', halign: 'center' } },
+            { content: '-', styles: { fontStyle: 'normal', halign: 'right' } },
+            { content: '-', styles: { fontStyle: 'normal', halign: 'right' } },
+            { content: adj.profitLossDebit > 0 ? formatCurrency(adj.profitLossDebit) : '-', styles: { fontStyle: 'normal', halign: 'right' } },
+            { content: adj.profitLossCredit > 0 ? formatCurrency(adj.profitLossCredit) : '-', styles: { fontStyle: 'normal', halign: 'right' } },
+            { content: adj.balanceSheetDebit > 0 ? formatCurrency(adj.balanceSheetDebit) : '-', styles: { fontStyle: 'normal', halign: 'right' } },
+            { content: adj.balanceSheetCredit > 0 ? formatCurrency(adj.balanceSheetCredit) : '-', styles: { fontStyle: 'normal', halign: 'right' } }
+        ]);
+        body.push([
+            { content: 'ผลรวมสุทธิ', colSpan: 2, styles: { ...footerStyle, halign: 'center' } },
+            { content: '-', styles: { ...footerStyle, halign: 'right' } },
+            { content: '-', styles: { ...footerStyle, halign: 'right' } },
+            { content: formatCurrency(finalTotals.value.profitLossDebit), styles: footerRight },
+            { content: formatCurrency(finalTotals.value.profitLossCredit), styles: footerRight },
+            { content: formatCurrency(finalTotals.value.balanceSheetDebit), styles: footerRight },
+            { content: formatCurrency(finalTotals.value.balanceSheetCredit), styles: footerRight }
+        ]);
+    }
+
+    // landscape 281mm: code=18, name=fill, 6 numeric cols=22 each
+    const numW = 22;
+    const codeW = 18;
+    const nameW = 281 - codeW - numW * 6;
+
+    exportToPdf({
+        orientation: 'landscape',
+        title: 'กระดาษทำการ',
+        subtitle: `ณ วันที่ ${formatDateThai(endDate.value)}${includeClosingEntry.value === 1 ? ' (รวมรายการปิดบัญชี)' : ''}`,
+        head,
+        body,
+        columnStyles: {
+            0: { cellWidth: codeW, halign: 'center' },
+            1: { cellWidth: nameW },
+            2: { cellWidth: numW, halign: 'right' },
+            3: { cellWidth: numW, halign: 'right' },
+            4: { cellWidth: numW, halign: 'right' },
+            5: { cellWidth: numW, halign: 'right' },
+            6: { cellWidth: numW, halign: 'right' },
+            7: { cellWidth: numW, halign: 'right' }
+        },
+        filename: `กระดาษทำการ_${formatDateForApi(endDate.value)}.pdf`
+    });
+};
+
 // Toggle search popover
 const toggleSearchPopover = (event) => {
     searchPopover.value.toggle(event);
@@ -349,7 +508,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" :disabled="!filteredAccountDetails.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" :disabled="!filteredAccountDetails.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 
@@ -363,21 +524,8 @@ onMounted(() => {
             </div>
 
             <!-- Report Table -->
-            <DataTable
-                v-model:expandedRows="expandedRows"
-                :value="filteredAccountDetails"
-                :loading="loading"
-                dataKey="accountcode"
-                showGridlines
-                size="small"
-                :rowHover="true"
-                scrollable
-                scrollHeight="calc(100vh - 380px)"
-                @row-expand="onRowExpand"
-                @row-click="onWorkSheetRowClick"
-                class="worksheet-table"
-            >
-                <Column expander style="width: 3rem" />
+            <DataTable :value="filteredAccountDetails" :loading="loading" dataKey="accountcode" showGridlines size="small" :rowHover="true" scrollable scrollHeight="calc(100vh - 380px)" class="worksheet-table">
+                <!-- <Column expander style="width: 3rem" /> -->
                 <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
                     <template #body="{ data }">
                         <span :class="getRowClass(data)">{{ data.accountcode }}</span>
@@ -390,7 +538,6 @@ onMounted(() => {
                 </Column>
                 <ColumnGroup type="header">
                     <Row>
-                        <Column header="" :rowspan="2" :pt="{ headerCell: { style: 'width: 3rem' } }" />
                         <Column header="รหัสบัญชี" :rowspan="2" :pt="{ headerCell: { style: 'width: 120px; text-align: center' } }" />
                         <Column header="ชื่อบัญชี" :rowspan="2" :pt="{ headerCell: { style: 'min-width: 250px; text-align: center' } }" />
                         <Column header="ยอดสะสม" :colspan="2" :pt="{ headerCell: { style: 'text-align: center' } }" />
@@ -439,14 +586,14 @@ onMounted(() => {
                 </Column>
 
                 <!-- Expansion Template -->
-                <template #expansion="{ data }">
+                <!-- <template #expansion="{ data }">
                     <div class="p-4 bg-surface-50 dark:bg-surface-900">
-                        <!-- Loading State -->
+                        <!\-\- Loading State -\->
                         <div v-if="isLedgerLoading(data.accountcode)" class="flex justify-center py-4">
                             <ProgressSpinner style="width: 40px; height: 40px" />
                         </div>
 
-                        <!-- Ledger Data -->
+                        <!\-\- Ledger Data -\->
                         <div v-else-if="getLedgerData(data.accountcode)">
                             <div class="mb-3 font-semibold text-surface-900 dark:text-surface-0">
                                 <i class="pi pi-list mr-2"></i>
@@ -499,10 +646,10 @@ onMounted(() => {
                             </DataTable>
                         </div>
 
-                        <!-- No Data -->
+                        <!\-\- No Data -\->
                         <div v-else class="text-center py-4 text-surface-500">ไม่พบข้อมูลบัญชีแยกประเภท</div>
                     </div>
-                </template>
+                </template> -->
 
                 <!-- Empty State -->
                 <template #empty>
@@ -513,54 +660,50 @@ onMounted(() => {
                 </template>
 
                 <!-- Footer -->
-                <template #footer v-if="reportData">
-                    <table class="footer-table w-full">
-                        <!-- รวม -->
-                        <tr class="bg-surface-100 dark:bg-surface-800 font-bold text-sm">
-                            <td style="width: 3rem"></td>
-                            <td style="width: 120px" class="text-center py-2">รวม</td>
-                            <td style="min-width: 250px"></td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(reportData.totalnextbalancedebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(reportData.totalnextbalancecredit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(profitLossTotals.debit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(profitLossTotals.credit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(balanceSheetTotals.debit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(balanceSheetTotals.credit) }}</td>
-                        </tr>
-                        <!-- กำไรขาดทุน -->
-                        <tr class="bg-surface-50 dark:bg-surface-900 text-sm">
-                            <td style="width: 3rem"></td>
-                            <td style="width: 120px" class="text-center py-2 font-medium">กำไร (ขาดทุน) สุทธิ</td>
-                            <td style="min-width: 250px"></td>
-                            <td class="text-right py-2 text-surface-400" style="width: 130px">-</td>
-                            <td class="text-right py-2 text-surface-400" style="width: 130px">-</td>
-                            <td class="text-right py-2" style="width: 130px">
-                                {{ profitLossAdjustment.profitLossDebit > 0 ? formatCurrency(profitLossAdjustment.profitLossDebit) : '-' }}
-                            </td>
-                            <td class="text-right py-2" style="width: 130px">
-                                {{ profitLossAdjustment.profitLossCredit > 0 ? formatCurrency(profitLossAdjustment.profitLossCredit) : '-' }}
-                            </td>
-                            <td class="text-right py-2" style="width: 130px">
-                                {{ profitLossAdjustment.balanceSheetDebit > 0 ? formatCurrency(profitLossAdjustment.balanceSheetDebit) : '-' }}
-                            </td>
-                            <td class="text-right py-2" style="width: 130px">
-                                {{ profitLossAdjustment.balanceSheetCredit > 0 ? formatCurrency(profitLossAdjustment.balanceSheetCredit) : '-' }}
-                            </td>
-                        </tr>
-                        <!-- ผลรวม -->
-                        <tr class="bg-primary-50 dark:bg-primary-900/20 font-bold text-sm border-t-2">
-                            <td style="width: 3rem"></td>
-                            <td style="width: 120px" class="text-center py-2 text-primary-700 dark:text-primary-300">ผลรวมสุทธิ</td>
-                            <td style="min-width: 250px"></td>
-                            <td class="text-right py-2 text-surface-400" style="width: 130px">-</td>
-                            <td class="text-right py-2 text-surface-400" style="width: 130px">-</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(finalTotals.profitLossDebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(finalTotals.profitLossCredit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(finalTotals.balanceSheetDebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(finalTotals.balanceSheetCredit) }}</td>
-                        </tr>
-                    </table>
-                </template>
+                <ColumnGroup v-if="reportData" type="footer">
+                    <!-- รวม -->
+                    <Row>
+                        <Column footer="รวม" :colspan="2" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'text-align: center; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(reportData.totalnextbalancedebit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(reportData.totalnextbalancecredit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(profitLossTotals.debit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(profitLossTotals.credit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(balanceSheetTotals.debit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(balanceSheetTotals.credit)" :pt="{ footerCell: { class: 'bg-surface-100 dark:bg-surface-800', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                    </Row>
+                    <!-- กำไรขาดทุน -->
+                    <Row>
+                        <Column footer="กำไร (ขาดทุน) สุทธิ" :colspan="2" :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900', style: 'text-align: center; font-weight: 500' } }" />
+                        <Column footer="-" :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900 text-surface-400', style: 'width: 130px; text-align: right' } }" />
+                        <Column footer="-" :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900 text-surface-400', style: 'width: 130px; text-align: right' } }" />
+                        <Column
+                            :footer="profitLossAdjustment.profitLossDebit > 0 ? formatCurrency(profitLossAdjustment.profitLossDebit) : '-'"
+                            :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900', style: 'width: 130px; text-align: right' } }"
+                        />
+                        <Column
+                            :footer="profitLossAdjustment.profitLossCredit > 0 ? formatCurrency(profitLossAdjustment.profitLossCredit) : '-'"
+                            :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900', style: 'width: 130px; text-align: right' } }"
+                        />
+                        <Column
+                            :footer="profitLossAdjustment.balanceSheetDebit > 0 ? formatCurrency(profitLossAdjustment.balanceSheetDebit) : '-'"
+                            :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900', style: 'width: 130px; text-align: right' } }"
+                        />
+                        <Column
+                            :footer="profitLossAdjustment.balanceSheetCredit > 0 ? formatCurrency(profitLossAdjustment.balanceSheetCredit) : '-'"
+                            :pt="{ footerCell: { class: 'bg-surface-50 dark:bg-surface-900', style: 'width: 130px; text-align: right' } }"
+                        />
+                    </Row>
+                    <!-- ผลรวม -->
+                    <Row>
+                        <Column footer="ผลรวมสุทธิ" :colspan="2" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border-t-2', style: 'text-align: center; font-weight: bold' } }" />
+                        <Column footer="-" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 text-surface-400 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column footer="-" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 text-surface-400 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(finalTotals.profitLossDebit)" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(finalTotals.profitLossCredit)" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(finalTotals.balanceSheetDebit)" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(finalTotals.balanceSheetCredit)" :pt="{ footerCell: { class: 'bg-primary-50 dark:bg-primary-900/20 border-t-2', style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                    </Row>
+                </ColumnGroup>
             </DataTable>
         </div>
     </div>
@@ -602,20 +745,20 @@ onMounted(() => {
 }
 
 /* Footer styling */
-:deep(.p-datatable-footer) {
-    padding: 0 !important;
+:deep(.p-datatable-tfoot > tr) {
+    background: var(--p-surface-100);
+}
+
+:deep(.dark .p-datatable-tfoot > tr) {
+    background: var(--p-surface-800);
+}
+
+:deep(.p-datatable-tfoot) {
     border-top: 2px solid var(--p-surface-300);
 }
 
-:deep(.dark .p-datatable-footer) {
+:deep(.dark .p-datatable-tfoot) {
     border-top-color: var(--p-surface-600);
-}
-
-/* Footer table styling */
-.footer-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
 }
 
 /* Expansion row styling */

@@ -133,7 +133,7 @@ export function useAuth() {
         } catch (error) {
             return {
                 success: false,
-                error: 'เลือกร้านค้าไม่สำเร็จ'
+                error: 'เลือกสหกรณ์ไม่สำเร็จ'
             };
         }
     };

@@ -1,6 +1,8 @@
 <script setup>
 import AiModelSelectionDialog from '@/components/accounting/AiModelSelectionDialog.vue';
 import JournalDailyInfoTab from '@/components/accounting/JournalDailyInfoTab.vue';
+import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
+import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
 import OcrResultDialog from '@/components/accounting/OcrResultDialog.vue';
 import TaskImageSelectionDialog from '@/components/accounting/TaskImageSelectionDialog.vue';
 import TaskSelectionDialog from '@/components/accounting/TaskSelectionDialog.vue';
@@ -13,6 +15,7 @@ import { useLoading } from '@/composables/useLoading';
 import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadImage } from '@/services/api/image';
 import { createJournal, getCreditors, getDebtors, getDocumentFormats, getJournalBooks, getJournalById, updateJournal } from '@/services/api/journal';
 import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
+import { toDecimalNumber } from '@/utils/numberFormat';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
@@ -954,9 +957,9 @@ const submitForm = async () => {
     abortControllers.value.submit = createAbortController(60000); // 60 วินาที สำหรับ submit
 
     try {
-        // คำนวณ amount จาก journaldetail (ใช้ safeParseNumber)
-        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.debitamount, 0), 0);
-        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + safeParseNumber(d.creditamount, 0), 0);
+        // คำนวณ amount จาก journaldetail (ใช้ toDecimalNumber)
+        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + toDecimalNumber(d.debitamount, 0), 0);
+        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + toDecimalNumber(d.creditamount, 0), 0);
         const amount = Math.max(totalDebit, totalCredit);
 
         // สร้าง payload ตาม API format
@@ -969,7 +972,7 @@ const submitForm = async () => {
             accountperiod: new Date(formData.value.docdate).getMonth() + 1, // 1-12
             accountyear: new Date(formData.value.docdate).getFullYear() + 543, // พ.ศ.
             documentref: formData.value.documentref || '',
-            amount: amount,
+            amount: toDecimalNumber(amount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
             batchId: '',
             docdate: formData.value.docdate ? toLocalISOString(formData.value.docdate) : toLocalISOString(new Date()),
             docno: formData.value.docno,
@@ -980,8 +983,8 @@ const submitForm = async () => {
             journaldetail: formData.value.journaldetail.map((detail) => ({
                 accountcode: detail.accountcode,
                 accountname: detail.accountname || '',
-                debitamount: safeParseNumber(detail.debitamount, 0),
-                creditamount: safeParseNumber(detail.creditamount, 0)
+                debitamount: toDecimalNumber(detail.debitamount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                creditamount: toDecimalNumber(detail.creditamount, 0) // ใช้ทศนิยม 2 ตำแหน่ง
             })),
             journaltype: formData.value.journaltype || 0,
             parid: '0000000',
@@ -992,10 +995,10 @@ const submitForm = async () => {
                 vatmode: safeParseInt(vat.vatmode, 0),
                 vatperiod: safeParseInt(vat.vatperiod, new Date().getMonth() + 1),
                 vatyear: safeParseInt(vat.vatyear, new Date().getFullYear() + 543),
-                vatbase: safeParseNumber(vat.vatbase, 0),
-                vatrate: safeParseNumber(vat.vatrate, 7),
-                vatamount: safeParseNumber(vat.vatamount, 0),
-                exceptvat: safeParseNumber(vat.exceptvat, 0),
+                vatbase: toDecimalNumber(vat.vatbase, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                vatrate: toDecimalNumber(vat.vatrate, 7), // ใช้ทศนิยม 2 ตำแหน่ง
+                vatamount: toDecimalNumber(vat.vatamount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                exceptvat: toDecimalNumber(vat.exceptvat, 0), // ใช้ทศนิยม 2 ตำแหน่ง
                 vatsubmit: vat.vatsubmit || false,
                 remark: vat.remark || '',
                 custtaxid: vat.custtaxid || '',
@@ -1015,9 +1018,9 @@ const submitForm = async () => {
                 address: tax.address || '',
                 details: (tax.details || []).map((detail) => ({
                     description: detail.description || '',
-                    taxbase: safeParseNumber(detail.taxbase, 0),
-                    taxrate: safeParseNumber(detail.taxrate, 0),
-                    taxamount: safeParseNumber(detail.taxamount, 0)
+                    taxbase: toDecimalNumber(detail.taxbase, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                    taxrate: toDecimalNumber(detail.taxrate, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                    taxamount: toDecimalNumber(detail.taxamount, 0) // ใช้ทศนิยม 2 ตำแหน่ง
                 }))
             })),
             exdocrefdate: formData.value.exdocrefdate ? toLocalISOString(formData.value.exdocrefdate) : null,
@@ -1104,8 +1107,8 @@ const loadJournalData = async () => {
 
             // โหลด master data แบบ parallel พร้อม abort signal
             const [booksResponse, formatsResponse] = await Promise.all([
-                getJournalBooks({ q: data.bookcode || '', page: 1, limit: 20 }, { signal: abortControllers.value.loadJournal.signal }),
-                getDocumentFormats({ q: data.docformat || '', page: 1, limit: 20 }, { signal: abortControllers.value.loadJournal.signal })
+                getJournalBooks({ q: data.bookcode || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal }),
+                getDocumentFormats({ q: data.docformat || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal })
             ]);
 
             // Map bookcode
@@ -1358,7 +1361,7 @@ onUnmounted(() => {
                     <Button v-if="!showImagePanel" icon="pi pi-image" label="รูปภาพเอกสาร" text @click="toggleImagePanel" v-tooltip.left="'เปิดแผงรูปภาพเอกสาร'" :disabled="loading" />
                     <Button v-else icon="pi pi-times" label="ยกเลิกการใช้รูปภาพ" text severity="danger" @click="handleCancelImage" v-tooltip.left="'ยกเลิกการใช้รูปภาพเอกสาร'" :disabled="loading" />
 
-                    <!-- <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" /> -->
+                    <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" />
 
                     <Popover ref="shortcutInfoRef">
                         <div class="p-3 w-72">
@@ -1437,7 +1440,7 @@ onUnmounted(() => {
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span><strong>อัพโหลดเอกสาร:</strong> เพิ่มรูปภาพจากคอมพิวเตอร์ของคุณ</span>
                                                 </li>
-                                                <li class="flex items-start gap-2">
+                                                <!-- <li class="flex items-start gap-2">
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span><strong>เลือกจาก Task:</strong> เลือกรูปภาพที่มีอยู่แล้วใน Task</span>
                                                 </li>
@@ -1448,7 +1451,7 @@ onUnmounted(() => {
                                                 <li class="flex items-start gap-2">
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span>หากต้องการเลือกรูปจาก Task ใหม่ ให้<strong>ลบรูปเดิม</strong>ก่อน</span>
-                                                </li>
+                                                </li> -->
                                             </ul>
                                         </div>
                                     </div>
@@ -1456,7 +1459,7 @@ onUnmounted(() => {
 
                                 <div class="flex gap-2">
                                     <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
-                                    <!-- <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" /> -->
+                                    <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" />
                                 </div>
                             </div>
                             <!-- Image panel with add button -->
@@ -1467,7 +1470,7 @@ onUnmounted(() => {
                                     <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
                                     <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
                                     <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
-                                    <!-- <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" /> -->
+                                    <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" />
                                 </div>
                                 <div class="flex-1 overflow-auto">
                                     <ImageDetailPanel
@@ -1517,16 +1520,16 @@ onUnmounted(() => {
                                             />
                                         </div>
                                     </TabPanel>
-                                    <!-- <TabPanel value="1">
+                                    <TabPanel value="1">
                                         <div class="pt-4 pb-2">
                                             <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
                                         </div>
-                                    </TabPanel> -->
-                                    <!-- <TabPanel value="2">
+                                    </TabPanel>
+                                    <TabPanel value="2">
                                         <div class="pt-4 pb-2">
                                             <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
                                         </div>
-                                    </TabPanel> -->
+                                    </TabPanel>
                                 </TabPanels>
                             </Tabs>
                         </div>
@@ -1564,7 +1567,7 @@ onUnmounted(() => {
                                 />
                             </div>
                         </TabPanel>
-                        <!-- <TabPanel value="1">
+                        <TabPanel value="1">
                             <div class="pt-4">
                                 <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
                             </div>
@@ -1573,7 +1576,7 @@ onUnmounted(() => {
                             <div class="pt-4">
                                 <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
                             </div>
-                        </TabPanel> -->
+                        </TabPanel>
                     </TabPanels>
                 </Tabs>
             </div>

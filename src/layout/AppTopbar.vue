@@ -44,7 +44,7 @@ const handleLogout = () => {
 
         <div class="layout-topbar-actions">
             <div class="layout-config-menu">
-                <button v-if="currentShop.id" type="button" class="layout-topbar-action" @click="goToSelectShop" :title="'เปลี่ยนร้านค้า'">
+                <button v-if="currentShop.id" type="button" class="layout-topbar-action" @click="goToSelectShop" :title="'เปลี่ยนสหกรณ์'">
                     <i class="pi pi-building"></i>
                     <span class="ml-2">{{ currentShop.name }}</span>
                 </button>

@@ -2,6 +2,7 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
+import { useReportExport } from '@/composables/useReportExport';
 import { getJournalByDocNo, getLedgerAccount, getTrialBalanceSheet } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -256,6 +257,111 @@ const searchAndClosePopover = () => {
     fetchReport();
 };
 
+// ========== Export ==========
+const { exportToExcel, exportToPdf } = useReportExport();
+
+const exportExcel = () => {
+    if (!accountDetails.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const rows = accountDetails.value.map((r) => [
+        r.accountcode || '',
+        r.accountname || '',
+        r.balancedebitamount || 0,
+        r.balancecreditamount || 0,
+        r.debitamount || 0,
+        r.creditamount || 0,
+        r.nextbalancedebitamount || 0,
+        r.nextbalancecreditamount || 0
+    ]);
+    const t = totals.value;
+
+    exportToExcel({
+        headerRows: [
+            ['', '', 'ยอดยกมา', '', 'ยอดประจำงวด', '', 'ยอดสะสม', ''],
+            ['รหัสบัญชี', 'ชื่อบัญชี', 'เดบิต', 'เครดิต', 'เดบิต', 'เครดิต', 'เดบิต', 'เครดิต']
+        ],
+        dataRows: [...rows, ...(t ? [['รวม', '', t.balanceDebit, t.balanceCredit, t.amountDebit, t.amountCredit, t.nextBalanceDebit, t.nextBalanceCredit]] : [])],
+        merges: [
+            { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
+            { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+            { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } }
+        ],
+        colWidths: [{ wch: 14 }, { wch: 40 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }],
+        sheetName: 'งบทดลอง',
+        filename: `งบทดลอง_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+const exportPdf = () => {
+    if (!accountDetails.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const head = [
+        [
+            { content: 'รหัสบัญชี', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'ชื่อบัญชี', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'ยอดยกมา', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'ยอดประจำงวด', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'ยอดสะสม', colSpan: 2, styles: { halign: 'center' } }
+        ],
+        ['เดบิต', 'เครดิต', 'เดบิต', 'เครดิต', 'เดบิต', 'เครดิต']
+    ];
+
+    const body = accountDetails.value.map((r) => [
+        r.accountcode || '',
+        r.accountname || '',
+        formatCurrency(r.balancedebitamount),
+        formatCurrency(r.balancecreditamount),
+        formatCurrency(r.debitamount),
+        formatCurrency(r.creditamount),
+        formatCurrency(r.nextbalancedebitamount),
+        formatCurrency(r.nextbalancecreditamount)
+    ]);
+
+    const t = totals.value;
+    if (t) {
+        body.push([
+            { content: 'รวม', colSpan: 2, styles: { fontStyle: 'bold', halign: 'center' } },
+            { content: formatCurrency(t.balanceDebit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatCurrency(t.balanceCredit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatCurrency(t.amountDebit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatCurrency(t.amountCredit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatCurrency(t.nextBalanceDebit), styles: { fontStyle: 'bold', halign: 'right' } },
+            { content: formatCurrency(t.nextBalanceCredit), styles: { fontStyle: 'bold', halign: 'right' } }
+        ]);
+    }
+
+    // A4 landscape usable = 297 - 16 = 281mm
+    const numColWidth = 30;
+    const codeColWidth = 30;
+    const nameColWidth = 281 - codeColWidth - numColWidth * 6;
+
+    exportToPdf({
+        orientation: 'landscape',
+        title: 'งบทดลอง',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
+        head,
+        body,
+        columnStyles: {
+            0: { cellWidth: codeColWidth, halign: 'center' },
+            1: { cellWidth: nameColWidth },
+            2: { cellWidth: numColWidth, halign: 'right' },
+            3: { cellWidth: numColWidth, halign: 'right' },
+            4: { cellWidth: numColWidth, halign: 'right' },
+            5: { cellWidth: numColWidth, halign: 'right' },
+            6: { cellWidth: numColWidth, halign: 'right' },
+            7: { cellWidth: numColWidth, halign: 'right' }
+        },
+        marginH: 8,
+        filename: `งบทดลอง_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.pdf`
+    });
+};
+
 // Get row class based on account level for indentation
 const getRowClass = (data) => {
     const level = data.accountlevel || 1;
@@ -291,7 +397,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" outlined :disabled="!accountDetails.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" outlined :disabled="!accountDetails.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 
@@ -393,6 +501,7 @@ onMounted(() => {
                             <div class="mb-3 font-semibold text-surface-900 dark:text-surface-0">
                                 <i class="pi pi-list mr-2"></i>
                                 บัญชีแยกประเภท: {{ getLedgerData(data.accountcode).accountcode }} - {{ getLedgerData(data.accountcode).accountname }}
+                                <span class="ml-2 text-sm font-normal text-surface-500 dark:text-surface-400">({{ displayPeriod }})</span>
                             </div>
 
                             <DataTable :value="getLedgerData(data.accountcode).details || []" size="small" showGridlines :rowHover="true" class="ledger-table" @row-click="(e) => onLedgerRowClick(e.data.docno)">
@@ -455,21 +564,17 @@ onMounted(() => {
                 </template>
 
                 <!-- Footer -->
-                <template #footer v-if="totals">
-                    <table class="footer-table w-full">
-                        <tr class="bg-surface-100 dark:bg-surface-800 font-bold text-sm">
-                            <td style="width: 3rem"></td>
-                            <td style="width: 120px" class="text-center py-2">รวม</td>
-                            <td style="min-width: 250px"></td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.balanceDebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.balanceCredit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.amountDebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.amountCredit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.nextBalanceDebit) }}</td>
-                            <td class="text-right py-2" style="width: 130px">{{ formatCurrency(totals.nextBalanceCredit) }}</td>
-                        </tr>
-                    </table>
-                </template>
+                <ColumnGroup v-if="totals" type="footer">
+                    <Row>
+                        <Column footer="รวม" :colspan="3" :pt="{ footerCell: { style: 'text-align: center; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.balanceDebit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.balanceCredit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.amountDebit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.amountCredit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.nextBalanceDebit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(totals.nextBalanceCredit)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                    </Row>
+                </ColumnGroup>
             </DataTable>
         </div>
     </div>
@@ -516,20 +621,20 @@ onMounted(() => {
 }
 
 /* Footer styling */
-:deep(.p-datatable-footer) {
-    padding: 0 !important;
+:deep(.p-datatable-tfoot > tr) {
+    background: var(--p-surface-100);
+}
+
+:deep(.dark .p-datatable-tfoot > tr) {
+    background: var(--p-surface-800);
+}
+
+:deep(.p-datatable-tfoot) {
     border-top: 2px solid var(--p-surface-300);
 }
 
-:deep(.dark .p-datatable-footer) {
+:deep(.dark .p-datatable-tfoot) {
     border-top-color: var(--p-surface-600);
-}
-
-/* Footer table styling */
-.footer-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
 }
 
 /* Expansion row styling */

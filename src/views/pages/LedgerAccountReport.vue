@@ -2,6 +2,7 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
+import { useReportExport } from '@/composables/useReportExport';
 import { getChartOfAccounts, getCreditors, getDebtors, getJournalBooks } from '@/services/api/journal';
 import { getJournalByDocNo, getLedgerAccount } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
@@ -384,6 +385,112 @@ const onDetailRowClick = async (docno) => {
     }
 };
 
+const { exportToExcel, exportToPdf } = useReportExport();
+
+// Export Excel
+const exportExcel = () => {
+    const headerRows = [['รหัสบัญชี', 'ชื่อบัญชี / วันที่', 'เลขที่เอกสาร', 'รายละเอียด', 'เดบิต', 'เครดิต', 'ยอดคงเหลือ']];
+    const dataRows = tableData.value.map((r) => {
+        if (r.rowType === 'account-header') {
+            return [r.accountcode, r.accountname, '', '', '', '', ''];
+        } else if (r.rowType === 'balance-forward') {
+            return ['', '', 'ยกมา', '', '', '', formatCurrencyWithParentheses(r.amount)];
+        } else if (r.rowType === 'detail') {
+            return ['', formatDateThai(r.docdate), r.docno || '', r.accountdescription || '', r.debit > 0 ? formatCurrency(r.debit) : '-', r.credit > 0 ? formatCurrency(r.credit) : '-', formatCurrencyWithParentheses(r.amount)];
+        } else if (r.rowType === 'account-footer') {
+            return ['', '', 'ยกไป', '', '', '', formatCurrencyWithParentheses(r.nextbalance)];
+        }
+        return ['', '', '', '', '', '', ''];
+    });
+
+    exportToExcel({
+        headerRows,
+        dataRows,
+        colWidths: [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 36 }, { wch: 16 }, { wch: 16 }, { wch: 18 }],
+        sheetName: 'งบบัญชีแยกประเภท',
+        filename: `งบบัญชีแยกประเภท_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+// Export PDF
+const exportPdf = () => {
+    const head = [['รหัสบัญชี', 'ชื่อบัญชี / วันที่', 'เลขที่เอกสาร', 'รายละเอียด', 'เดบิต', 'เครดิต', 'ยอดคงเหลือ']];
+    const body = tableData.value.map((r) => {
+        const boldStyle = { fontStyle: 'bold' };
+        const normalStyle = { fontStyle: 'normal' };
+        const rightAlign = { halign: 'right' };
+
+        if (r.rowType === 'account-header') {
+            return [
+                { content: r.accountcode, styles: boldStyle },
+                { content: r.accountname, styles: boldStyle },
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle }
+            ];
+        } else if (r.rowType === 'balance-forward') {
+            return [
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: 'ยกมา', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: formatCurrencyWithParentheses(r.amount), styles: { fontStyle: 'bold', ...rightAlign } }
+            ];
+        } else if (r.rowType === 'detail') {
+            return [
+                { content: '', styles: normalStyle },
+                { content: formatDateThai(r.docdate), styles: normalStyle },
+                { content: r.docno || '', styles: normalStyle },
+                { content: r.accountdescription || '', styles: normalStyle },
+                { content: r.debit > 0 ? formatCurrency(r.debit) : '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: r.credit > 0 ? formatCurrency(r.credit) : '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: formatCurrencyWithParentheses(r.amount), styles: { ...normalStyle, ...rightAlign } }
+            ];
+        } else if (r.rowType === 'account-footer') {
+            return [
+                { content: '', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: 'ยกไป', styles: normalStyle },
+                { content: '', styles: normalStyle },
+                { content: '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: '-', styles: { ...normalStyle, ...rightAlign } },
+                { content: formatCurrencyWithParentheses(r.nextbalance), styles: { fontStyle: 'bold', ...rightAlign } }
+            ];
+        }
+        return ['', '', '', '', '', '', ''];
+    });
+
+    // landscape A4 = 297mm usable = 281mm (margin 8 each side)
+    const debitCreditW = 24;
+    const balanceW = 26;
+    const codeW = 20;
+    const docnoW = 36;
+    const dateW = 28;
+    const descW = 281 - codeW - dateW - docnoW - debitCreditW * 2 - balanceW; // ~123mm
+
+    exportToPdf({
+        orientation: 'landscape',
+        title: 'งบบัญชีแยกประเภท',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
+        head,
+        body,
+        columnStyles: {
+            0: { cellWidth: codeW, halign: 'center' },
+            1: { cellWidth: dateW },
+            2: { cellWidth: docnoW },
+            3: { cellWidth: descW },
+            4: { cellWidth: debitCreditW, halign: 'right' },
+            5: { cellWidth: debitCreditW, halign: 'right' },
+            6: { cellWidth: balanceW, halign: 'right' }
+        },
+        filename: `งบบัญชีแยกประเภท_${formatDateForApi(startDate.value)}_${formatDateForApi(endDate.value)}.pdf`
+    });
+};
+
 // Toggle search popover
 const toggleSearchPopover = (event) => {
     searchPopover.value.toggle(event);
@@ -425,7 +532,9 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" :disabled="!tableData.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" :disabled="!tableData.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 
@@ -581,13 +690,13 @@ onMounted(async () => {
                 </div>
 
                 <!-- Debt Account Type -->
-                <!-- <div>
+                <div>
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ประเภท</label>
                     <Select v-model="debtAccountType" :options="debtAccountTypes" optionLabel="label" optionValue="value" placeholder="เลือกประเภท" showClear fluid @change="onDebtAccountTypeChange" />
-                </div> -->
+                </div>
 
                 <!-- Debt Account -->
-                <!-- <div v-if="debtAccountType">
+                <div v-if="debtAccountType">
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">
                         {{ debtAccountType === 'creditor' ? 'เจ้าหนี้' : 'ลูกหนี้' }}
                     </label>
@@ -603,7 +712,7 @@ onMounted(async () => {
                         forceSelection
                         fluid
                     />
-                </div> -->
+                </div>
 
                 <!-- Journal Book -->
                 <div>

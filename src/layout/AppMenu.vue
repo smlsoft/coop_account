@@ -4,7 +4,7 @@ import AppMenuItem from './AppMenuItem.vue';
 
 const model = ref([
     {
-        label: 'Home',
+        label: 'หน้าแรก',
         items: [
             {
                 label: 'Dashboard',
@@ -32,7 +32,7 @@ const model = ref([
     //     ]
     // },
     {
-        label: 'Accounting',
+        label: 'ระบบบัญชี',
         path: '/accounting',
         items: [
             /// บันทึกรายการบัญชี
@@ -101,7 +101,7 @@ const model = ref([
     // },
     /// รายงานทางการเงิน
     {
-        label: 'Financial Reports',
+        label: 'รายงานทางการเงิน',
         path: '/financial-reports',
         items: [
             /// งบทดลอง
@@ -177,7 +177,7 @@ const model = ref([
         ]
     },
     {
-        label: 'Master Data',
+        label: 'ข้อมูลหลัก',
         path: '/masterdata',
         items: [
             /// ตั้งค่ากิจการ
@@ -252,9 +252,9 @@ const model = ref([
             }
         ]
     },
-    /// import data
+    /// นำเข้าข้อมูล
     {
-        label: 'Import Data',
+        label: 'นำเข้าข้อมูล',
         path: '/import-data',
         items: [
             /// นำเข้าข้อมูลการบันทึกบัญชี
