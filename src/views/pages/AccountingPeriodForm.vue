@@ -434,7 +434,7 @@ onUnmounted(() => {
                 <TabView v-if="!isEditMode" v-model:activeIndex="activeTabIndex" class="mb-4">
                     <TabPanel header="กำหนดเอง">
                         <!-- Manual Form -->
-                        <form @submit.prevent class="flex flex-col gap-6 pt-4">
+                        <form @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6 pt-4">
                             <!-- Row 1: วันที่เริ่มต้น และ วันที่สิ้นสุด -->
                             <div class="flex flex-col md:flex-row gap-6">
                                 <div class="flex flex-col gap-2 md:w-1/2">
@@ -502,7 +502,7 @@ onUnmounted(() => {
 
                     <TabPanel header="สร้างอัตโนมัติ">
                         <!-- Auto Form -->
-                        <form @submit.prevent class="flex flex-col gap-6 pt-4">
+                        <form @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6 pt-4">
                             <!-- Row 1: ประเภท และ จากวันที่ -->
                             <div class="flex flex-col md:flex-row gap-6">
                                 <div class="flex flex-col gap-2 md:w-1/3">
@@ -577,7 +577,7 @@ onUnmounted(() => {
                 </TabView>
 
                 <!-- Edit Mode - Only Manual Form -->
-                <form v-else @submit.prevent class="flex flex-col gap-6">
+                <form v-else @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6">
                     <!-- Row 1: วันที่เริ่มต้น และ วันที่สิ้นสุด -->
                     <div class="flex flex-col md:flex-row gap-6">
                         <div class="flex flex-col gap-2 md:w-1/2">

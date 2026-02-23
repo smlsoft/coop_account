@@ -498,9 +498,8 @@ onUnmounted(() => {
                     </div>
                 </div>
             </div>
-
             <!-- Form -->
-            <form @submit.prevent class="flex flex-col gap-6">
+            <form @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6">
                 <!-- Row 1: รหัสเอกสาร   -->
                 <div class="flex flex-col md:flex-row gap-6">
                     <div class="flex flex-col gap-2 md:w-1/3">
@@ -653,8 +652,8 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex justify-between items-center pt-4 border-t border-surface">
-                    <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined />
+                <div class="flex justify-end items-center pt-4 border-t border-surface">
+                    <!-- <Button label="ทดสอบ Prompt OCR" icon="pi pi-play-circle" severity="info" @click="openOcrTestDialog" outlined /> -->
                     <Button type="submit" :label="isEditMode ? 'บันทึก (Ctrl + S)' : 'สร้าง (Ctrl + S)'" icon="pi pi-save" :loading="isSaving" :disabled="!formData.doccode || !formData.description" />
                 </div>
             </form>

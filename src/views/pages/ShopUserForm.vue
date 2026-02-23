@@ -202,7 +202,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Form -->
-            <form v-else @submit.prevent class="flex flex-col gap-6">
+            <form v-else @submit.prevent="handleSubmit" @keydown.enter.prevent class="flex flex-col gap-6">
                 <!-- Row 1: ชื่อผู้ใช้ -->
                 <div class="flex flex-col gap-2">
                     <label for="username" class="font-semibold text-surface-900 dark:text-surface-0">
