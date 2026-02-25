@@ -108,7 +108,8 @@ const nextImage = () => {
 
 const isPDF = (uri) => {
     if (!uri) return false;
-    return uri.toLowerCase().endsWith('.pdf');
+    // Match .pdf extension or media API path ending with pdf (mediaId format: ...XYZpdf)
+    return /\.pdf$/i.test(uri) || /pdf$/i.test(uri.split('/').pop() || '');
 };
 
 const handleViewJournalDetail = (reference) => {

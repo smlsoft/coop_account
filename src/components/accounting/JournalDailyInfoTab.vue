@@ -398,11 +398,11 @@ const applyDocumentFormat = (selectedFormat) => {
         creditamount: parseFloat(detail.credit) || 0
     }));
 
-    // อัปเดต journaldetail และ docformat (ใช้ description แทน doccode)
+    // อัปเดต journaldetail และ docformat (ใช้ doccode)
     const newValue = {
         ...props.modelValue,
         journaldetail: newDetails,
-        docformat: selectedFormat.description || ''
+        docformat: selectedFormat.doccode || ''
     };
 
     emit('update:modelValue', newValue);
@@ -1314,7 +1314,7 @@ onUnmounted(() => {
                 <div class="flex items-center gap-2">
                     <AutoComplete
                         id="docformat"
-                        :modelValue="documentFormats.find((f) => f.description === formData.docformat)"
+                        :modelValue="documentFormats.find((f) => f.doccode === formData.docformat)"
                         @update:modelValue="applyDocumentFormat($event)"
                         :suggestions="documentFormats"
                         optionLabel="displayLabel"

@@ -35,6 +35,35 @@ export const uploadImage = (file) => {
     });
 };
 
+// New Media Upload/Fetch APIs (with Authorization support)
+export const uploadMediaImage = (file, module = 'coop', options = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('module', module);
+    return apiClient.post('media/upload/image', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        },
+        ...options
+    });
+};
+
+export const fetchMediaImageBlob = async (mediaId) => {
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_APP_API || '';
+    const url = `${baseUrl}media/image/${mediaId}`;
+    const response = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch media: ${response.status}`);
+    }
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+};
+
 export const bulkCreateDocumentImages = (data) => {
     return apiClient.post('documentimage/bulk', data);
 };

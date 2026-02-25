@@ -1,6 +1,7 @@
 <script setup>
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { fetchMediaImageBlob } from '@/services/api/image';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -41,12 +42,26 @@ const canvasStyle = computed(() => ({
     transition: isDragging.value ? 'none' : 'transform 0.1s ease-out'
 }));
 
+let currentBlobUrl = '';
+
+const isMediaUrl = (url) => url && url.includes('/media/image/');
+
 const loadPdf = async () => {
     loading.value = true;
     error.value = null;
 
     try {
-        const response = await fetch(props.src);
+        let resolvedSrc = props.src;
+        if (isMediaUrl(props.src)) {
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+                currentBlobUrl = '';
+            }
+            const mediaId = props.src.split('/media/image/')[1];
+            currentBlobUrl = await fetchMediaImageBlob(mediaId);
+            resolvedSrc = currentBlobUrl;
+        }
+        const response = await fetch(resolvedSrc);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -191,6 +206,7 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.removeEventListener('mousemove', handleMouseMove);
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
 });
 </script>
 

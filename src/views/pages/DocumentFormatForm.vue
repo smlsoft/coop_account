@@ -528,10 +528,10 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Row 2: Prompt Description -->
-                <div class="flex flex-col gap-2">
+                <!-- <div class="flex flex-col gap-2">
                     <label for="promptdescription" class="font-semibold text-surface-900 dark:text-surface-0">Prompt Description</label>
                     <Textarea id="promptdescription" v-model="formData.promptdescription" rows="3" placeholder="กรอก Prompt Description" fluid />
-                </div>
+                </div> -->
 
                 <!-- Details Section -->
                 <div class="flex flex-col gap-4">

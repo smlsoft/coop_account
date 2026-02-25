@@ -34,7 +34,8 @@ const isPdf = computed(() => {
         return props.file.type === 'application/pdf' || props.file.name?.toLowerCase().endsWith('.pdf');
     }
     if (props.uploadedUri) {
-        return props.uploadedUri.toLowerCase().endsWith('.pdf');
+        const uri = props.uploadedUri;
+        return /\.pdf$/i.test(uri) || /pdf$/i.test(uri.split('/').pop() || '');
     }
     return false;
 });
@@ -86,12 +87,10 @@ const handleCancel = () => {
     <Dialog v-model:visible="dialogVisible" :style="{ width: '50rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" header="ยืนยันการใช้เอกสาร" :modal="true" :closable="!loading">
         <div class="flex flex-col gap-4">
             <!-- File Info -->
-            <div class="flex items-center gap-3 p-3 bg-surface-100 dark:bg-surface-800 rounded-lg">
-                <i :class="isPdf ? 'pi pi-file-pdf text-red-500' : 'pi pi-image text-blue-500'" class="text-2xl"></i>
-                <div class="flex-1 min-w-0">
-                    <p class="font-medium truncate">{{ fileName }}</p>
-                    <p class="text-sm text-surface-500">{{ fileSize }}</p>
-                </div>
+            <div class="flex items-center gap-3 p-2 bg-surface-100 dark:bg-surface-800 rounded-lg">
+                <i :class="isPdf ? 'pi pi-file-pdf text-red-500' : 'pi pi-image text-blue-500'" class="text-xl"></i>
+                <div class="font-medium flex-1 min-w-0">{{ fileName }}</div>
+                <span class="text-sm text-surface-500 shrink-0">{{ fileSize }}</span>
             </div>
 
             <!-- Preview Area using ImageDetailPanel -->

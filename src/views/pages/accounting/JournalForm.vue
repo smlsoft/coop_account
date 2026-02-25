@@ -12,7 +12,7 @@ import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageUploadPreviewDialog from '@/components/image/ImageUploadPreviewDialog.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useLoading } from '@/composables/useLoading';
-import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadImage } from '@/services/api/image';
+import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadMediaImage } from '@/services/api/image';
 import { createJournal, getCreditors, getDebtors, getDocumentFormats, getJournalBooks, getJournalById, updateJournal } from '@/services/api/journal';
 import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
 import { toDecimalNumber } from '@/utils/numberFormat';
@@ -486,7 +486,7 @@ const handleFileSelect = async (event) => {
 
     try {
         // Upload file with abort signal
-        const response = await uploadImage(file, { signal: abortControllers.value.upload.signal });
+        const response = await uploadMediaImage(file, 'coop', { signal: abortControllers.value.upload.signal });
         if (response.data.success) {
             uploadedImageUri.value = response.data.data.uri;
             showUploadPreview.value = true;
@@ -1131,7 +1131,7 @@ const loadJournalData = async () => {
 
             // Map docformat
             let mappedDocformat = data.docformat || '';
-            // Note: docformat เก็บเป็น description ไม่ต้อง map เป็น object
+            // Note: docformat เก็บเป็น doccode ไม่ต้อง map เป็น object
 
             // Map debt account (ลูกหนี้/เจ้าหนี้)
             let mappedDebtAccount = null;
@@ -1459,18 +1459,18 @@ onUnmounted(() => {
 
                                 <div class="flex gap-2">
                                     <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
-                                    <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" />
+                                    <!-- <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" /> -->
                                 </div>
                             </div>
                             <!-- Image panel with add button -->
                             <div v-else class="h-full flex flex-col">
                                 <div class="flex justify-end mb-2 gap-2">
                                     <!-- แสดงปุ่ม "เพิ่มรูป" เสมอ (สามารถเพิ่มรูปได้ทุกกรณี) -->
-                                    <Button label="เพิ่มรูป" icon="pi pi-plus" size="small" severity="secondary" @click="triggerFileUpload" :loading="uploadingImage" />
+                                    <Button label="เพิ่มรูป" icon="pi pi-plus" size="small" @click="triggerFileUpload" :loading="uploadingImage" />
                                     <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
                                     <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
                                     <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
-                                    <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" />
+                                    <!-- <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" /> -->
                                 </div>
                                 <div class="flex-1 overflow-auto">
                                     <ImageDetailPanel
@@ -1481,6 +1481,7 @@ onUnmounted(() => {
                                         :isReviewMode="false"
                                         :updatingStatus="false"
                                         :isReadOnly="true"
+                                        @refresh-group="loadDocumentImages(formData.documentref)"
                                     />
                                 </div>
                             </div>

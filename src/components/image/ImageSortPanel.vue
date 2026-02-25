@@ -1,8 +1,8 @@
 <script setup>
 import { useLoading } from '@/composables/useLoading';
-import { getDocumentImageGroup, updateDocumentImageGroupImages } from '@/services/api/image';
+import { fetchMediaImageBlob, getDocumentImageGroup, updateDocumentImageGroupImages } from '@/services/api/image';
 import { useToast } from 'primevue/usetoast';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
     imageReferences: {
@@ -22,11 +22,37 @@ const { showLoading, hideLoading } = useLoading();
 
 const sortableImages = ref([]);
 const saving = ref(false);
+const loadingBlobs = ref(false);
 const draggedImageIndex = ref(null);
 const dragOverImageIndex = ref(null);
+const blobUrls = ref({});
 
-onMounted(() => {
+const isMediaUrl = (url) => url && url.includes('/media/image/');
+
+const resolveImageUrl = (uri) => blobUrls.value[uri] || uri;
+
+const loadBlobUrls = async (images) => {
+    for (const img of images) {
+        if (isMediaUrl(img.imageuri) && !blobUrls.value[img.imageuri]) {
+            try {
+                const mediaId = img.imageuri.split('/media/image/')[1];
+                blobUrls.value[img.imageuri] = await fetchMediaImageBlob(mediaId);
+            } catch {
+                // fallback to original uri
+            }
+        }
+    }
+};
+
+onMounted(async () => {
     sortableImages.value = [...props.imageReferences];
+    loadingBlobs.value = true;
+    await loadBlobUrls(sortableImages.value);
+    loadingBlobs.value = false;
+});
+
+onUnmounted(() => {
+    Object.values(blobUrls.value).forEach((url) => URL.revokeObjectURL(url));
 });
 
 const handleDragStart = (event, index) => {
@@ -127,7 +153,7 @@ const cancel = () => {
 
 const isPDF = (uri) => {
     if (!uri) return false;
-    return uri.toLowerCase().endsWith('.pdf');
+    return /\.pdf$/i.test(uri) || /pdf$/i.test(uri.split('/').pop() || '');
 };
 </script>
 
@@ -140,21 +166,26 @@ const isPDF = (uri) => {
                 <div class="text-lg font-semibold text-surface-900 dark:text-surface-100">เรียงลำดับรูปภาพ</div>
             </div>
             <div class="flex gap-2">
-                <Button label="บันทึก" icon="pi pi-check" severity="success" size="small" @click="saveOrder" :loading="saving" />
+                <Button label="บันทึก" icon="pi pi-check" size="small" @click="saveOrder" :loading="saving" />
                 <Button label="ยกเลิก" icon="pi pi-times" severity="secondary" size="small" @click="cancel" outlined />
             </div>
         </div>
 
         <!-- Sortable Grid -->
-        <div class="flex-1 overflow-auto">
+        <div class="flex-1 overflow-auto relative">
+            <!-- Loading overlay while fetching blob URLs -->
+            <div v-if="loadingBlobs" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-surface-0/80 dark:bg-surface-900/80 gap-3">
+                <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+                <span class="text-sm text-surface-600 dark:text-surface-400">กำลังโหลดรูปภาพ...</span>
+            </div>
             <div class="grid grid-cols-2 gap-4 pb-4">
                 <div
                     v-for="(img, index) in sortableImages"
                     :key="img.documentimageguid"
                     :draggable="true"
-                    class="relative aspect-square bg-surface-100 dark:bg-surface-800 rounded-lg overflow-hidden transition-all cursor-move"
+                    class="relative aspect-square bg-surface-100 dark:bg-surface-800 rounded-lg overflow-hidden transition-all cursor-move outline outline-2 outline-transparent"
                     :class="{
-                        'ring-2 ring-blue-500': dragOverImageIndex === index,
+                        '!outline-primary': dragOverImageIndex === index,
                         'opacity-50': draggedImageIndex === index
                     }"
                     @dragstart="handleDragStart($event, index)"
@@ -177,7 +208,7 @@ const isPDF = (uri) => {
                     <div v-if="isPDF(img.imageuri)" class="w-full h-full flex items-center justify-center">
                         <img src="/demo/images/pdf-icon.svg" alt="PDF" class="w-3/5 h-3/5 object-contain" />
                     </div>
-                    <img v-else :src="img.imageuri" :alt="img.name" class="w-full h-full object-cover" />
+                    <img v-else :src="resolveImageUrl(img.imageuri)" :alt="img.name" class="w-full h-full object-cover" />
 
                     <!-- Image name overlay -->
                     <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-surface-900/70 dark:from-surface-800/80 to-transparent p-2">

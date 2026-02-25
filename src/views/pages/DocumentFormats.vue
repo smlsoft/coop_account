@@ -236,11 +236,11 @@ onMounted(() => {
                     </template>
                 </Column>
 
-                <Column field="promptdescription" header="Prompt Description" :sortable="false" style="min-width: 15rem">
+                <!-- <Column field="promptdescription" header="Prompt Description" :sortable="false" style="min-width: 15rem">
                     <template #body="{ data }">
                         <span class="text-surface-600 dark:text-surface-400 text-sm">{{ data.promptdescription || '-' }}</span>
                     </template>
-                </Column>
+                </Column> -->
 
                 <Column header="จัดการ" :exportable="false" style="min-width: 10rem">
                     <template #body="{ data }">

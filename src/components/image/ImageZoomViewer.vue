@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { fetchMediaImageBlob } from '@/services/api/image';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     src: {
@@ -17,6 +18,38 @@ const scale = ref(1);
 const position = ref({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref({ x: 0, y: 0 });
+
+const resolvedSrc = ref('');
+const loading = ref(false);
+let currentBlobUrl = '';
+
+const isMediaUrl = (url) => url && url.includes('/media/image/');
+
+const loadSrc = async (url) => {
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = '';
+    }
+    resolvedSrc.value = '';
+    if (isMediaUrl(url)) {
+        loading.value = true;
+        try {
+            const blobUrl = await fetchMediaImageBlob(url.split('/media/image/')[1]);
+            currentBlobUrl = blobUrl;
+            resolvedSrc.value = blobUrl;
+        } catch {
+            resolvedSrc.value = url;
+        } finally {
+            loading.value = false;
+        }
+    } else {
+        resolvedSrc.value = url;
+    }
+};
+
+watch(() => props.src, (url) => loadSrc(url), { immediate: true });
+
+
 
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 5;
@@ -100,7 +133,9 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.removeEventListener('mousemove', handleMouseMove);
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
 });
+
 </script>
 
 <template>
@@ -115,7 +150,10 @@ onUnmounted(() => {
 
         <!-- Image Container -->
         <div ref="containerRef" class="image-container bg-surface-50 dark:bg-surface-900" @wheel="handleWheel" @mousedown="handleMouseDown">
-            <img :src="src" :alt="alt" :style="imageStyle" class="zoomable-image" draggable="false" />
+            <div v-if="loading" class="loading-overlay">
+                <i class="pi pi-spin pi-spinner text-4xl text-surface-400"></i>
+            </div>
+            <img v-else-if="resolvedSrc" :src="resolvedSrc" :alt="alt" :style="imageStyle" class="zoomable-image" draggable="false" />
         </div>
     </div>
 </template>
@@ -150,6 +188,14 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     position: relative;
+}
+
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .zoomable-image {
