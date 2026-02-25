@@ -63,31 +63,20 @@ const loadChartOfAccounts = async () => {
         if (response.success) {
             const accounts = response.data;
 
-            // สร้าง flat list พร้อม display label
+            // บัญชีที่เลือกไม่ได้ = บัญชีที่ถูกอ้างอิงเป็น consolidateaccountcode ของบัญชีอื่น
+            const consolidateCodes = new Set(accounts.map((a) => a.consolidateaccountcode).filter(Boolean));
+
             chartOfAccounts.value = accounts.map((item) => {
-                if (item.accountlevel === 1) {
-                    return {
-                        ...item,
-                        displayLabel: `📁 ${item.accountcode} - ${item.accountname}`,
-                        disabled: true,
-                        isHeader: true
-                    };
-                } else if (item.accountlevel === 2) {
-                    return {
-                        ...item,
-                        displayLabel: `    📁 ${item.accountcode} - ${item.accountname}`,
-                        disabled: true,
-                        isHeader: true
-                    };
-                } else {
-                    const indent = item.accountlevel === 3 ? '        ' : item.accountlevel === 4 ? '            ' : '                ';
-                    return {
-                        ...item,
-                        displayLabel: `${indent}${item.accountcode} ~ ${item.accountname}`,
-                        disabled: false,
-                        isHeader: false
-                    };
-                }
+                const isConsolidate = consolidateCodes.has(item.accountcode);
+                const indent = item.accountlevel === 1 ? '' : item.accountlevel === 2 ? '    ' : item.accountlevel === 3 ? '        ' : item.accountlevel === 4 ? '            ' : '                ';
+                const icon = isConsolidate ? '📁 ' : '';
+                const separator = isConsolidate ? ' - ' : ' ~ ';
+                return {
+                    ...item,
+                    displayLabel: `${indent}${icon}${item.accountcode}${separator}${item.accountname}`,
+                    disabled: isConsolidate,
+                    isHeader: isConsolidate
+                };
             });
         }
     } catch (error) {

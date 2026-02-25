@@ -433,34 +433,20 @@ const loadAllChartOfAccounts = async () => {
         if (response.data.success) {
             const accounts = response.data.data;
 
-            // แปลงเป็น flat list โดย Level 1, 2 เป็น disabled items (headers)
+            // บัญชีที่เลือกไม่ได้ = บัญชีที่ถูกอ้างอิงเป็น consolidateaccountcode ของบัญชีอื่น
+            const consolidateCodes = new Set(accounts.map((a) => a.consolidateaccountcode).filter(Boolean));
+
             const flatList = accounts.map((item) => {
-                if (item.accountlevel === 1) {
-                    // Level 1 - หัวข้อหลัก (disabled, ไม่เยื้อง)
-                    return {
-                        ...item,
-                        displayLabel: `📁 ${item.accountcode} - ${item.accountname}`,
-                        disabled: true,
-                        isHeader: true
-                    };
-                } else if (item.accountlevel === 2) {
-                    // Level 2 - หัวข้อย่อย (disabled, เยื้อง 1 ระดับ)
-                    return {
-                        ...item,
-                        displayLabel: `    📁 ${item.accountcode} - ${item.accountname}`,
-                        disabled: true,
-                        isHeader: true
-                    };
-                } else {
-                    // Level 3, 4, 5 - รายการที่เลือกได้
-                    const indent = item.accountlevel === 3 ? '        ' : item.accountlevel === 4 ? '            ' : '                ';
-                    return {
-                        ...item,
-                        displayLabel: `${indent}${item.accountcode} ~ ${item.accountname}`,
-                        disabled: false,
-                        isHeader: false
-                    };
-                }
+                const isConsolidate = consolidateCodes.has(item.accountcode);
+                const indent = item.accountlevel === 1 ? '' : item.accountlevel === 2 ? '    ' : item.accountlevel === 3 ? '        ' : item.accountlevel === 4 ? '            ' : '                ';
+                const icon = isConsolidate ? '📁 ' : '';
+                const separator = isConsolidate ? ' - ' : ' ~ ';
+                return {
+                    ...item,
+                    displayLabel: `${indent}${icon}${item.accountcode}${separator}${item.accountname}`,
+                    disabled: isConsolidate,
+                    isHeader: isConsolidate
+                };
             });
 
             chartOfAccounts.value = flatList;
