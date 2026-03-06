@@ -31,6 +31,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set environment (prod vs uat)
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "api=https://glapi.rspcoop.com/" >> $GITHUB_OUTPUT
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "api=https://glapi-uat.rspcoop.com/" >> $GITHUB_OUTPUT
+            echo "env=uat" >> $GITHUB_OUTPUT
+          fi
+
       - name: Extract Docker metadata (tags & labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -41,6 +52,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=prod,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -53,7 +65,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VITE_APP_TITLE=${{ vars.VITE_APP_TITLE || 'COOP ACCOUNT' }}
-            VITE_APP_API=${{ vars.VITE_APP_API || 'https://api.dedepos.com/' }}
+            VITE_APP_TITLE=COOP ACCOUNT
+            VITE_APP_API=${{ steps.env.outputs.api }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
