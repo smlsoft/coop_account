@@ -1,74 +1,71 @@
-# COOP Account
-
-Application template for Vue based on the [create-vue](https://github.com/vuejs/create-vue), the recommended way to start a Vite-powered Vue projects.
+# COOP ACCOUNT
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 
-## Build
+---
+
+## Deploy
+
+### UAT
+
+Push code ขึ้น branch `main`:
 
 ```bash
-# Build for production
-npm run build
+git push origin main
 ```
 
-## Firebase Hosting Deployment
+GitHub Actions จะ build และ push image อัตโนมัติ
 
-This project is deployed to Firebase Hosting.
+- Image: `ghcr.io/smlsoft/coopaccount:latest`
+- API: `https://glapi-uat.rspcoop.com/`
 
-### Live URL
-- **Production**: [https://bc-account.web.app](https://bc-account.web.app)
-- **Development**: [https://bc-account-dev.web.app](https://bc-account-dev.web.app)
+---
 
-### Deploy to Firebase
+### Production
+
+สร้าง tag version ใหม่และ push:
 
 ```bash
-# Build and deploy to Production
-npm run build:prod && firebase deploy --only hosting:bc-account
-
-# Build and deploy to Development
-npm run build:dev && firebase deploy --only hosting:bc-account-dev
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
-### Firebase Configuration
-- **Project**: dedepos
-- **Hosting Sites**: 
-  - Production: bc-account
-  - Development: bc-account-dev
-- **Account**: bos.catdog@gmail.com
+GitHub Actions จะ build และ push image อัตโนมัติ
 
-### First Time Setup
+- Image: `ghcr.io/smlsoft/coopaccount:prod`
+- API: `https://glapi.rspcoop.com/`
 
-If you need to set up Firebase hosting from scratch:
+> เพิ่ม version ทุกครั้งที่ deploy prod เช่น v1.0.1, v1.0.2, v1.1.0
 
-1. Install Firebase CLI:
+---
+
+## สำหรับทีม Deploy
+
+### 1. สร้างไฟล์ `.env` ข้างๆ `docker-compose.yml`
+
+```env
+APP_PORT=8080
+```
+
+### 2. แก้ image ใน `docker-compose.yml`
+
+UAT:
+```yaml
+image: ghcr.io/smlsoft/coopaccount:latest
+```
+
+Production (ระบุ version ที่ต้องการ):
+```yaml
+image: ghcr.io/smlsoft/coopaccount:1.0.0
+```
+
+### 3. รัน
+
 ```bash
-npm install -g firebase-tools
+docker compose pull && docker compose up -d
 ```
-
-2. Login to Firebase:
-```bash
-firebase login
-```
-
-3. Initialize Firebase (already configured):
-```bash
-firebase init hosting
-```
-
-4. Deploy:
-```bash
-npm run build
-firebase deploy --only hosting:bc-account-dev
-```
-
-## Documentation
-
-Visit the [documentation](https://sakai.primevue.org/documentation) to get started with the template.
