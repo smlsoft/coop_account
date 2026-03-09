@@ -2,6 +2,7 @@
 import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue';
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
+import { useReportExport } from '@/composables/useReportExport';
 import { getJournal12Columns, getJournalByDocNo, getLedgerAccount } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -356,14 +357,96 @@ const searchAndClosePopover = () => {
     fetchReport();
 };
 
-// Get row class
-const getRowClass = (data) => {
-    return {
-        'font-bold bg-surface-100 dark:bg-surface-800': data.rowType === 'header',
-        'font-bold bg-surface-50 dark:bg-surface-700': data.rowType === 'subtotal',
-        'font-bold bg-primary-100 dark:bg-primary-900/30': data.rowType === 'total',
-        'font-bold bg-green-50 dark:bg-green-900/30 border-y-2 border-green-400 dark:border-green-700': data.rowType === 'net-profit'
+// ========== Export ==========
+const { exportToExcel, exportToPdf } = useReportExport();
+
+const exportExcel = () => {
+    if (!tableData.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const months = monthColumns.value;
+    const headerRow = ['รหัสบัญชี', 'รายการ', ...months.map((m) => m.displayName), 'รวม'];
+
+    const dataRows = tableData.value.map((r) => {
+        const label = r.rowType === 'item' ? r.accountname : r.label;
+        if (r.rowType === 'header') {
+            return [r.accountcode || '', label || '', ...months.map(() => null), null];
+        }
+        const monthValues = months.map((m) => {
+            const v = getMonthValue(r, m.key);
+            return typeof v === 'number' ? v : parseFloat(v) || 0;
+        });
+        const total = r.rowType === 'item' ? r.total_amount || 0 : r.grandTotal || 0;
+        return [r.accountcode || '', label || '', ...monthValues, total];
+    });
+
+    exportToExcel({
+        title: 'งบกำไรขาดทุนเปรียบเทียบ 12 เดือน',
+        subtitle: `สำหรับระยะเวลา 12 เดือน สิ้นสุด ณ ${formatDateThai(endDate.value)}`,
+        headerRows: [headerRow],
+        dataRows,
+        colWidths: [{ wch: 14 }, { wch: 40 }, ...months.map(() => ({ wch: 14 })), { wch: 16 }],
+        sheetName: 'งบกำไรขาดทุน12เดือน',
+        filename: `งบกำไรขาดทุน12เดือน_${formatDateForApi(endDate.value)}.xlsx`
+    });
+};
+
+const exportPdf = () => {
+    if (!tableData.value.length) {
+        toast.add({ severity: 'warn', summary: 'แจ้งเตือน', detail: 'ไม่มีข้อมูลสำหรับส่งออก', life: 3000 });
+        return;
+    }
+
+    const months = monthColumns.value;
+    const head = [['รหัสบัญชี', 'รายการ', ...months.map((m) => m.displayName), 'รวม']];
+
+    const body = tableData.value.map((r) => {
+        const isBold = r.rowType !== 'item';
+        const label = r.rowType === 'item' ? r.accountname : r.label;
+        if (r.rowType === 'header') {
+            return [{ content: '', styles: { fontStyle: 'bold' } }, { content: label || '', styles: { fontStyle: 'bold' } }, ...months.map(() => ({ content: '', styles: { halign: 'right' } })), { content: '', styles: { halign: 'right' } }];
+        }
+        const monthCells = months.map((m) => ({
+            content: formatCurrency(getMonthValue(r, m.key)),
+            styles: { fontStyle: isBold ? 'bold' : 'normal', halign: 'right', textColor: isNegative(getMonthValue(r, m.key)) ? [220, 38, 38] : [0, 0, 0] }
+        }));
+        const total = r.rowType === 'item' ? r.total_amount : r.grandTotal;
+        return [
+            { content: r.accountcode || '', styles: { fontStyle: isBold ? 'bold' : 'normal', halign: 'center' } },
+            { content: label || '', styles: { fontStyle: isBold ? 'bold' : 'normal' } },
+            ...monthCells,
+            { content: formatCurrency(total), styles: { fontStyle: 'bold', halign: 'right', textColor: isNegative(total) ? [220, 38, 38] : [0, 0, 0] } }
+        ];
+    });
+
+    // A4 landscape usable = 281mm, 2 fixed cols + 12 month cols + 1 total col = 15 cols
+    // codeCol=18, nameCol=fill, each month=16, totalCol=20
+    const monthColW = 16;
+    const codeColW = 18;
+    const totalColW = 20;
+    const nameColW = 281 - codeColW - monthColW * months.length - totalColW;
+
+    const columnStyles = {
+        0: { cellWidth: codeColW, halign: 'center' },
+        1: { cellWidth: nameColW }
     };
+    months.forEach((_, i) => {
+        columnStyles[i + 2] = { cellWidth: monthColW, halign: 'right' };
+    });
+    columnStyles[months.length + 2] = { cellWidth: totalColW, halign: 'right' };
+
+    exportToPdf({
+        orientation: 'landscape',
+        title: 'งบกำไรขาดทุน 12 เดือน',
+        subtitle: `สำหรับระยะเวลา 12 เดือน สิ้นสุด ณ ${formatDateThai(endDate.value)}`,
+        head,
+        body,
+        columnStyles,
+        marginH: 8,
+        filename: `งบกำไรขาดทุน12เดือน_${formatDateForApi(endDate.value)}.pdf`
+    });
 };
 
 // Initialize on mount
@@ -385,7 +468,9 @@ onMounted(() => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" severity="secondary" />
+                <Button label="Excel" icon="pi pi-file-excel" @click="exportExcel" severity="secondary" outlined :disabled="!tableData.length" />
+                <Button label="PDF" icon="pi pi-file-pdf" @click="exportPdf" severity="secondary" outlined :disabled="!tableData.length" />
+                <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
 
@@ -398,7 +483,7 @@ onMounted(() => {
             </div>
 
             <!-- Report Table -->
-            <DataTable v-model:expandedRows="expandedRows" :value="tableData" dataKey="id" scrollable scrollHeight="calc(100vh - 285px)" size="small" showGridlines :rowClass="getRowClass">
+            <DataTable v-model:expandedRows="expandedRows" :value="tableData" dataKey="id" scrollable scrollHeight="calc(100vh - 282px)" size="small" showGridlines>
                 <!-- Account Name Column -->
                 <Column field="label" header="รายการ" style="min-width: 200px" frozen>
                     <template #body="{ data }">
@@ -421,6 +506,7 @@ onMounted(() => {
                 <Column v-for="month in monthColumns" :key="month.key" :header="month.displayName" style="width: 100px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
                     <template #body="{ data }">
                         <div
+                            v-if="data.rowType !== 'header'"
                             :class="[
                                 'cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 px-2 py-1 rounded',
                                 { 'text-red-600 dark:text-red-400': isNegative(getMonthValue(data, month.key)) },
@@ -437,7 +523,7 @@ onMounted(() => {
                 <!-- Total Column -->
                 <Column header="รวม" style="width: 120px" frozen alignFrozen="right" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
                     <template #body="{ data }">
-                        <span :class="['font-bold', { 'text-red-600 dark:text-red-400': isNegative(getTotalValue(data)) }]">
+                        <span v-if="data.rowType !== 'header'" :class="['font-bold', { 'text-red-600 dark:text-red-400': isNegative(getTotalValue(data)) }]">
                             {{ formatCurrency(getTotalValue(data)) }}
                         </span>
                     </template>
@@ -535,11 +621,11 @@ onMounted(() => {
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ณ วันที่</label>
-                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div class="flex justify-end mt-2">
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

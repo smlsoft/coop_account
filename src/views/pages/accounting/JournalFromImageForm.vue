@@ -5,15 +5,19 @@ import JournalTaxInfoTab from '@/components/accounting/JournalTaxInfoTab.vue';
 import JournalWithholdingTaxTab from '@/components/accounting/JournalWithholdingTaxTab.vue';
 import OcrResultDialog from '@/components/accounting/OcrResultDialog.vue';
 import AlertDialog from '@/components/AlertDialog.vue';
+import DialogForm from '@/components/DialogForm.vue';
 import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageThumbnailStrip from '@/components/image/ImageThumbnailStrip.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useLoading } from '@/composables/useLoading';
 import { getDocumentImageGroup, recountTaskDocuments } from '@/services/api/image';
-import { createJournal, deselectDocref, getJournalBooks, updateJournal } from '@/services/api/journal';
+import { createJournal, deselectDocref, getJournalBooks, getJournalByDocno, updateJournal } from '@/services/api/journal';
 import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
+import { removeSession, setSessionField, watchSessionField } from '@/services/popupSession';
+import { toDecimalNumber } from '@/utils/numberFormat';
+import { useQRCode } from '@vueuse/integrations/useQRCode';
 import { useToast } from 'primevue/usetoast';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -21,24 +25,18 @@ const route = useRoute();
 const toast = useToast();
 const { showLoading, hideLoading } = useLoading();
 
-// Helper function to convert date to local ISO string (without UTC conversion)
+// แปลงวันที่เป็น ISO string โดยใช้ UTC 07:00:00Z (= 14:00 เวลาไทย)
+// เพื่อให้ server รับวันที่ถูกต้องโดยไม่เลื่อนวัน
 const toLocalISOString = (date) => {
     if (!date) return null;
     const d = new Date(date);
+    // Guard: ถ้า year < 2000 แสดงว่า date ไม่ valid (เช่น Go zero time 0001-01-01) ใช้วันปัจจุบันแทน
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) return toLocalISOString(new Date());
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
 
-    // คำนวณ timezone offset (เช่น +07:00 สำหรับประเทศไทย)
-    const timezoneOffset = -d.getTimezoneOffset();
-    const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
-    const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
-    const offsetSign = timezoneOffset >= 0 ? '+' : '-';
-
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
+    return `${year}-${month}-${day}T07:00:00Z`;
 };
 
 // Route params
@@ -46,6 +44,7 @@ const taskId = ref(route.params.taskId || '');
 const documentRef = ref(route.query.documentref || '');
 
 const isEditMode = ref(false);
+const currentJournalId = ref(''); // guidfixed ของ journal ที่บันทึกแล้วสำหรับรูปปัจจุบัน
 const activeTab = ref('0');
 const loading = ref(false);
 
@@ -93,16 +92,134 @@ const loadingImages = ref(false);
 const documentImageGroup = ref(null);
 const selectedImageDetail = ref(null);
 
+// Popup window state
+const imagePopupWindow = ref(null);
+const isImagePopupOpen = ref(false);
+const popupSessionId = ref('');
+const showThumbnailStrip = ref(true);
+let popupCheckInterval = null;
+let unwatchPopupDocRef = null;
+let unwatchPopupJournal = null;
+
+// QR code — useQRCode จาก VueUse (reactive ตาม popupUrl)
+const popupUrl = ref('');
+const qrDataUrl = useQRCode(popupUrl, { width: 240, margin: 2 });
+
+// Dialog เลือกโหมด + QR
+const showOpenModeDialog = ref(false);
+const openModeStep = ref('choose'); // 'choose' | 'qr'
+
+const buildPopupUrl = () => `${window.location.origin}/image-viewer?docref=${documentRef.value}&taskid=${taskId.value}&sessionid=${popupSessionId.value}`;
+
+const ensureSession = async () => {
+    if (!popupSessionId.value) {
+        popupSessionId.value = Math.random().toString(36).slice(2);
+        popupUrl.value = buildPopupUrl();
+        // await เพื่อให้ owner เขียนลง Firebase ก่อนที่ iPad จะอ่าน
+        const username = localStorage.getItem('username') || '';
+        await setSessionField(popupSessionId.value, 'owner', username);
+    }
+};
+
+const onOpenModeClick = async () => {
+    await ensureSession();
+    openModeStep.value = 'choose';
+    showOpenModeDialog.value = true;
+};
+
+const openImageNewWindow = async () => {
+    showOpenModeDialog.value = false;
+    await ensureSession();
+    imagePopupWindow.value = window.open(popupUrl.value, 'imageViewer', 'width=960,height=800,resizable=yes,scrollbars=yes');
+    isImagePopupOpen.value = true;
+    startPopupCheck();
+};
+
+const openQRMode = async () => {
+    await ensureSession();
+    isImagePopupOpen.value = true;
+    startPopupCheck();
+    openModeStep.value = 'qr';
+};
+
+const closeImagePopup = () => {
+    clearInterval(popupCheckInterval);
+    popupCheckInterval = null;
+    unwatchPopupDocRef?.();
+    unwatchPopupDocRef = null;
+    unwatchPopupJournal?.();
+    unwatchPopupJournal = null;
+    lastHandledPopupDocRef = ''; // reset เพื่อให้ session ใหม่ทำงานได้ถูกต้อง
+    if (imagePopupWindow.value && !imagePopupWindow.value.closed) {
+        imagePopupWindow.value.close();
+    }
+    imagePopupWindow.value = null;
+    isImagePopupOpen.value = false;
+    if (popupSessionId.value) {
+        removeSession(popupSessionId.value);
+        popupSessionId.value = '';
+        popupUrl.value = '';
+    }
+};
+
+// Track docref ล่าสุดที่ parent จัดการแล้ว เพื่อป้องกัน circular loop
+let lastHandledPopupDocRef = '';
+
+const startPopupCheck = () => {
+    clearInterval(popupCheckInterval);
+    unwatchPopupDocRef?.();
+    unwatchPopupJournal?.();
+
+    // Poll สำหรับ PC popup window closed detection (เฉพาะ window.open mode เท่านั้น)
+    // QR mode ไม่มี imagePopupWindow จึงข้ามการเช็ค
+    popupCheckInterval = setInterval(() => {
+        if (imagePopupWindow.value && imagePopupWindow.value.closed) {
+            closeImagePopup();
+        }
+    }, 1000);
+
+    // Watch journalData จาก Firebase — iPad/popup คลิกรูป green ring → populate form
+    unwatchPopupJournal = watchSessionField(popupSessionId.value, 'journalData', (val) => {
+        if (!val) return;
+        try {
+            const { docref, journalData } = JSON.parse(val);
+            lastHandledPopupDocRef = docref;
+            handleDocumentChange(docref, journalData);
+            setSessionField(popupSessionId.value, 'journalData', null);
+        } catch (e) {
+            // ignore malformed JSON
+        }
+    });
+
+    // Watch docRef จาก Firebase — iPad/popup คลิกรูปใหม่ → reset form
+    unwatchPopupDocRef = watchSessionField(popupSessionId.value, 'docref', (val) => {
+        if (val && val !== documentRef.value && val !== lastHandledPopupDocRef) {
+            lastHandledPopupDocRef = val;
+            handleDocumentChange(val, null);
+        }
+    });
+};
+
 // Journal books for OCR mapping
 const journalBooks = ref([]);
 
 // Thumbnail strip ref
 const thumbnailStripRef = ref(null);
 
+// JournalDailyInfoTab refs (2 instances: splitter mode / popup mode)
+const dailyInfoTabSplitRef = ref(null);
+const dailyInfoTabPopupRef = ref(null);
+// Active tab ref — ใช้ instance ที่ mount อยู่ในขณะนั้น
+const activeDailyInfoTab = () => dailyInfoTabSplitRef.value || dailyInfoTabPopupRef.value;
+
 // Responsive: ตรวจสอบว่าหน้าจอเล็กกว่า lg (1024px) หรือไม่
 const isSmallScreen = ref(window.innerWidth < 1024);
+let resizeTimer = null;
 const handleResize = () => {
-    isSmallScreen.value = window.innerWidth < 1024;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        isSmallScreen.value = window.innerWidth < 1024;
+    }, 150);
 };
 
 // Handle validation change from child component
@@ -117,6 +234,7 @@ const formData = ref({
     docdate: null,
     docno: '',
     bookcode: null,
+    accountgroup: null,
     debtaccounttype: 0,
     debtaccountcode: null,
     exdocrefdate: null,
@@ -318,27 +436,37 @@ const loadDocumentImages = async (docRef) => {
 };
 
 // Handle document change from thumbnail strip
-const handleDocumentChange = async (newDocumentRef) => {
-    console.log('🟡 handleDocumentChange called with:', newDocumentRef);
-
+// journalData — ส่งมาเมื่อคลิกรูปที่บันทึกแล้ว (populate form จาก journal record)
+const handleDocumentChange = async (newDocumentRef, journalData = null) => {
     // Reset form and load new document
     documentRef.value = newDocumentRef;
     formData.value.documentref = newDocumentRef;
 
-    // Reset form data
-    formData.value.docdate = new Date();
-    formData.value.docno = '';
-    formData.value.bookcode = null;
-    formData.value.debtaccounttype = 0;
-    formData.value.debtaccountcode = null;
-    formData.value.exdocrefdate = null;
-    formData.value.exdocrefno = '';
-    formData.value.journaltype = 0;
-    formData.value.accountdescription = '';
-    formData.value.docformat = '';
-    formData.value.journaldetail = [{ accountcode: '', accountname: '', debitamount: 0, creditamount: 0 }];
-    formData.value.vats = [];
-    formData.value.taxes = [];
+    if (journalData) {
+        // กรณีรูปที่บันทึกแล้ว — delegate ให้ JournalDailyInfoTab จัดการ map dropdowns เอง
+        // (tab มี option lists ครบ: journalBooks, accountGroups, documentFormats)
+        currentJournalId.value = journalData.guidfixed || '';
+        await activeDailyInfoTab()?.populateFromJournal(journalData);
+    } else {
+        // กรณีรูปใหม่ที่ยังไม่บันทึก — reset form (คง docdate และ bookcode ไว้)
+        currentJournalId.value = '';
+        formData.value.docno = '';
+        formData.value.accountgroup = null;
+        formData.value.debtaccounttype = 0;
+        formData.value.debtaccountcode = null;
+        formData.value.exdocrefdate = null;
+        formData.value.exdocrefno = '';
+        formData.value.journaltype = 0;
+        formData.value.accountdescription = '';
+        // คง journaldetail ไว้จากเอกสารก่อนหน้า แต่ reset จำนวนเงินเป็น 0
+        formData.value.journaldetail = formData.value.journaldetail.map((row) => ({
+            ...row,
+            debitamount: 0,
+            creditamount: 0
+        }));
+        formData.value.vats = [];
+        formData.value.taxes = [];
+    }
 
     // Reset validation states
     isDocDateInvalid.value = false;
@@ -356,6 +484,10 @@ const handleDocumentChange = async (newDocumentRef) => {
 
     // Reset tab to first tab
     activeTab.value = '0';
+
+    // Focus docno input เพื่อให้ user พิมพ์ได้ทันที
+    await nextTick();
+    activeDailyInfoTab()?.focusDocNo();
 };
 
 // AI Analysis Functions
@@ -469,7 +601,7 @@ const handleApplyOcrData = async () => {
     const entry = ocrResultData.value.accounting_entry;
 
     // นำข้อมูลมาใส่ใน form
-    formData.value.docdate = entry.document_date || new Date().toISOString().split('T')[0];
+    formData.value.docdate = entry.document_date || new Date();
     formData.value.docno = entry.reference_number || '';
 
     // ตั้งค่า journal book
@@ -580,8 +712,8 @@ const submitForm = async () => {
     loading.value = true;
 
     try {
-        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.debitamount) || 0), 0);
-        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + (parseFloat(d.creditamount) || 0), 0);
+        const totalDebit = formData.value.journaldetail.reduce((sum, d) => sum + toDecimalNumber(d.debitamount, 0), 0);
+        const totalCredit = formData.value.journaldetail.reduce((sum, d) => sum + toDecimalNumber(d.creditamount, 0), 0);
         const amount = Math.max(totalDebit, totalCredit);
 
         const payload = {
@@ -589,11 +721,11 @@ const submitForm = async () => {
             creditor: formData.value.debtaccounttype === 1 ? formData.value.debtaccountcode || {} : {},
             debtaccounttype: formData.value.debtaccounttype,
             accountdescription: formData.value.accountdescription || '',
-            accountgroup: '',
+            accountgroup: formData.value.accountgroup?.code || '',
             accountperiod: new Date(formData.value.docdate).getMonth() + 1,
             accountyear: new Date(formData.value.docdate).getFullYear() + 543,
             documentref: formData.value.documentref || '',
-            amount: amount,
+            amount: toDecimalNumber(amount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
             batchId: '',
             docdate: toLocalISOString(formData.value.docdate) || toLocalISOString(new Date()),
             docno: formData.value.docno,
@@ -604,8 +736,8 @@ const submitForm = async () => {
             journaldetail: formData.value.journaldetail.map((detail) => ({
                 accountcode: detail.accountcode,
                 accountname: detail.accountname || '',
-                debitamount: parseFloat(detail.debitamount) || 0,
-                creditamount: parseFloat(detail.creditamount) || 0
+                debitamount: toDecimalNumber(detail.debitamount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                creditamount: toDecimalNumber(detail.creditamount, 0) // ใช้ทศนิยม 2 ตำแหน่ง
             })),
             journaltype: formData.value.journaltype || 0,
             parid: '0000000',
@@ -616,10 +748,10 @@ const submitForm = async () => {
                 vatmode: vat.vatmode || 0,
                 vatperiod: vat.vatperiod || new Date().getMonth() + 1,
                 vatyear: vat.vatyear || new Date().getFullYear() + 543,
-                vatbase: parseFloat(vat.vatbase) || 0,
-                vatrate: parseFloat(vat.vatrate) || 7,
-                vatamount: parseFloat(vat.vatamount) || 0,
-                exceptvat: parseFloat(vat.exceptvat) || 0,
+                vatbase: toDecimalNumber(vat.vatbase, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                vatrate: toDecimalNumber(vat.vatrate, 7), // ใช้ทศนิยม 2 ตำแหน่ง
+                vatamount: toDecimalNumber(vat.vatamount, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                exceptvat: toDecimalNumber(vat.exceptvat, 0), // ใช้ทศนิยม 2 ตำแหน่ง
                 vatsubmit: vat.vatsubmit || false,
                 remark: vat.remark || '',
                 custtaxid: vat.custtaxid || '',
@@ -639,9 +771,9 @@ const submitForm = async () => {
                 address: tax.address || '',
                 details: (tax.details || []).map((detail) => ({
                     description: detail.description || '',
-                    taxbase: parseFloat(detail.taxbase) || 0,
-                    taxrate: parseFloat(detail.taxrate) || 0,
-                    taxamount: parseFloat(detail.taxamount) || 0
+                    taxbase: toDecimalNumber(detail.taxbase, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                    taxrate: toDecimalNumber(detail.taxrate, 0), // ใช้ทศนิยม 2 ตำแหน่ง
+                    taxamount: toDecimalNumber(detail.taxamount, 0) // ใช้ทศนิยม 2 ตำแหน่ง
                 }))
             })),
             exdocrefdate: toLocalISOString(formData.value.exdocrefdate),
@@ -649,8 +781,9 @@ const submitForm = async () => {
         };
 
         let response;
-        if (isEditMode.value) {
-            response = await updateJournal(route.params.id, payload);
+        const journalIdToUpdate = isEditMode.value ? route.params.id : currentJournalId.value;
+        if (journalIdToUpdate) {
+            response = await updateJournal(journalIdToUpdate, payload);
         } else {
             response = await createJournal(payload);
         }
@@ -666,41 +799,63 @@ const submitForm = async () => {
                 life: 3000
             });
 
-            try {
-                // Step 1: Recount task documents
-                console.log('📊 Recounting task documents...');
-                await recountTaskDocuments(taskId.value);
-                console.log('✅ Recount completed');
-            } catch (error) {
-                console.error('❌ Error recounting task:', error);
-                // Continue even if recount fails
-            }
+            // Step 1: Recount task documents (fire-and-forget, non-blocking)
+            recountTaskDocuments(taskId.value).catch((e) => console.error('❌ Error recounting task:', e));
 
-            // Step 2: Refresh thumbnail strip to update status
+            // Step 2: Fetch journal guidfixed from docno, then mark as saved
             if (thumbnailStripRef.value) {
-                await thumbnailStripRef.value.refresh();
+                const savedDocno = formData.value.docno || '';
+                let journalGuidfixed = journalIdToUpdate || '';
+                if (!journalGuidfixed && savedDocno) {
+                    try {
+                        const res = await getJournalByDocno(savedDocno);
+                        if (res.data?.success && res.data?.data?.guidfixed) {
+                            journalGuidfixed = res.data.data.guidfixed;
+                        }
+                    } catch (e) {
+                        // non-fatal — getJournalById fallback via docno will still work
+                    }
+                }
+                currentJournalId.value = journalGuidfixed;
+                const savedRef = { guidfixed: journalGuidfixed, module: 'GL', docno: savedDocno };
+                thumbnailStripRef.value.markCurrentAsSaved(savedRef);
+
+                // แจ้ง popup/iPad strip ให้ update สถานะด้วย (ถ้า popup เปิดอยู่)
+                if (isImagePopupOpen.value && popupSessionId.value) {
+                    setSessionField(popupSessionId.value, 'savedRef', JSON.stringify(savedRef));
+                }
             }
 
-            // Step 3: Auto navigate to next document or deselect and go back
+            // Step 3: Navigate to next document or go back
             setTimeout(async () => {
+                // Sync initialFormData with current form so the watch() doesn't
+                // re-raise hasUnsavedChanges when form resets during navigation
+                hasUnsavedChanges.value = false;
+                initialFormData.value = JSON.stringify(formData.value);
+                // Wait for Vue to propagate the prop change to child component
+                await nextTick();
+
                 if (thumbnailStripRef.value && thumbnailStripRef.value.hasNextDocument()) {
-                    // มีรูปถัดไป → ให้ goToNextDocument จัดการ deselect + select
-                    console.log('⏭️ Auto moving to next document...');
                     const moved = await thumbnailStripRef.value.goToNextDocument();
 
-                    if (!moved) {
-                        // If failed to move, deselect and go back to detail page
+                    if (!moved && !isImagePopupOpen.value) {
                         await deselectCurrentDocument();
                         router.push({ name: 'journal-from-image-detail', params: { id: taskId.value } });
                     }
-                    // If moved successfully, stay on current page with new document
-                } else {
-                    // No next document - deselect and go back to detail page
-                    console.log('✅ No more documents, deselecting and returning to detail page');
+                } else if (!isImagePopupOpen.value) {
+                    // No more documents and no popup — go back to list
                     await deselectCurrentDocument();
                     router.push({ name: 'journal-from-image-detail', params: { id: taskId.value } });
+                } else {
+                    // No more documents but popup is open — stay on page, show toast
+                    toast.add({
+                        severity: 'success',
+                        summary: 'บันทึกครบทุกรูปแล้ว',
+                        detail: 'ไม่มีรูปถัดไปในงาน คุณสามารถปิดหน้าต่างรูปได้',
+                        life: 5000
+                    });
                 }
-            }, 500);
+            }, 300);
         } else {
             toast.add({
                 severity: 'error',
@@ -772,6 +927,15 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
+    closeImagePopup();
+});
+
+// เมื่อเปลี่ยนเอกสาร แจ้ง popup ให้โหลดรูปใหม่
+// ถ้า newRef === lastHandledPopupDocRef หมายความว่า iPad เป็นคนส่งมา ไม่ต้องส่งกลับ (circular loop)
+watch(documentRef, (newRef) => {
+    if (isImagePopupOpen.value && popupSessionId.value && newRef !== lastHandledPopupDocRef) {
+        setSessionField(popupSessionId.value, 'docref', newRef);
+    }
 });
 </script>
 
@@ -782,16 +946,7 @@ onBeforeUnmount(() => {
         <AlertDialog v-model:visible="showValidationAlert" header="ข้อมูลไม่ครบถ้วน" :message="validationMessage" severity="warning" icon="pi-exclamation-triangle" />
 
         <!-- Confirm Dialog -->
-        <Dialog v-model:visible="showConfirmDialog" :style="{ width: '450px' }" header="ยืนยันการบันทึก" :modal="true">
-            <div class="flex items-start gap-3">
-                <i class="pi pi-question-circle text-4xl text-primary-500"></i>
-                <p class="text-lg">{{ confirmMessage }}</p>
-            </div>
-            <template #footer>
-                <Button label="ยกเลิก" icon="pi pi-times" class="p-button-text" @click="showConfirmDialog = false" :disabled="loading" />
-                <Button label="ยืนยัน" icon="pi pi-save" @click="submitForm" :loading="loading" autofocus />
-            </template>
-        </Dialog>
+        <DialogForm :confirmDialog="showConfirmDialog" :textContent="confirmMessage" confirmLabel="ยืนยัน (Enter)" cancelLabel="ยกเลิก" severity="primary" @close="showConfirmDialog = false" @confirm="submitForm" />
 
         <!-- AI Model Selection Dialog -->
         <AiModelSelectionDialog v-model:visible="showAiModelDialog" @confirm="handleAiModelSelected" />
@@ -810,58 +965,98 @@ onBeforeUnmount(() => {
                     <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" />
 
                     <Popover ref="shortcutInfoRef">
-                        <div class="p-3 w-72">
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>บันทึก</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + S</kbd>
-                                </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>เพิ่มแถวใหม่</span>
-                                    <div class="flex gap-1">
-                                        <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + N</kbd>
-                                        <span class="text-surface-400" v-if="isMac">หรือ</span>
-                                        <kbd v-if="isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Help (Ins)</kbd>
-                                        <span class="text-surface-400" v-if="!isMac">หรือ</span>
-                                        <kbd v-if="!isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Insert</kbd>
+                        <div class="p-3 w-80">
+                            <p class="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-2">คีย์ลัด</p>
+                            <div class="space-y-1 text-sm">
+                                <!-- Navigation -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">การนำทาง</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ถัดไป</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Enter</kbd>
+                                        <span class="text-surface-400 text-xs">/</span>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Tab</kbd>
                                     </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>สร้างเลขที่เอกสาร</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + G</kbd>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ย้อนกลับ</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Shift + Tab</kbd>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>ย้ายแถวขึ้น</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↑</kbd>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ขึ้น / ลง row</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">↑</kbd>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">↓</kbd>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>ย้ายแถวลง</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↓</kbd>
+                                <!-- Row actions -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">จัดการแถว</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>เพิ่มแถวใหม่</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + N</kbd>
+                                        <span class="text-surface-400 text-xs">หรือ</span>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ isMac ? 'Help' : 'Insert' }}</kbd>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ย้ายแถวขึ้น / ลง</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↑</kbd>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↓</kbd>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
                                     <span>ลบแถวปัจจุบัน</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + Del</kbd>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + Del</kbd>
+                                </div>
+                                <!-- Document -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">เอกสาร</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>สร้างเลขที่เอกสาร</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + G</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1">
-                                    <span>ไปช่องถัดไป</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Tab</kbd>
+                                    <span>บันทึก</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + S</kbd>
                                 </div>
                             </div>
                         </div>
                     </Popover>
+                    <!-- ปุ่มหลัก: เปิด/ปิด session -->
+                    <Button v-if="isImagePopupOpen" icon="pi pi-times-circle" label="ปิดรูป" severity="danger" text @click="closeImagePopup()" v-tooltip.left="'ปิด session รูปภาพ'" />
+                    <Button v-else icon="pi pi-desktop" label="เปิดรูป" severity="secondary" text :disabled="!documentImageGroup" @click="onOpenModeClick()" v-tooltip.left="'เปิดรูปในหน้าต่างแยก หรือ iPad'" />
+                    <!-- QR thumbnail — คลิกเพื่อดู dialog QR ใหญ่ -->
+                    <img
+                        v-if="isImagePopupOpen && qrDataUrl"
+                        :src="qrDataUrl"
+                        v-tooltip.left="'คลิกเพื่อดู QR สำหรับ iPad'"
+                        class="rounded cursor-pointer border border-surface-300 dark:border-surface-600 hover:ring-2 hover:ring-primary-400 transition-all"
+                        style="width: 36px; height: 36px; image-rendering: pixelated"
+                        @click="
+                            openModeStep = 'qr';
+                            showOpenModeDialog = true;
+                        "
+                    />
                     <Button label="AI วิเคราะห์" icon="pi pi-sparkles" severity="secondary" @click="handleAiAnalyze" :disabled="loading || !documentImageGroup" v-tooltip.left="'วิเคราะห์เอกสารด้วย AI'" />
                     <Button label="บันทึก" icon="pi pi-save" @click="handleSave" :loading="loading" />
                 </div>
             </div>
 
-            <!-- Loading -->
-            <div v-if="loading" class="flex justify-center items-center py-20">
+            <!-- Loading overlay — ใช้ v-show เพื่อไม่ destroy ImageThumbnailStrip ข้างใน -->
+            <div v-show="loading" class="flex justify-center items-center py-20">
                 <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
             </div>
 
             <!-- Main Content with Splitter -->
-            <div v-else>
-                <Splitter :layout="isSmallScreen ? 'vertical' : 'horizontal'" class="rounded-lg border border-surface-200 dark:border-surface-700 mb-0" style="height: calc(100vh - 400px); min-height: 400px">
+            <div v-show="!loading">
+                <!-- Normal mode: Splitter with Image + Form panels -->
+                <Splitter
+                    v-if="!isImagePopupOpen"
+                    :layout="isSmallScreen ? 'vertical' : 'horizontal'"
+                    class="rounded-lg border border-surface-200 dark:border-surface-700 mb-0"
+                    :style="showThumbnailStrip ? 'height: calc(100vh - 33.5vh); min-height: 400px' : 'height: calc(100vh - 19.4vh); min-height: 400px'"
+                >
                     <!-- Left Panel - Image Detail Panel -->
                     <SplitterPanel :size="isSmallScreen ? 50 : 40" :minSize="isSmallScreen ? 30 : 25" class="bg-surface-50 dark:bg-surface-900">
                         <div class="h-full overflow-auto p-2">
@@ -911,6 +1106,7 @@ onBeforeUnmount(() => {
                                     <TabPanel value="0">
                                         <div class="pt-4 pb-2">
                                             <JournalDailyInfoTab
+                                                ref="dailyInfoTabSplitRef"
                                                 :modelValue="formData"
                                                 @update:modelValue="formData = $event"
                                                 @validation-change="handleValidationChange"
@@ -938,11 +1134,131 @@ onBeforeUnmount(() => {
                     </SplitterPanel>
                 </Splitter>
 
-                <!-- Thumbnail Strip -->
-                <ImageThumbnailStrip ref="thumbnailStripRef" :taskId="taskId" :currentDocumentRef="documentRef" :hasUnsavedChanges="hasUnsavedChanges" @change-document="handleDocumentChange" class="mt-0 rounded-b-lg overflow-hidden" />
+                <!-- Popup mode: Form panel only (full width) -->
+                <div v-else class="rounded-lg border border-surface-200 dark:border-surface-700 mb-0" style="height: calc(100vh - 17vh)">
+                    <div class="h-full flex flex-col p-2">
+                        <Tabs v-model:value="activeTab" class="h-full flex flex-col">
+                            <TabList>
+                                <Tab value="0">
+                                    <i class="pi pi-calendar mr-2"></i>
+                                    ข้อมูลรายวัน
+                                </Tab>
+                                <Tab value="1">
+                                    <i class="pi pi-file-edit mr-2"></i>
+                                    ข้อมูลภาษี
+                                </Tab>
+                                <Tab value="2">
+                                    <i class="pi pi-percentage mr-2"></i>
+                                    ภาษีถูกหัก ณ ที่จ่าย
+                                </Tab>
+                            </TabList>
+                            <TabPanels class="flex-1 overflow-auto">
+                                <TabPanel value="0">
+                                    <div class="pt-4 pb-2">
+                                        <JournalDailyInfoTab
+                                            ref="dailyInfoTabPopupRef"
+                                            :modelValue="formData"
+                                            @update:modelValue="formData = $event"
+                                            @validation-change="handleValidationChange"
+                                            @save="handleSave"
+                                            :isDocNoInvalid="isDocNoInvalid"
+                                            :isBookCodeInvalid="isBookCodeInvalid"
+                                            :isJournalDetailInvalid="isJournalDetailInvalid"
+                                            :isBalanceInvalid="isBalanceInvalid"
+                                        />
+                                    </div>
+                                </TabPanel>
+                                <TabPanel value="1">
+                                    <div class="pt-4 pb-2">
+                                        <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                    </div>
+                                </TabPanel>
+                                <TabPanel value="2">
+                                    <div class="pt-4 pb-2">
+                                        <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                    </div>
+                                </TabPanel>
+                            </TabPanels>
+                        </Tabs>
+                    </div>
+                </div>
+
+                <!-- Thumbnail Strip — ซ่อนเมื่อ popup เปิด แต่ยังคง mount ไว้ (v-show)
+                     เพื่อให้ thumbnailStripRef ยังใช้งานได้สำหรับ hasNextDocument/goToNextDocument -->
+                <div v-show="!isImagePopupOpen">
+                    <!-- Toggle button -->
+                    <div class="flex items-center justify-end px-1 pt-1">
+                        <Button
+                            :icon="showThumbnailStrip ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"
+                            :label="showThumbnailStrip ? 'ซ่อนรูปย่อ' : 'แสดงรูปย่อ'"
+                            text
+                            size="small"
+                            severity="secondary"
+                            @click="showThumbnailStrip = !showThumbnailStrip"
+                            v-tooltip.top="showThumbnailStrip ? 'ซ่อน thumbnail strip' : 'แสดง thumbnail strip'"
+                        />
+                    </div>
+                    <ImageThumbnailStrip
+                        v-show="showThumbnailStrip"
+                        ref="thumbnailStripRef"
+                        :taskId="taskId"
+                        :currentDocumentRef="documentRef"
+                        :hasUnsavedChanges="hasUnsavedChanges"
+                        @change-document="handleDocumentChange"
+                        class="mt-0 rounded-b-lg overflow-hidden"
+                    />
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Dialog เลือกโหมด / แสดง QR -->
+    <Dialog v-model:visible="showOpenModeDialog" modal :closable="true" :style="{ width: openModeStep === 'qr' ? '360px' : '440px' }" :header="openModeStep === 'qr' ? 'Scan QR บน iPad' : 'เปิดรูปภาพ'">
+        <!-- Step: เลือกโหมด -->
+        <div v-if="openModeStep === 'choose'" class="flex gap-3 py-2">
+            <!-- Card: เปิด Popup -->
+            <button
+                class="flex-1 flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all cursor-pointer group"
+                @click="openImageNewWindow()"
+            >
+                <div class="w-14 h-14 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                    <i class="pi pi-desktop text-2xl text-surface-600 dark:text-surface-300 group-hover:text-primary-500"></i>
+                </div>
+                <div class="text-center">
+                    <div class="font-semibold text-surface-900 dark:text-surface-0 text-sm">เปิด Popup</div>
+                    <div class="text-xs text-surface-500 dark:text-surface-400 mt-1">เปิดในหน้าต่างใหม่<br />บนเครื่องนี้</div>
+                </div>
+            </button>
+            <!-- Card: iPad QR -->
+            <button
+                class="flex-1 flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all cursor-pointer group"
+                @click="openQRMode()"
+            >
+                <div class="w-14 h-14 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                    <i class="pi pi-tablet text-2xl text-surface-600 dark:text-surface-300 group-hover:text-primary-500"></i>
+                </div>
+                <div class="text-center">
+                    <div class="font-semibold text-surface-900 dark:text-surface-0 text-sm">เปิดบน iPad</div>
+                    <div class="text-xs text-surface-500 dark:text-surface-400 mt-1">Scan QR code<br />ด้วย iPad / มือถือ</div>
+                </div>
+            </button>
+        </div>
+
+        <!-- Step: QR Code -->
+        <div v-else class="flex flex-col items-center gap-4 py-2">
+            <div class="p-2 bg-white rounded-xl shadow-inner border border-surface-200">
+                <img v-if="qrDataUrl" :src="qrDataUrl" style="width: 240px; height: 240px; image-rendering: pixelated" />
+                <div v-else class="w-60 h-60 flex items-center justify-center">
+                    <ProgressSpinner style="width: 40px; height: 40px" strokeWidth="4" />
+                </div>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-surface-600 dark:text-surface-400">Scan QR code ด้วย iPad หรือมือถือ</p>
+                <p class="text-xs text-surface-400 dark:text-surface-500 mt-1 font-mono break-all px-2">{{ popupUrl }}</p>
+            </div>
+            <Button label="เปลี่ยนเป็น Popup แทน" icon="pi pi-desktop" text severity="secondary" size="small" @click="openImageNewWindow()" />
+        </div>
+    </Dialog>
 </template>
 
 <style scoped>

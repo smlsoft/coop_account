@@ -499,6 +499,18 @@ const router = createRouter({
                     name: 'import-accounting-entries',
                     meta: { title: 'นำเข้าข้อมูลการบันทึกบัญชี' },
                     component: () => import('@/views/pages/ImportAccountingEntries.vue')
+                },
+                {
+                    path: '/import-data/document-formats',
+                    name: 'import-document-formats',
+                    meta: { title: 'นำเข้ารูปแบบการบันทึกบัญชี' },
+                    component: () => import('@/views/pages/ImportDocumentFormats.vue')
+                },
+                {
+                    path: '/import-data/journal-books',
+                    name: 'import-journal-books',
+                    meta: { title: 'นำเข้าสมุดรายวัน' },
+                    component: () => import('@/views/pages/ImportJournalBooks.vue')
                 }
             ]
         },

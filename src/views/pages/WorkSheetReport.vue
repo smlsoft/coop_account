@@ -304,22 +304,6 @@ const isLedgerLoading = (accountCode) => {
     return loadingLedger.value[accountCode] || false;
 };
 
-// Get row class based on account level for indentation
-const getRowClass = (data) => {
-    const level = data.accountlevel || 1;
-    return {
-        'font-bold': level <= 2,
-        'text-surface-600 dark:text-surface-400': level > 3
-    };
-};
-
-// Get account name with indentation based on level
-const getIndentedName = (data) => {
-    const level = data.accountlevel || 1;
-    const indent = '  '.repeat(Math.max(0, level - 1));
-    return indent + data.accountname;
-};
-
 const { exportToExcel, exportToPdf } = useReportExport();
 
 // Export Excel
@@ -328,7 +312,7 @@ const exportExcel = () => {
 
     const dataRows = filteredAccountDetails.value.map((item) => [
         item.accountcode,
-        getIndentedName(item),
+        item.accountname,
         formatCurrency(item.nextbalancedebitamount),
         formatCurrency(item.nextbalancecreditamount),
         formatCurrency(getProfitLossDebit(item)),
@@ -373,6 +357,8 @@ const exportExcel = () => {
     }
 
     exportToExcel({
+        title: 'กระดาษทำการ',
+        subtitle: `ณ วันที่ ${formatDateThai(endDate.value)}${includeClosingEntry.value === 1 ? ' (รวมรายการปิดบัญชี)' : ''}`,
         headerRows,
         dataRows,
         colWidths: [{ wch: 14 }, { wch: 36 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }],
@@ -408,7 +394,7 @@ const exportPdf = () => {
         const rightStyle = { ...style, halign: 'right' };
         return [
             { content: item.accountcode, styles: { ...style, halign: 'center' } },
-            { content: getIndentedName(item), styles: style },
+            { content: item.accountname, styles: style },
             { content: formatCurrency(item.nextbalancedebitamount), styles: rightStyle },
             { content: formatCurrency(item.nextbalancecreditamount), styles: rightStyle },
             { content: formatCurrency(getProfitLossDebit(item)), styles: rightStyle },
@@ -524,18 +510,10 @@ onMounted(() => {
             </div>
 
             <!-- Report Table -->
-            <DataTable :value="filteredAccountDetails" :loading="loading" dataKey="accountcode" showGridlines size="small" :rowHover="true" scrollable scrollHeight="calc(100vh - 380px)" class="worksheet-table">
+            <DataTable :value="filteredAccountDetails" :loading="loading" dataKey="accountcode" showGridlines size="small" :rowHover="true" scrollable scrollHeight="calc(100vh - 281px)" class="worksheet-table">
                 <!-- <Column expander style="width: 3rem" /> -->
-                <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ data.accountcode }}</span>
-                    </template>
-                </Column>
-                <Column field="accountname" header="ชื่อบัญชี" style="min-width: 250px">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)" style="white-space: pre">{{ getIndentedName(data) }}</span>
-                    </template>
-                </Column>
+                <Column field="accountcode" header="รหัสบัญชี" style="width: 120px" />
+                <Column field="accountname" header="ชื่อบัญชี" style="min-width: 250px" />
                 <ColumnGroup type="header">
                     <Row>
                         <Column header="รหัสบัญชี" :rowspan="2" :pt="{ headerCell: { style: 'width: 120px; text-align: center' } }" />
@@ -555,34 +533,22 @@ onMounted(() => {
                 </ColumnGroup>
 
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.nextbalancedebitamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.nextbalancedebitamount) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.nextbalancecreditamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.nextbalancecreditamount) }}</template>
                 </Column>
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(getProfitLossDebit(data)) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(getProfitLossDebit(data)) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(getProfitLossCredit(data)) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(getProfitLossCredit(data)) }}</template>
                 </Column>
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(getBalanceSheetDebit(data)) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(getBalanceSheetDebit(data)) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(getBalanceSheetCredit(data)) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(getBalanceSheetCredit(data)) }}</template>
                 </Column>
 
                 <!-- Expansion Template -->
@@ -716,7 +682,7 @@ onMounted(() => {
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="block text-sm font-medium mb-1">ณ วันที่</label>
-                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
@@ -725,7 +691,7 @@ onMounted(() => {
                 </div>
 
                 <div class="flex justify-end mt-2">
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>
@@ -766,19 +732,9 @@ onMounted(() => {
     padding: 0 !important;
 }
 
-/* Worksheet table styling - clickable rows */
-.worksheet-table :deep(.p-datatable-tbody > tr:not(.p-datatable-row-expansion)) {
-    cursor: pointer;
-}
-
 /* Header text center alignment - flex container needs justify-content */
 :deep(.p-datatable-column-header-content) {
     justify-content: center !important;
-}
-
-/* Ledger table styling */
-.ledger-table :deep(.p-datatable-tbody > tr) {
-    cursor: pointer;
 }
 
 .ledger-table :deep(.p-datatable-tbody > tr:hover) {

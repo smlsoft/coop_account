@@ -131,6 +131,8 @@ const exportExcel = () => {
     ]);
 
     exportToExcel({
+        title: 'รายงานรหัสผังบัญชี',
+        subtitle: fromAccountCode.value && toAccountCode.value ? `จาก ${fromAccountCode.value.displayLabel} ถึง ${toAccountCode.value.displayLabel}` : 'แสดงทั้งหมด',
         headerRows,
         dataRows,
         colWidths: [{ wch: 14 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 20 }],
@@ -235,7 +237,7 @@ onMounted(() => {
             </div>
 
             <!-- Report Table -->
-            <DataTable :value="accounts" showGridlines :rowHover="true" scrollable scrollHeight="calc(100vh - 280px)" tableStyle="min-width: 60rem" stripedRows>
+            <DataTable :value="accounts" showGridlines :rowHover="true" scrollable scrollHeight="calc(100vh - 281px)" tableStyle="min-width: 60rem" stripedRows>
                 <Column field="accountcode" header="รหัสบัญชี" style="width: 150px">
                     <template #body="{ data }">
                         <span class="text-primary" :class="{ 'font-black': isMainAccount(data) }">{{ data.accountcode }}</span>
@@ -280,7 +282,7 @@ onMounted(() => {
 
     <!-- Search Popover -->
     <Popover ref="searchPopover">
-        <div class="p-4 w-96">
+        <div class="p-4 w-150 bg-surface-card rounded-lg shadow-lg">
             <div class="font-semibold mb-3 text-surface-900 dark:text-surface-0">เงื่อนไขการค้นหา</div>
 
             <div class="flex flex-col gap-3">
@@ -328,7 +330,7 @@ onMounted(() => {
                 <!-- Action Buttons -->
                 <div class="flex justify-between mt-2">
                     <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

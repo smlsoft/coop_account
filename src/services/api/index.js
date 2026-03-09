@@ -66,6 +66,7 @@ export default {
     createJournalBook: journalbookAPI.createJournalBook,
     updateJournalBook: journalbookAPI.updateJournalBook,
     deleteJournalBook: journalbookAPI.deleteJournalBook,
+    importJournalBooks: journalbookAPI.importJournalBooks,
 
     // Journal APIs
     getJournalEntries: journalAPI.getJournalEntries,
@@ -129,6 +130,11 @@ export default {
     getJournalVatPDFDownloadUrl: reportAPI.getJournalVatPDFDownloadUrl,
     waitForPDFAndOpen: reportAPI.waitForPDFAndOpen,
     generateAndOpenJournalVatPDF: reportAPI.generateAndOpenJournalVatPDF,
+    generateJournalVatExcel: reportAPI.generateJournalVatExcel,
+    checkJournalVatExcelStatus: reportAPI.checkJournalVatExcelStatus,
+    getJournalVatExcelDownloadUrl: reportAPI.getJournalVatExcelDownloadUrl,
+    waitForVatExcelAndDownload: reportAPI.waitForVatExcelAndDownload,
+    generateAndDownloadJournalVatExcel: reportAPI.generateAndDownloadJournalVatExcel,
 
     // Withholding Tax Report APIs (ภาษีหัก ณ ที่จ่าย)
     getJournalTax: reportAPI.getJournalTax,
@@ -137,6 +143,16 @@ export default {
     getJournalTaxPDFDownloadUrl: reportAPI.getJournalTaxPDFDownloadUrl,
     waitForTaxPDFAndOpen: reportAPI.waitForTaxPDFAndOpen,
     generateAndOpenJournalTaxPDF: reportAPI.generateAndOpenJournalTaxPDF,
+    generateJournalTaxExcel: reportAPI.generateJournalTaxExcel,
+    checkJournalTaxExcelStatus: reportAPI.checkJournalTaxExcelStatus,
+    getJournalTaxExcelDownloadUrl: reportAPI.getJournalTaxExcelDownloadUrl,
+    waitForTaxExcelAndDownload: reportAPI.waitForTaxExcelAndDownload,
+    generateAndDownloadJournalTaxExcel: reportAPI.generateAndDownloadJournalTaxExcel,
+    generateJournalTaxTxt: reportAPI.generateJournalTaxTxt,
+    checkJournalTaxTxtStatus: reportAPI.checkJournalTaxTxtStatus,
+    getJournalTaxTxtDownloadUrl: reportAPI.getJournalTaxTxtDownloadUrl,
+    waitForTaxTxtAndDownload: reportAPI.waitForTaxTxtAndDownload,
+    generateAndDownloadJournalTaxTxt: reportAPI.generateAndDownloadJournalTaxTxt,
 
     // Withheld Tax Report APIs (ภาษีถูกหัก ณ ที่จ่าย)
     getJournalTaxDeduct: reportAPI.getJournalTaxDeduct,
@@ -145,6 +161,11 @@ export default {
     getJournalTaxDeductPDFDownloadUrl: reportAPI.getJournalTaxDeductPDFDownloadUrl,
     waitForTaxDeductPDFAndOpen: reportAPI.waitForTaxDeductPDFAndOpen,
     generateAndOpenJournalTaxDeductPDF: reportAPI.generateAndOpenJournalTaxDeductPDF,
+    generateJournalTaxDeductExcel: reportAPI.generateJournalTaxDeductExcel,
+    checkJournalTaxDeductExcelStatus: reportAPI.checkJournalTaxDeductExcelStatus,
+    getJournalTaxDeductExcelDownloadUrl: reportAPI.getJournalTaxDeductExcelDownloadUrl,
+    waitForTaxDeductExcelAndDownload: reportAPI.waitForTaxDeductExcelAndDownload,
+    generateAndDownloadJournalTaxDeductExcel: reportAPI.generateAndDownloadJournalTaxDeductExcel,
 
     // Document Format APIs (รูปแบบการบันทึกบัญชี)
     getDocumentFormats: documentformatAPI.getDocumentFormats,
@@ -152,6 +173,7 @@ export default {
     createDocumentFormat: documentformatAPI.createDocumentFormat,
     updateDocumentFormat: documentformatAPI.updateDocumentFormat,
     deleteDocumentFormat: documentformatAPI.deleteDocumentFormat,
+    importDocumentFormats: documentformatAPI.importDocumentFormats,
 
     // Accounts Payable Report APIs (รายงานสถานะเจ้าหนี้)
     getAccountsPayable: reportAPI.getAccountsPayable,

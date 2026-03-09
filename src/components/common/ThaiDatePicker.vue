@@ -7,9 +7,9 @@
  * - รองรับ props และ events ทั้งหมดของ PrimeVue DatePicker
  * - รองรับการพิมพ์วันที่โดยตรง (รูปแบบ dd/mm/yyyy พ.ศ.)
  */
-import { ref, computed, useAttrs, onUnmounted, nextTick, watch } from 'vue';
 import DatePicker from 'primevue/datepicker';
 import InputText from 'primevue/inputtext';
+import { computed, nextTick, onUnmounted, ref, useAttrs, watch } from 'vue';
 
 const props = defineProps({
     modelValue: {
@@ -30,7 +30,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['update:modelValue', 'show', 'hide', 'date-select', 'month-change', 'year-change']);
+const emit = defineEmits(['update:modelValue', 'show', 'hide', 'date-select', 'month-change', 'year-change', 'enter']);
 const attrs = useAttrs();
 
 // Refs
@@ -181,13 +181,26 @@ const handleKeydown = (event) => {
     if (event.key === 'Enter') {
         handleInputBlur();
         event.target.blur();
+        emit('enter');
     }
 };
 
 // เปิด calendar popup
 const openCalendar = () => {
     if (datePickerRef.value) {
-        // Trigger click on datepicker to open popup
+        // Sync currentMonth/currentYear ให้ตรงกับ modelValue ก่อนเปิด
+        // เพื่อให้ calendar navigate ไปยังเดือนของวันที่ที่เลือก
+        if (localModelValue.value) {
+            const d = localModelValue.value instanceof Date ? localModelValue.value : new Date(localModelValue.value);
+            if (!isNaN(d.getTime())) {
+                if (datePickerRef.value.currentMonth !== undefined) {
+                    datePickerRef.value.currentMonth = d.getMonth();
+                }
+                if (datePickerRef.value.currentYear !== undefined) {
+                    datePickerRef.value.currentYear = d.getFullYear();
+                }
+            }
+        }
         const input = datePickerRef.value.$el?.querySelector('input');
         if (input) {
             input.click();

@@ -83,3 +83,18 @@ export const deleteJournalBook = async (id) => {
         throw error;
     }
 };
+
+/**
+ * นำเข้าสมุดรายวันแบบ bulk
+ * @param {Array} data - รายการสมุดรายวัน
+ * @returns {Promise} ผลการนำเข้า
+ */
+export const importJournalBooks = async (data) => {
+    try {
+        const response = await apiClient.post('/gl/journalbook/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Error importing journal books:', error);
+        throw error;
+    }
+};

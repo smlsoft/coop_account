@@ -3,6 +3,7 @@ import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
 import { useReportExport } from '@/composables/useReportExport';
+import { getAccountGroups } from '@/services/api/accountgroup';
 import { getChartOfAccounts, getCreditors, getDebtors, getJournalBooks } from '@/services/api/journal';
 import { getJournalByDocNo, getLedgerAccount } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
@@ -35,6 +36,9 @@ const debtAccounts = ref([]);
 const debtAccountsLoading = ref(false);
 const journalBooks = ref([]);
 const journalBooksLoading = ref(false);
+const selectedAccountGroup = ref(null);
+const accountGroups = ref([]);
+const accountGroupsLoading = ref(false);
 
 // Debt account type options
 const debtAccountTypes = ref([
@@ -185,6 +189,24 @@ const tableData = computed(() => {
     return rows;
 });
 
+// Load account groups
+const loadAccountGroups = async () => {
+    accountGroupsLoading.value = true;
+    try {
+        const response = await getAccountGroups({ limit: 500, page: 1, sort: 'code:1' });
+        if (response.success) {
+            accountGroups.value = response.data.map((item) => ({
+                ...item,
+                displayLabel: `${item.code} ~ ${item.name1}`
+            }));
+        }
+    } catch (error) {
+        console.error('Error loading account groups:', error);
+    } finally {
+        accountGroupsLoading.value = false;
+    }
+};
+
 // Load all chart of accounts at once (preload)
 const loadAllChartOfAccounts = async () => {
     try {
@@ -325,6 +347,11 @@ const fetchReport = async () => {
             params.bookcode = bookCode.value.code;
         }
 
+        // Add account group if selected
+        if (selectedAccountGroup.value) {
+            params.accountgroup = selectedAccountGroup.value.code;
+        }
+
         const response = await getLedgerAccount(params);
 
         if (response.success) {
@@ -404,6 +431,8 @@ const exportExcel = () => {
     });
 
     exportToExcel({
+        title: 'บัญชีแยกประเภท',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
         headerRows,
         dataRows,
         colWidths: [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 36 }, { wch: 16 }, { wch: 16 }, { wch: 18 }],
@@ -504,6 +533,7 @@ const searchAndClosePopover = () => {
 
 // Clear all filters
 const clearFilters = () => {
+    selectedAccountGroup.value = null;
     accountCodeFrom.value = null;
     accountCodeTo.value = null;
     debtAccountType.value = null;
@@ -515,7 +545,7 @@ const clearFilters = () => {
 // Initialize on mount
 onMounted(async () => {
     initDefaultDates();
-    await loadAllChartOfAccounts(); // โหลดผังบัญชีทั้งหมดครั้งเดียว
+    await Promise.all([loadAccountGroups(), loadAllChartOfAccounts()]);
     fetchReport();
 });
 </script>
@@ -645,11 +675,11 @@ onMounted(async () => {
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">จากวันที่ <span class="text-red-500">*</span></label>
-                        <ThaiDatePicker v-model="startDate" class="w-full" showIcon />
+                        <ThaiDatePicker v-model="startDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ถึงวันที่ <span class="text-red-500">*</span></label>
-                        <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                        <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                     </div>
                 </div>
 
@@ -720,10 +750,16 @@ onMounted(async () => {
                     <AutoComplete v-model="bookCode" :suggestions="journalBooks" optionLabel="displayLabel" :loading="journalBooksLoading" @complete="searchJournalBooks" placeholder="ค้นหาสมุดรายวัน..." dropdown showClear forceSelection fluid />
                 </div>
 
+                <!-- Account Group -->
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">กลุ่มบัญชี</label>
+                    <Select v-model="selectedAccountGroup" :options="accountGroups" optionLabel="displayLabel" placeholder="เลือกกลุ่มบัญชี..." :loading="accountGroupsLoading" showClear filter filterPlaceholder="พิมพ์ค้นหา..." class="w-full" />
+                </div>
+
                 <!-- Action Buttons -->
                 <div class="flex justify-between mt-2">
                     <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

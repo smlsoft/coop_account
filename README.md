@@ -35,12 +35,12 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
+> เพิ่ม version ทุกครั้งที่ deploy prod เช่น v1.0.1, v1.0.2, v1.1.0
+
 GitHub Actions จะ build และ push image อัตโนมัติ
 
-- Image: `ghcr.io/smlsoft/coopaccount:prod`
+- Image: `ghcr.io/smlsoft/coopaccount:1.0.1` (ตาม version ที่ tag)
 - API: `https://glapi.rspcoop.com/`
-
-> เพิ่ม version ทุกครั้งที่ deploy prod เช่น v1.0.1, v1.0.2, v1.1.0
 
 ---
 
@@ -55,14 +55,18 @@ APP_PORT=8080
 ### 2. แก้ image ใน `docker-compose.yml`
 
 UAT:
+
 ```yaml
 image: ghcr.io/smlsoft/coopaccount:latest
 ```
 
 Production (ระบุ version ที่ต้องการ):
+
 ```yaml
-image: ghcr.io/smlsoft/coopaccount:1.0.0
+image: ghcr.io/smlsoft/coopaccount:1.0.1
 ```
+
+> ถ้าต้องการถอย version แค่เปลี่ยนเลข version แล้วรันคำสั่งด้านล่างใหม่
 
 ### 3. รัน
 

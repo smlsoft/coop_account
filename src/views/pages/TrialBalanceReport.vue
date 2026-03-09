@@ -3,6 +3,7 @@ import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useReportExport } from '@/composables/useReportExport';
+import { getAccountGroups } from '@/services/api/accountgroup';
 import { getJournalByDocNo, getLedgerAccount, getTrialBalanceSheet } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -26,12 +27,17 @@ const loadingJournal = ref(false);
 const startDate = ref(null);
 const endDate = ref(null);
 const includeYearEndClosing = ref(0); // 0 = ไม่รวม, 1 = รวม
+const selectedAccountGroup = ref(null);
 
 // Options for include year end closing
 const icaOptions = [
     { label: 'ไม่รวม', value: 0 },
     { label: 'รวม', value: 1 }
 ];
+
+// Account groups
+const accountGroups = ref([]);
+const accountGroupsLoading = ref(false);
 
 // Initialize default dates (first and last day of current month)
 const initDefaultDates = () => {
@@ -125,6 +131,10 @@ const fetchReport = async () => {
             ica: includeYearEndClosing.value
         };
 
+        if (selectedAccountGroup.value) {
+            params.accountgroup = selectedAccountGroup.value.code;
+        }
+
         const response = await getTrialBalanceSheet(params);
 
         if (response.success) {
@@ -152,7 +162,8 @@ const fetchReport = async () => {
 
 // Fetch ledger account data when row expands
 const fetchLedgerAccount = async (accountCode) => {
-    if (ledgerDataCache.value[accountCode]) {
+    const cacheKey = `${accountCode}__${selectedAccountGroup.value?.code || ''}`;
+    if (ledgerDataCache.value[cacheKey]) {
         return;
     }
 
@@ -165,10 +176,14 @@ const fetchLedgerAccount = async (accountCode) => {
             accountcode: `${accountCode}:${accountCode}`
         };
 
+        if (selectedAccountGroup.value) {
+            params.accountgroup = selectedAccountGroup.value.code;
+        }
+
         const response = await getLedgerAccount(params);
 
         if (response.success && response.data?.length > 0) {
-            ledgerDataCache.value[accountCode] = response.data[0];
+            ledgerDataCache.value[cacheKey] = response.data[0];
         }
     } catch (error) {
         console.error('Error fetching ledger account:', error);
@@ -238,12 +253,31 @@ const onLedgerRowClick = async (docno) => {
 
 // Get ledger data for account
 const getLedgerData = (accountCode) => {
-    return ledgerDataCache.value[accountCode];
+    const cacheKey = `${accountCode}__${selectedAccountGroup.value?.code || ''}`;
+    return ledgerDataCache.value[cacheKey];
 };
 
 // Check if ledger is loading
 const isLedgerLoading = (accountCode) => {
     return loadingLedger.value[accountCode] || false;
+};
+
+// Load all account groups
+const loadAccountGroups = async () => {
+    accountGroupsLoading.value = true;
+    try {
+        const response = await getAccountGroups({ limit: 500, page: 1, sort: 'code:1' });
+        if (response.success) {
+            accountGroups.value = response.data.map((item) => ({
+                ...item,
+                displayLabel: `${item.code} ~ ${item.name1}`
+            }));
+        }
+    } catch (error) {
+        console.error('Error loading account groups:', error);
+    } finally {
+        accountGroupsLoading.value = false;
+    }
 };
 
 // Toggle search popover
@@ -255,6 +289,13 @@ const toggleSearchPopover = (event) => {
 const searchAndClosePopover = () => {
     searchPopover.value.hide();
     fetchReport();
+};
+
+// Clear all filters
+const clearFilters = () => {
+    selectedAccountGroup.value = null;
+    includeYearEndClosing.value = 0;
+    initDefaultDates();
 };
 
 // ========== Export ==========
@@ -279,6 +320,8 @@ const exportExcel = () => {
     const t = totals.value;
 
     exportToExcel({
+        title: 'งบทดลอง',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
         headerRows: [
             ['', '', 'ยอดยกมา', '', 'ยอดประจำงวด', '', 'ยอดสะสม', ''],
             ['รหัสบัญชี', 'ชื่อบัญชี', 'เดบิต', 'เครดิต', 'เดบิต', 'เครดิต', 'เดบิต', 'เครดิต']
@@ -362,25 +405,10 @@ const exportPdf = () => {
     });
 };
 
-// Get row class based on account level for indentation
-const getRowClass = (data) => {
-    const level = data.accountlevel || 1;
-    return {
-        'font-bold': level <= 2,
-        'text-surface-600 dark:text-surface-400': level > 3
-    };
-};
-
-// Get account name with indentation based on level
-const getIndentedName = (data) => {
-    const level = data.accountlevel || 1;
-    const indent = '  '.repeat(Math.max(0, level - 1));
-    return indent + data.accountname;
-};
-
 // Initialize on mount
-onMounted(() => {
+onMounted(async () => {
     initDefaultDates();
+    await loadAccountGroups();
     fetchReport();
 });
 </script>
@@ -422,22 +450,14 @@ onMounted(() => {
                 size="small"
                 :rowHover="true"
                 scrollable
-                scrollHeight="calc(100vh - 315px)"
+                scrollHeight="calc(100vh - 280px)"
                 @row-expand="onRowExpand"
                 @row-click="onTrialBalanceRowClick"
                 class="trial-balance-table"
             >
                 <Column expander style="width: 3rem" />
-                <Column field="accountcode" header="รหัสบัญชี" style="width: 120px">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ data.accountcode }}</span>
-                    </template>
-                </Column>
-                <Column field="accountname" header="ชื่อบัญชี" style="min-width: 250px">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)" style="white-space: pre">{{ getIndentedName(data) }}</span>
-                    </template>
-                </Column>
+                <Column field="accountcode" header="รหัสบัญชี" style="width: 120px" />
+                <Column field="accountname" header="ชื่อบัญชี" style="min-width: 250px" />
                 <ColumnGroup type="header">
                     <Row>
                         <Column header="" :rowspan="2" :pt="{ headerCell: { style: 'width: 3rem' } }" />
@@ -458,34 +478,22 @@ onMounted(() => {
                 </ColumnGroup>
 
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.balancedebitamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.balancedebitamount) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.balancecreditamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.balancecreditamount) }}</template>
                 </Column>
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.debitamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.debitamount) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.creditamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.creditamount) }}</template>
                 </Column>
                 <Column header="เดบิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.nextbalancedebitamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.nextbalancedebitamount) }}</template>
                 </Column>
                 <Column header="เครดิต" style="width: 130px" :pt="{ headerCell: { style: 'text-align: center' }, bodyCell: { style: 'text-align: right' } }">
-                    <template #body="{ data }">
-                        <span :class="getRowClass(data)">{{ formatCurrency(data.nextbalancecreditamount) }}</span>
-                    </template>
+                    <template #body="{ data }">{{ formatCurrency(data.nextbalancecreditamount) }}</template>
                 </Column>
 
                 <!-- Expansion Template -->
@@ -582,26 +590,32 @@ onMounted(() => {
     <!-- Search Popover -->
     <Popover ref="searchPopover">
         <div class="p-4 w-80">
-            <div class="font-semibold mb-3">เงื่อนไขการค้นหา</div>
+            <div class="font-semibold mb-3 text-surface-900 dark:text-surface-0">เงื่อนไขการค้นหา</div>
 
             <div class="flex flex-col gap-3">
                 <div>
-                    <label class="block text-sm font-medium mb-1">จากวันที่</label>
-                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon />
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">จากวันที่ <span class="text-red-500">*</span></label>
+                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-1">ถึงวันที่</label>
-                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ถึงวันที่ <span class="text-red-500">*</span></label>
+                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-1">รวมรายการปิดบัญชีสิ้นปี</label>
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">กลุ่มบัญชี</label>
+                    <Select v-model="selectedAccountGroup" :options="accountGroups" optionLabel="displayLabel" placeholder="เลือกกลุ่มบัญชี..." :loading="accountGroupsLoading" showClear filter filterPlaceholder="พิมพ์ค้นหา..." class="w-full" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">รวมรายการปิดบัญชีสิ้นปี</label>
                     <Select v-model="includeYearEndClosing" :options="icaOptions" optionLabel="label" optionValue="value" class="w-full" />
                 </div>
 
-                <div class="flex justify-end mt-2">
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                <div class="flex justify-between mt-2">
+                    <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

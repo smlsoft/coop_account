@@ -12,8 +12,8 @@ import ImageDetailPanel from '@/components/image/ImageDetailPanel.vue';
 import ImageUploadPreviewDialog from '@/components/image/ImageUploadPreviewDialog.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useLoading } from '@/composables/useLoading';
-import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadMediaImage } from '@/services/api/image';
-import { createJournal, getCreditors, getDebtors, getDocumentFormats, getJournalBooks, getJournalById, updateJournal } from '@/services/api/journal';
+import { createDocumentImage, getDocumentImageGroup, updateDocumentImageGroupImages, uploadImage } from '@/services/api/image';
+import { createJournal, getAccountGroups, getCreditors, getDebtors, getDocumentFormats, getJournalBooks, getJournalById, updateJournal } from '@/services/api/journal';
 import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
 import { toDecimalNumber } from '@/utils/numberFormat';
 import { useToast } from 'primevue/usetoast';
@@ -219,7 +219,7 @@ const handleApplyOcrData = async () => {
     const entry = ocrResultData.value.accounting_entry;
 
     // นำข้อมูลมาใส่ใน form
-    formData.value.docdate = entry.document_date || new Date().toISOString().split('T')[0];
+    formData.value.docdate = entry.document_date || new Date();
     formData.value.docno = entry.reference_number || '';
 
     // ตั้งค่า journal book
@@ -306,8 +306,12 @@ const isSmallScreen = ref(window.innerWidth < 1024);
 const hasImages = computed(() => {
     return documentImageGroup.value?.imagereferences && documentImageGroup.value.imagereferences.length > 0;
 });
+let resizeTimer = null;
 const handleResize = () => {
-    isSmallScreen.value = window.innerWidth < 1024;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        isSmallScreen.value = window.innerWidth < 1024;
+    }, 150);
 };
 
 // Image upload state
@@ -353,25 +357,16 @@ const safeParseInt = (value, defaultValue = 0) => {
     return isNaN(parsed) ? defaultValue : parsed;
 };
 
-// แปลงวันที่เป็น ISO string โดยใช้ local timezone (ไม่ใช่ UTC)
-// เพื่อป้องกันปัญหาวันที่เลื่อนไป 1 วัน เมื่อแปลงจาก local time เป็น UTC
+// แปลงวันที่เป็น ISO string โดยใช้ UTC 07:00:00Z (= 14:00 เวลาไทย)
+// เพื่อให้ server รับวันที่ถูกต้องโดยไม่เลื่อนวัน
 const toLocalISOString = (date) => {
     if (!date) return null;
     const d = new Date(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
 
-    // คำนวณ timezone offset (เช่น +07:00 สำหรับประเทศไทย)
-    const timezoneOffset = -d.getTimezoneOffset();
-    const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
-    const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
-    const offsetSign = timezoneOffset >= 0 ? '+' : '-';
-
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
+    return `${year}-${month}-${day}T07:00:00Z`;
 };
 
 // Trigger file input
@@ -486,7 +481,7 @@ const handleFileSelect = async (event) => {
 
     try {
         // Upload file with abort signal
-        const response = await uploadMediaImage(file, 'coop', { signal: abortControllers.value.upload.signal });
+        const response = await uploadImage(file, { signal: abortControllers.value.upload.signal });
         if (response.data.success) {
             uploadedImageUri.value = response.data.data.uri;
             showUploadPreview.value = true;
@@ -667,7 +662,11 @@ const formData = ref({
 });
 
 const goBack = () => {
-    router.push({ name: 'journal-entry' });
+    if (history.state?.returnTo) {
+        router.push(history.state.returnTo);
+    } else {
+        router.push({ name: 'journal-entry' });
+    }
 };
 
 // ลบแถวว่างใน journaldetail (แถวที่ไม่มียอด debit หรือ credit)
@@ -968,7 +967,7 @@ const submitForm = async () => {
             creditor: formData.value.debtaccounttype === 1 ? formData.value.debtaccountcode || {} : {},
             debtaccounttype: formData.value.debtaccounttype,
             accountdescription: formData.value.accountdescription || '',
-            accountgroup: '',
+            accountgroup: formData.value.accountgroup?.code || '',
             accountperiod: new Date(formData.value.docdate).getMonth() + 1, // 1-12
             accountyear: new Date(formData.value.docdate).getFullYear() + 543, // พ.ศ.
             documentref: formData.value.documentref || '',
@@ -1049,9 +1048,13 @@ const submitForm = async () => {
             // Set flag ว่าเพิ่ง save เสร็จ เพื่อไม่ให้แสดง Navigation Confirm Dialog
             justSaved.value = true;
 
-            // กลับไปหน้า list
+            // กลับไปหน้าเดิม หรือหน้า list ถ้าไม่มี returnTo
             setTimeout(() => {
-                router.push({ name: 'journal-entry' });
+                if (history.state?.returnTo) {
+                    router.push(history.state.returnTo);
+                } else {
+                    router.push({ name: 'journal-entry' });
+                }
             }, 500);
         } else {
             toast.add({
@@ -1106,10 +1109,28 @@ const loadJournalData = async () => {
             const data = response.data.data;
 
             // โหลด master data แบบ parallel พร้อม abort signal
-            const [booksResponse, formatsResponse] = await Promise.all([
+            const [booksResponse, formatsResponse, accountGroupsResponse] = await Promise.all([
                 getJournalBooks({ q: data.bookcode || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal }),
-                getDocumentFormats({ q: data.docformat || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal })
+                getDocumentFormats({ q: data.docformat || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal }),
+                getAccountGroups({ q: data.accountgroup || '', page: 1, limit: 100 }, { signal: abortControllers.value.loadJournal.signal })
             ]);
+
+            // Map accountgroup
+            let mappedAccountGroup = null;
+            if (data.accountgroup && accountGroupsResponse.data.success) {
+                const foundGroup = accountGroupsResponse.data.data.find((g) => g.code === data.accountgroup);
+                if (foundGroup) {
+                    mappedAccountGroup = {
+                        ...foundGroup,
+                        displayLabel: `${foundGroup.code} ~ ${foundGroup.name1}`
+                    };
+                } else {
+                    mappedAccountGroup = {
+                        code: data.accountgroup,
+                        displayLabel: data.accountgroup
+                    };
+                }
+            }
 
             // Map bookcode
             let mappedBookcode = null;
@@ -1131,7 +1152,7 @@ const loadJournalData = async () => {
 
             // Map docformat
             let mappedDocformat = data.docformat || '';
-            // Note: docformat เก็บเป็น doccode ไม่ต้อง map เป็น object
+            // Note: docformat เก็บเป็น description ไม่ต้อง map เป็น object
 
             // Map debt account (ลูกหนี้/เจ้าหนี้)
             let mappedDebtAccount = null;
@@ -1182,6 +1203,7 @@ const loadJournalData = async () => {
                 exdocrefno: data.exdocrefno || '',
                 journaltype: safeParseInt(data.journaltype, 0),
                 accountdescription: data.accountdescription || '',
+                accountgroup: mappedAccountGroup,
                 docformat: mappedDocformat,
                 documentref: data.documentref || '',
                 journaldetail: data.journaldetail || [],
@@ -1355,7 +1377,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex gap-2 items-center">
                     <!-- AI Analysis Button -->
-                    <!-- <Button icon="pi pi-sparkles" label="AI วิเคราะห์" severity="success" outlined @click="handleAiAnalyze" v-tooltip.left="hasImages ? 'วิเคราะห์เอกสารด้วย AI' : 'ต้องมีรูปภาพเอกสารก่อน'" :disabled="!hasImages || loading" /> -->
+                    <Button icon="pi pi-sparkles" label="AI วิเคราะห์" severity="success" outlined @click="handleAiAnalyze" v-tooltip.left="hasImages ? 'วิเคราะห์เอกสารด้วย AI' : 'ต้องมีรูปภาพเอกสารก่อน'" :disabled="!hasImages || loading" />
 
                     <!-- Image Panel Buttons -->
                     <Button v-if="!showImagePanel" icon="pi pi-image" label="รูปภาพเอกสาร" text @click="toggleImagePanel" v-tooltip.left="'เปิดแผงรูปภาพเอกสาร'" :disabled="loading" />
@@ -1364,41 +1386,60 @@ onUnmounted(() => {
                     <Button icon="pi pi-key" text @click="toggleShortcutInfo" v-tooltip.left="'คีย์ลัด'" />
 
                     <Popover ref="shortcutInfoRef">
-                        <div class="p-3 w-72">
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>บันทึก</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + S</kbd>
-                                </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>เพิ่มแถวใหม่</span>
-                                    <div class="flex gap-1">
-                                        <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + N</kbd>
-                                        <span class="text-surface-400" v-if="isMac">หรือ</span>
-                                        <kbd v-if="isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Help (Ins)</kbd>
-                                        <span class="text-surface-400" v-if="!isMac">หรือ</span>
-                                        <kbd v-if="!isMac" class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Insert</kbd>
+                        <div class="p-3 w-80">
+                            <p class="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-2">คีย์ลัด</p>
+                            <div class="space-y-1 text-sm">
+                                <!-- Navigation -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">การนำทาง</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ถัดไป</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Enter</kbd>
+                                        <span class="text-surface-400 text-xs">/</span>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Tab</kbd>
                                     </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>สร้างเลขที่เอกสาร</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + G</kbd>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ย้อนกลับ</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">Shift + Tab</kbd>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>ย้ายแถวขึ้น</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↑</kbd>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ขึ้น / ลง row</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">↑</kbd>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">↓</kbd>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
-                                    <span>ย้ายแถวลง</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↓</kbd>
+                                <!-- Row actions -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">จัดการแถว</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>เพิ่มแถวใหม่</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + N</kbd>
+                                        <span class="text-surface-400 text-xs">หรือ</span>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ isMac ? 'Help' : 'Insert' }}</kbd>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between items-center py-1 border-b border-surface-200 dark:border-surface-700">
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>ย้ายแถวขึ้น / ลง</span>
+                                    <div class="flex gap-1 items-center">
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↑</kbd>
+                                        <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + ↓</kbd>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
                                     <span>ลบแถวปัจจุบัน</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + Del</kbd>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + Del</kbd>
+                                </div>
+                                <!-- Document -->
+                                <p class="text-xs text-surface-400 dark:text-surface-500 mt-2 mb-1">เอกสาร</p>
+                                <div class="flex justify-between items-center py-1 border-b border-surface-100 dark:border-surface-800">
+                                    <span>สร้างเลขที่เอกสาร</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ altKey }} + G</kbd>
                                 </div>
                                 <div class="flex justify-between items-center py-1">
-                                    <span>ไปช่องถัดไป</span>
-                                    <kbd class="px-2 py-1 bg-surface-100 dark:bg-surface-700 rounded text-xs">Tab</kbd>
+                                    <span>บันทึก</span>
+                                    <kbd class="px-2 py-0.5 bg-surface-100 dark:bg-surface-700 rounded text-xs">{{ ctrlKey }} + S</kbd>
                                 </div>
                             </div>
                         </div>
@@ -1419,7 +1460,7 @@ onUnmounted(() => {
                 <Splitter v-if="showImagePanel" :layout="isSmallScreen ? 'vertical' : 'horizontal'" class="rounded-lg border border-surface-200 dark:border-surface-700" style="height: calc(100vh - 250px); min-height: 500px">
                     <!-- Top/Left Panel - Image Detail Panel -->
                     <SplitterPanel :size="isSmallScreen ? 50 : 40" :minSize="isSmallScreen ? 30 : 25" class="bg-surface-50 dark:bg-surface-900">
-                        <div class="h-full overflow-auto p-2">
+                        <div class="h-full overflow-auto p-0">
                             <div v-if="loadingImages" class="h-full flex justify-center items-center min-h-80">
                                 <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
                             </div>
@@ -1440,7 +1481,7 @@ onUnmounted(() => {
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span><strong>อัพโหลดเอกสาร:</strong> เพิ่มรูปภาพจากคอมพิวเตอร์ของคุณ</span>
                                                 </li>
-                                                <!-- <li class="flex items-start gap-2">
+                                                <li class="flex items-start gap-2">
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span><strong>เลือกจาก Task:</strong> เลือกรูปภาพที่มีอยู่แล้วใน Task</span>
                                                 </li>
@@ -1451,7 +1492,7 @@ onUnmounted(() => {
                                                 <li class="flex items-start gap-2">
                                                     <span class="text-primary-600 dark:text-primary-400">•</span>
                                                     <span>หากต้องการเลือกรูปจาก Task ใหม่ ให้<strong>ลบรูปเดิม</strong>ก่อน</span>
-                                                </li> -->
+                                                </li>
                                             </ul>
                                         </div>
                                     </div>
@@ -1459,19 +1500,11 @@ onUnmounted(() => {
 
                                 <div class="flex gap-2">
                                     <Button label="อัพโหลดเอกสาร" icon="pi pi-upload" @click="triggerFileUpload" :loading="uploadingImage" />
-                                    <!-- <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" /> -->
+                                    <Button label="เลือกจาก Task" icon="pi pi-folder-open" severity="secondary" @click="openTaskSelection" :loading="uploadingImage" />
                                 </div>
                             </div>
                             <!-- Image panel with add button -->
                             <div v-else class="h-full flex flex-col">
-                                <div class="flex justify-end mb-2 gap-2">
-                                    <!-- แสดงปุ่ม "เพิ่มรูป" เสมอ (สามารถเพิ่มรูปได้ทุกกรณี) -->
-                                    <Button label="เพิ่มรูป" icon="pi pi-plus" size="small" @click="triggerFileUpload" :loading="uploadingImage" />
-                                    <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
-                                    <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
-                                    <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
-                                    <!-- <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" /> -->
-                                </div>
                                 <div class="flex-1 overflow-auto">
                                     <ImageDetailPanel
                                         :selectedGroup="documentImageGroup"
@@ -1481,8 +1514,16 @@ onUnmounted(() => {
                                         :isReviewMode="false"
                                         :updatingStatus="false"
                                         :isReadOnly="true"
-                                        @refresh-group="loadDocumentImages(formData.documentref)"
+                                        :headerBelow="true"
                                     />
+                                </div>
+                                <div class="flex justify-end pt-2 gap-2 border-t border-surface-200 dark:border-surface-700">
+                                    <!-- แสดงปุ่ม "เพิ่มรูป" เสมอ (สามารถเพิ่มรูปได้ทุกกรณี) -->
+                                    <Button label="เพิ่มรูป" icon="pi pi-plus" size="small" severity="secondary" @click="triggerFileUpload" :loading="uploadingImage" />
+                                    <!-- แสดงปุ่ม "ยกเลิกรูปจาก Task" เฉพาะเมื่อเป็นรูปจาก task -->
+                                    <Button v-if="imageSourceType === 'task'" label="ยกเลิกรูปจาก Task" icon="pi pi-times" size="small" severity="danger" @click="cancelImage" outlined />
+                                    <!-- แสดงปุ่ม "เลือกจาก Task" เฉพาะเมื่อไม่มีรูปหรือเป็นรูปจาก upload เท่านั้น -->
+                                    <Button v-if="!imageSourceType || imageSourceType === 'upload'" label="เลือกจาก Task" icon="pi pi-folder-open" size="small" severity="info" @click="openTaskSelection" :loading="uploadingImage" />
                                 </div>
                             </div>
                         </div>
@@ -1497,14 +1538,14 @@ onUnmounted(() => {
                                         <i class="pi pi-calendar mr-2"></i>
                                         ข้อมูลรายวัน
                                     </Tab>
-                                    <!-- <Tab value="1">
+                                    <Tab value="1">
                                         <i class="pi pi-file-edit mr-2"></i>
                                         ข้อมูลภาษี
                                     </Tab>
                                     <Tab value="2">
                                         <i class="pi pi-percentage mr-2"></i>
                                         ภาษีถูกหัก ณ ที่จ่าย
-                                    </Tab> -->
+                                    </Tab>
                                 </TabList>
                                 <TabPanels class="flex-1 overflow-auto">
                                     <TabPanel value="0">
@@ -1523,12 +1564,12 @@ onUnmounted(() => {
                                     </TabPanel>
                                     <TabPanel value="1">
                                         <div class="pt-4 pb-2">
-                                            <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                            <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" @save="handleSave" />
                                         </div>
                                     </TabPanel>
                                     <TabPanel value="2">
                                         <div class="pt-4 pb-2">
-                                            <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                            <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" @save="handleSave" />
                                         </div>
                                     </TabPanel>
                                 </TabPanels>
@@ -1544,14 +1585,14 @@ onUnmounted(() => {
                             <i class="pi pi-calendar mr-2"></i>
                             ข้อมูลรายวัน
                         </Tab>
-                        <!-- <Tab value="1">
+                        <Tab value="1">
                             <i class="pi pi-file-edit mr-2"></i>
                             ข้อมูลภาษี
                         </Tab>
                         <Tab value="2">
                             <i class="pi pi-percentage mr-2"></i>
                             ภาษีถูกหัก ณ ที่จ่าย
-                        </Tab> -->
+                        </Tab>
                     </TabList>
                     <TabPanels class="flex-1 overflow-auto">
                         <TabPanel value="0">
@@ -1570,12 +1611,12 @@ onUnmounted(() => {
                         </TabPanel>
                         <TabPanel value="1">
                             <div class="pt-4">
-                                <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" @save="handleSave" />
                             </div>
                         </TabPanel>
                         <TabPanel value="2">
                             <div class="pt-4">
-                                <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
+                                <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" @save="handleSave" />
                             </div>
                         </TabPanel>
                     </TabPanels>

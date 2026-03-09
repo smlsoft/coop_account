@@ -391,12 +391,12 @@ onMounted(async () => {
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">จากวันที่ <span class="text-red-500">*</span></label>
-                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon />
+                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ถึงวันที่ <span class="text-red-500">*</span></label>
-                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
@@ -422,7 +422,7 @@ onMounted(async () => {
 
                 <div class="flex justify-between mt-2">
                     <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

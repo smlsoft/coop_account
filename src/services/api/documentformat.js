@@ -83,3 +83,18 @@ export const deleteDocumentFormat = async (id) => {
         throw error;
     }
 };
+
+/**
+ * นำเข้ารูปแบบการบันทึกบัญชี แบบ bulk
+ * @param {Array} data - รายการรูปแบบการบันทึกบัญชี
+ * @returns {Promise} ผลการนำเข้า
+ */
+export const importDocumentFormats = async (data) => {
+    try {
+        const response = await apiClient.post('/transaction/document-formate/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Error importing document formats:', error);
+        throw error;
+    }
+};

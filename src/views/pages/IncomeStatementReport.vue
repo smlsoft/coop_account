@@ -3,6 +3,7 @@ import JournalDetailDialog from '@/components/accounting/JournalDetailDialog.vue
 import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import { useLoading } from '@/composables/useLoading';
 import { useReportExport } from '@/composables/useReportExport';
+import { getAccountGroups } from '@/services/api/accountgroup';
 import { getJournalByDocNo, getLedgerAccount, getProfitAndLoss } from '@/services/api/report';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -25,6 +26,25 @@ const loadingJournal = ref(false);
 // Search filters
 const startDate = ref(null);
 const endDate = ref(null);
+const selectedAccountGroup = ref(null);
+
+// Account groups
+const accountGroups = ref([]);
+const accountGroupsLoading = ref(false);
+
+const loadAccountGroups = async () => {
+    accountGroupsLoading.value = true;
+    try {
+        const response = await getAccountGroups({ limit: 500, page: 1, sort: 'code:1' });
+        if (response.success) {
+            accountGroups.value = response.data.map((item) => ({ ...item, displayLabel: `${item.code} ~ ${item.name1}` }));
+        }
+    } catch (error) {
+        console.error('Error loading account groups:', error);
+    } finally {
+        accountGroupsLoading.value = false;
+    }
+};
 
 // Initialize default dates (first and last day of current month)
 const initDefaultDates = () => {
@@ -183,13 +203,6 @@ const isRowExpandable = (rowData) => {
     return rowData.rowType === 'item';
 };
 
-// Get indent style based on account level
-const getIndentStyle = (level) => {
-    if (!level) return {};
-    const indent = (level - 1) * 20; // 20px per level
-    return { paddingLeft: `${indent}px` };
-};
-
 // Fetch report data
 const fetchReport = async () => {
     if (!startDate.value || !endDate.value) {
@@ -211,6 +224,10 @@ const fetchReport = async () => {
             startdate: formatDateForApi(startDate.value),
             enddate: formatDateForApi(endDate.value)
         };
+
+        if (selectedAccountGroup.value) {
+            params.accountgroup = selectedAccountGroup.value.code;
+        }
 
         const response = await getProfitAndLoss(params);
 
@@ -239,7 +256,8 @@ const fetchReport = async () => {
 
 // Fetch ledger account data
 const fetchLedgerAccount = async (accountCode) => {
-    if (ledgerDataCache.value[accountCode]) {
+    const cacheKey = `${accountCode}__${selectedAccountGroup.value?.code || ''}`;
+    if (ledgerDataCache.value[cacheKey]) {
         return;
     }
 
@@ -252,10 +270,14 @@ const fetchLedgerAccount = async (accountCode) => {
             accountcode: `${accountCode}:${accountCode}`
         };
 
+        if (selectedAccountGroup.value) {
+            params.accountgroup = selectedAccountGroup.value.code;
+        }
+
         const response = await getLedgerAccount(params);
 
         if (response.success && response.data?.length > 0) {
-            ledgerDataCache.value[accountCode] = response.data[0];
+            ledgerDataCache.value[cacheKey] = response.data[0];
         }
     } catch (error) {
         console.error('Error fetching ledger account:', error);
@@ -322,7 +344,8 @@ const onLedgerRowClick = async (docno) => {
 
 // Get ledger data for account
 const getLedgerData = (accountCode) => {
-    return ledgerDataCache.value[accountCode];
+    const cacheKey = `${accountCode}__${selectedAccountGroup.value?.code || ''}`;
+    return ledgerDataCache.value[cacheKey];
 };
 
 // Check if ledger is loading
@@ -341,6 +364,12 @@ const searchAndClosePopover = () => {
     fetchReport();
 };
 
+// Clear all filters
+const clearFilters = () => {
+    selectedAccountGroup.value = null;
+    initDefaultDates();
+};
+
 // ========== Export ==========
 const { exportToExcel, exportToPdf } = useReportExport();
 
@@ -353,6 +382,8 @@ const exportExcel = () => {
     const dataRows = tableData.value.map((r) => [r.accountcode || '', r.accountname || '', r.rowType === 'header' ? '' : formatCurrencyWithParentheses(r.amount)]);
 
     exportToExcel({
+        title: 'งบกำไรขาดทุน',
+        subtitle: `ตั้งแต่วันที่ ${formatDateThai(startDate.value)} ถึงวันที่ ${formatDateThai(endDate.value)}`,
         headerRows: [['รหัสบัญชี', 'รายการ', 'จำนวนเงิน (บาท)']],
         dataRows,
         colWidths: [{ wch: 14 }, { wch: 50 }, { wch: 20 }],
@@ -398,8 +429,9 @@ const exportPdf = () => {
 };
 
 // Initialize on mount
-onMounted(() => {
+onMounted(async () => {
     initDefaultDates();
+    await loadAccountGroups();
     fetchReport();
 });
 </script>
@@ -429,22 +461,7 @@ onMounted(() => {
         </div>
 
         <!-- Report Table -->
-        <DataTable
-            v-model:expandedRows="expandedRows"
-            :value="tableData"
-            dataKey="id"
-            scrollable
-            scrollHeight="calc(100vh - 285px)"
-            tableStyle="min-width: 50rem"
-            :rowClass="
-                (data) => ({
-                    'font-bold': data.rowType === 'header' || data.rowType === 'total' || data.rowType === 'profit-loss',
-                    'bg-surface-100 dark:bg-surface-800': data.rowType === 'profit-loss'
-                })
-            "
-            @row-expand="onRowExpand"
-            @row-click="(e) => isRowExpandable(e.data) && onRowClick(e)"
-        >
+        <DataTable v-model:expandedRows="expandedRows" :value="tableData" dataKey="id" scrollable scrollHeight="calc(100vh - 282px)" tableStyle="min-width: 50rem" @row-expand="onRowExpand" @row-click="(e) => isRowExpandable(e.data) && onRowClick(e)">
             <!-- Expander Column -->
             <Column style="width: 3rem">
                 <template #body="{ data }">
@@ -456,16 +473,12 @@ onMounted(() => {
 
             <Column header="รายการ" style="min-width: 400px">
                 <template #body="{ data }">
-                    <div v-if="data.rowType === 'header'" class="text-lg font-bold">
-                        {{ data.accountname }}
-                    </div>
-                    <div v-else-if="data.rowType === 'item'" :style="getIndentStyle(data.accountlevel)">
-                        <span class="text-surface-700 dark:text-surface-300">{{ data.accountname }}</span>
+                    <div v-if="data.rowType === 'header'">{{ data.accountname }}</div>
+                    <div v-else-if="data.rowType === 'item'">
+                        <span>{{ data.accountname }}</span>
                         <span v-if="data.accountcode" class="ml-2 text-xs text-surface-500 dark:text-surface-400">({{ data.accountcode }})</span>
                     </div>
-                    <div v-else-if="data.rowType === 'total' || data.rowType === 'profit-loss'" class="text-right font-bold">
-                        {{ data.accountname }}
-                    </div>
+                    <div v-else-if="data.rowType === 'total' || data.rowType === 'profit-loss'">{{ data.accountname }}</div>
                 </template>
             </Column>
 
@@ -567,17 +580,23 @@ onMounted(() => {
 
             <div class="flex flex-col gap-3">
                 <div>
-                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">จากวันที่</label>
-                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon />
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">จากวันที่ <span class="text-red-500">*</span></label>
+                    <ThaiDatePicker v-model="startDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ถึงวันที่</label>
-                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon />
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">ถึงวันที่ <span class="text-red-500">*</span></label>
+                    <ThaiDatePicker v-model="endDate" class="w-full" showIcon @enter="searchAndClosePopover" />
                 </div>
 
-                <div class="flex justify-end mt-2">
-                    <Button label="ค้นหา" icon="pi pi-search" @click="searchAndClosePopover" />
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-surface-700 dark:text-surface-300">กลุ่มบัญชี</label>
+                    <Select v-model="selectedAccountGroup" :options="accountGroups" optionLabel="displayLabel" placeholder="เลือกกลุ่มบัญชี..." :loading="accountGroupsLoading" showClear filter filterPlaceholder="พิมพ์ค้นหา..." class="w-full" />
+                </div>
+
+                <div class="flex justify-between mt-2">
+                    <Button label="ล้างเงื่อนไข" icon="pi pi-times" severity="secondary" text @click="clearFilters" />
+                    <Button label="ค้นหา (Enter)" icon="pi pi-search" @click="searchAndClosePopover" />
                 </div>
             </div>
         </div>

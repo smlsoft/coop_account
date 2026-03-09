@@ -277,7 +277,7 @@ const model = ref([
                 icon: 'pi pi-fw pi-file-import',
                 to: '/import-data/chart-of-accounts',
                 path: '/chart-of-accounts'
-            }
+            },
             /// นำเข้าข้อมูลลูกหนี้
             // {
             //     label: 'นำเข้าข้อมูลลูกหนี้',
@@ -292,6 +292,20 @@ const model = ref([
             //     to: '/import-data/creditors',
             //     path: '/creditors'
             // }
+            /// นำเข้ารูปแบบการบันทึกบัญชี
+            {
+                label: 'นำเข้ารูปแบบการบันทึกบัญชี',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/document-formats',
+                path: '/document-formats'
+            },
+            /// นำเข้าสมุดรายวัน
+            {
+                label: 'นำเข้าสมุดรายวัน',
+                icon: 'pi pi-fw pi-file-import',
+                to: '/import-data/journal-books',
+                path: '/journal-books'
+            }
         ]
     }
 

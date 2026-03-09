@@ -4,7 +4,7 @@ import ThaiDatePicker from '@/components/common/ThaiDatePicker.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useWithholdingTaxReport } from '@/composables/useWithholdingTaxReport';
 import { CUSTOMER_TYPE, WITHHOLDING_TAX_TYPE } from '@/constants/taxReport';
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 // Use the shared withholding tax report composable for PND53 (Juristic)
 const {
@@ -38,8 +38,17 @@ const {
     formatCurrency,
     onRowClick,
     downloadPDF,
+    downloadExcel,
+    downloadTxt,
     initReport
 } = useWithholdingTaxReport(WITHHOLDING_TAX_TYPE.WHT, CUSTOMER_TYPE.JURISTIC);
+
+const downloadMenu = ref(null);
+const downloadMenuItems = ref([
+    { label: 'ดาวน์โหลด TXT', icon: 'pi pi-file', command: () => downloadTxt() },
+    { label: 'ดาวน์โหลด Excel', icon: 'pi pi-file-excel', command: () => downloadExcel() },
+    { label: 'ดาวน์โหลด PDF', icon: 'pi pi-file-pdf', command: () => downloadPDF() }
+]);
 
 // Initialize component
 onMounted(async () => {
@@ -59,7 +68,8 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="ดาวน์โหลด PDF" icon="pi pi-file-pdf" @click="downloadPDF" severity="primary" :disabled="isDownloadDisabled" />
+                <Menu ref="downloadMenu" :model="downloadMenuItems" :popup="true" />
+                <Button label="ดาวน์โหลด" icon="pi pi-download" iconPos="left" @click="downloadMenu.toggle($event)" outlined severity="primary" :disabled="isDownloadDisabled" />
                 <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
@@ -94,19 +104,19 @@ onMounted(async () => {
             </div>
 
             <!-- Report Table with Expand -->
-            <DataTable v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="docno" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
+            <DataTable v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="_rowKey" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
                 <Column expander style="width: 3rem" />
-                <Column header="ลำดับ" style="width: 60px">
+                <Column header="ลำดับ" style="width: 60px" headerClass="text-center" bodyClass="text-center">
                     <template #body="{ index }">
                         {{ (currentPage - 1) * itemsPerPage + index + 1 }}
                     </template>
                 </Column>
-                <Column field="custname" header="ชื่อผู้มีเงินได้" style="min-width: 180px">
+                <Column field="custname" header="ชื่อ" style="min-width: 180px">
                     <template #body="{ data }">
                         {{ data.custname || '-' }}
                     </template>
                 </Column>
-                <Column field="address" header="ที่อยู่ผู้มีเงินได้" style="min-width: 200px">
+                <Column field="address" header="ที่อยู่" style="min-width: 200px">
                     <template #body="{ data }">
                         {{ data.address || '-' }}
                     </template>
@@ -121,7 +131,7 @@ onMounted(async () => {
                         {{ data.taxdocno || '-' }}
                     </template>
                 </Column>
-                <Column header="ประเภทเงินได้ที่จ่าย" style="min-width: 150px">
+                <Column header="รายละเอียด" style="min-width: 150px">
                     <template #body="{ data }">
                         {{ data.details?.[0]?.description || '-' }}
                     </template>
@@ -131,7 +141,7 @@ onMounted(async () => {
                         {{ formatDateThai(data.taxdate) }}
                     </template>
                 </Column>
-                <Column header="อัตราภาษี (%)" style="width: 100px" headerClass="text-center" bodyClass="text-right">
+                <Column header="อัตราภาษี" style="width: 100px" headerClass="text-center" bodyClass="text-right">
                     <template #body="{ data }">
                         {{ data.details?.[0]?.taxrate || '0' }}
                     </template>
@@ -141,7 +151,7 @@ onMounted(async () => {
                         {{ formatCurrency(data.details?.[0]?.taxbase || 0) }}
                     </template>
                 </Column>
-                <Column header="ภาษีที่นำส่งในครั้งนี้" style="width: 140px" headerClass="text-center" bodyClass="text-right">
+                <Column header="ภาษีที่หัก" style="width: 140px" headerClass="text-center" bodyClass="text-right">
                     <template #body="{ data }">
                         {{ formatCurrency(data.details?.[0]?.taxamount || 0) }}
                     </template>
@@ -163,13 +173,13 @@ onMounted(async () => {
                 </template>
 
                 <!-- Footer -->
-                <template #footer v-if="reportData.length > 0">
-                    <div class="flex items-center font-bold text-sm">
-                        <div class="flex-1 text-center" style="margin-left: 3rem">รวม</div>
-                        <div class="text-right" style="width: 130px">{{ formatCurrency(getTotalTaxBase) }}</div>
-                        <div class="text-right" style="width: 140px">{{ formatCurrency(getTotalTaxAmount) }}</div>
-                    </div>
-                </template>
+                <ColumnGroup v-if="reportData.length > 0" type="footer">
+                    <Row>
+                        <Column :colspan="9" footer="รวม" :pt="{ footerCell: { style: 'text-align: left; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(getTotalTaxBase)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(getTotalTaxAmount)" :pt="{ footerCell: { style: 'width: 140px; text-align: right; font-weight: bold' } }" />
+                    </Row>
+                </ColumnGroup>
             </DataTable>
 
             <!-- Pagination Controls -->
@@ -196,14 +206,14 @@ onMounted(async () => {
             <div class="flex flex-col gap-4">
                 <div class="flex flex-col gap-2">
                     <label class="font-medium text-sm">จากวันที่</label>
-                    <ThaiDatePicker v-model="fromDate" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่เริ่มต้น" fluid />
+                    <ThaiDatePicker v-model="fromDate" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่เริ่มต้น" fluid @enter="searchAndClosePopover" />
                 </div>
                 <div class="flex flex-col gap-2">
                     <label class="font-medium text-sm">ถึงวันที่</label>
-                    <ThaiDatePicker v-model="toDate" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่สิ้นสุด" fluid />
+                    <ThaiDatePicker v-model="toDate" dateFormat="dd/mm/yy" :showIcon="true" :showButtonBar="true" placeholder="เลือกวันที่สิ้นสุด" fluid @enter="searchAndClosePopover" />
                 </div>
                 <div class="flex gap-2 mt-2">
-                    <Button icon="pi pi-search" label="ค้นหา" @click="searchAndClosePopover" class="flex-1" severity="primary" />
+                    <Button icon="pi pi-search" label="ค้นหา (Enter)" @click="searchAndClosePopover" class="flex-1" severity="primary" />
                 </div>
             </div>
         </div>
@@ -222,5 +232,14 @@ onMounted(async () => {
 /* ทำให้แถวคลิกได้ */
 :deep(.p-datatable-tbody > tr) {
     cursor: pointer;
+}
+
+/* จัดตำแหน่ง text ใน column */
+:deep(.p-datatable-tbody > tr > td.text-center) {
+    text-align: center !important;
+}
+
+:deep(.p-datatable-tbody > tr > td.text-right) {
+    text-align: right !important;
 }
 </style>

@@ -3,7 +3,7 @@ import JournalDetailPanel from '@/components/accounting/JournalDetailPanel.vue';
 import LoadingDialog from '@/components/LoadingDialog.vue';
 import { useTaxReport } from '@/composables/useTaxReport';
 import { TAX_MODE } from '@/constants/taxReport';
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 // Use the shared tax report composable for Sale Tax
 const {
@@ -42,8 +42,15 @@ const {
     getPeriodName,
     onRowClick,
     downloadPDF,
+    downloadExcel,
     initReport
 } = useTaxReport(TAX_MODE.SALE);
+
+const downloadMenu = ref(null);
+const downloadMenuItems = ref([
+    { label: 'ดาวน์โหลด Excel', icon: 'pi pi-file-excel', command: () => downloadExcel() },
+    { label: 'ดาวน์โหลด PDF', icon: 'pi pi-file-pdf', command: () => downloadPDF() }
+]);
 
 // Initialize component
 onMounted(async () => {
@@ -63,7 +70,8 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="flex gap-2">
-                <Button label="ดาวน์โหลด PDF" icon="pi pi-file-pdf" @click="downloadPDF" severity="primary" :disabled="isDownloadDisabled" />
+                <Menu ref="downloadMenu" :model="downloadMenuItems" :popup="true" />
+                <Button label="ดาวน์โหลด" icon="pi pi-download" @click="downloadMenu.toggle($event)" outlined severity="primary" :disabled="isDownloadDisabled" />
                 <Button label="เลือกเงื่อนไข" icon="pi pi-filter" @click="toggleSearchPopover" />
             </div>
         </div>
@@ -98,9 +106,9 @@ onMounted(async () => {
             </div>
 
             <!-- Report Table with Expand -->
-            <DataTable :key="'sale-tax-table'" v-model:expandedRows="expandedRows" :value="paginatedData" dataKey="_uniqueId" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
+            <DataTable :key="'sale-tax-table'" v-model:expandedRows="expandedRows" scrollable scrollHeight="calc(100vh - 366px)" :value="paginatedData" dataKey="_uniqueId" showGridlines size="small" :rowHover="true" @row-click="onRowClick">
                 <Column expander style="width: 3rem" />
-                <Column header="ลำดับ" style="width: 60px">
+                <Column header="ลำดับ" style="width: 60px" headerClass="text-center" bodyClass="text-center">
                     <template #body="{ index }">
                         {{ (currentPage - 1) * itemsPerPage + index + 1 }}
                     </template>
@@ -167,15 +175,17 @@ onMounted(async () => {
                 </template>
 
                 <!-- Footer -->
-                <template #footer v-if="reportData.length > 0">
-                    <div class="flex items-center font-bold text-sm">
-                        <div class="flex-1 text-center" style="margin-left: 3rem">รวม</div>
-                        <div class="text-right" style="width: 120px">{{ formatCurrency(getTotalVatBase) }}</div>
-                        <div class="text-right" style="width: 130px">{{ formatCurrency(getTotalVatAmount) }}</div>
-                        <div class="text-right" style="width: 120px">{{ formatCurrency(getTotalExceptVat) }}</div>
-                        <div class="text-right" style="width: 120px">{{ formatCurrency(getTotalAmount) }}</div>
-                    </div>
-                </template>
+                <ColumnGroup v-if="reportData.length > 0" type="footer">
+                    <Row>
+                        <Column :colspan="5" footer="รวม" :pt="{ footerCell: { style: 'text-align: left; font-weight: bold' } }" />
+                        <Column footer="" :pt="{ footerCell: { style: 'width: 150px' } }" />
+                        <Column footer="" :pt="{ footerCell: { style: 'width: 120px' } }" />
+                        <Column :footer="formatCurrency(getTotalVatBase)" :pt="{ footerCell: { style: 'width: 120px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(getTotalVatAmount)" :pt="{ footerCell: { style: 'width: 130px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(getTotalExceptVat)" :pt="{ footerCell: { style: 'width: 120px; text-align: right; font-weight: bold' } }" />
+                        <Column :footer="formatCurrency(getTotalAmount)" :pt="{ footerCell: { style: 'width: 120px; text-align: right; font-weight: bold' } }" />
+                    </Row>
+                </ColumnGroup>
             </DataTable>
 
             <!-- Pagination Controls -->
@@ -219,5 +229,14 @@ onMounted(async () => {
 /* ทำให้แถวคลิกได้ */
 :deep(.p-datatable-tbody > tr) {
     cursor: pointer;
+}
+
+/* จัดตำแหน่ง text ใน column */
+:deep(.p-datatable-tbody > tr > td.text-center) {
+    text-align: center !important;
+}
+
+:deep(.p-datatable-tbody > tr > td.text-right) {
+    text-align: right !important;
 }
 </style>

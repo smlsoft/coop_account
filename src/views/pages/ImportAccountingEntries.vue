@@ -24,21 +24,24 @@ const selectedJournal = ref(null);
 
 // Masterdata
 const chartOfAccounts = ref([]);
+const chartOfAccountsMap = ref(new Map()); // O(1) lookup
 const journalBooks = ref([]);
+const accountGroups = ref([]);
 
 // Constants
 const TEMPLATE_URL = '/demo/file/template_journal.xlsx';
 
 // Load masterdata
 onMounted(async () => {
-    await Promise.all([fetchChartOfAccounts(), fetchJournalBooks()]);
+    await Promise.all([fetchChartOfAccounts(), fetchJournalBooks(), fetchAccountGroups()]);
 });
 
 const fetchChartOfAccounts = async () => {
     try {
-        const response = await api.getChartOfAccounts({ limit: 9999 });
+        const response = await api.getChartOfAccounts({ limit: 2000 });
         if (response.success) {
             chartOfAccounts.value = response.data || [];
+            chartOfAccountsMap.value = new Map(chartOfAccounts.value.map((acc) => [acc.accountcode, acc]));
         }
     } catch (error) {
         console.error('Failed to fetch chart of accounts:', error);
@@ -56,13 +59,28 @@ const fetchJournalBooks = async () => {
     }
 };
 
+const fetchAccountGroups = async () => {
+    try {
+        const response = await api.getAccountGroups({ limit: 9999 });
+        if (response.success) {
+            accountGroups.value = response.data || [];
+        }
+    } catch (error) {
+        console.error('Failed to fetch account groups:', error);
+    }
+};
+
 // Helper functions
 const selectAccount = (code) => {
-    return chartOfAccounts.value.find((acc) => acc.accountcode === code);
+    return chartOfAccountsMap.value.get(code);
 };
 
 const selectBookDetail = (code) => {
     return journalBooks.value.find((book) => book.code === code);
+};
+
+const selectAccountGroupDetail = (code) => {
+    return accountGroups.value.find((group) => group.code === code);
 };
 
 const getDateTimeFromDate = (value) => {
@@ -215,7 +233,12 @@ const processFile = (file) => {
                 // Parse each field
                 Object.entries(row).forEach(([key, value]) => {
                     // Journal fields
-                    if (key === 'ACCGROUP') importDaily.accountgroup = value ? String(value).trim() : '';
+                    if (key === 'ACCGROUP') {
+                        const accGroupCodeFromExcel = value ? String(value).trim() : '';
+                        const accGroup = selectAccountGroupDetail(accGroupCodeFromExcel);
+                        importDaily.accountgroup = accGroup ? accGroup.code : '';
+                        importDaily._accgroupFromExcel = accGroupCodeFromExcel;
+                    }
                     if (key === 'PERIOD') importDaily.accountperiod = value;
                     if (key === 'YEAR') importDaily.accountyear = parseInt(value);
                     if (key === 'DESC') importDaily.accountdescription = value ? String(value).trim() : '';
@@ -275,6 +298,13 @@ const processFile = (file) => {
                     if (key.startsWith('D_')) {
                         const accountCode = key.split('D_')[1];
                         const account = selectAccount(accountCode);
+                        if (!account) {
+                            errorMsgs.push({
+                                name: `รหัสบัญชี "${accountCode}" ไม่มีในระบบ`,
+                                docno: importDaily.docno,
+                                tab: 1
+                            });
+                        }
                         journalHead.push(account ? account.accountcode : key);
                         journal.push({
                             accountcode: account ? account.accountcode : key,
@@ -287,6 +317,13 @@ const processFile = (file) => {
                     if (key.startsWith('C_')) {
                         const accountCode = key.split('C_')[1];
                         const account = selectAccount(accountCode);
+                        if (!account) {
+                            errorMsgs.push({
+                                name: `รหัสบัญชี "${accountCode}" ไม่มีในระบบ`,
+                                docno: importDaily.docno,
+                                tab: 1
+                            });
+                        }
                         journalHead.push(account ? account.accountcode : key);
                         journal.push({
                             accountcode: account ? account.accountcode : key,
@@ -373,6 +410,15 @@ const processFile = (file) => {
                             tab: 1
                         });
                     }
+                }
+
+                const accgroupFromExcel = importDaily._accgroupFromExcel || '';
+                if (accgroupFromExcel && !importDaily.accountgroup) {
+                    errorMsgs.push({
+                        name: `ไม่พบรหัสกลุ่มบัญชี "${accgroupFromExcel}" ในระบบ กรุณาตรวจสอบข้อมูล กลุ่มบัญชี`,
+                        docno: importDaily.docno,
+                        tab: 1
+                    });
                 }
 
                 importDaily.journaldetail.forEach((ele) => {
@@ -770,7 +816,7 @@ const hasErrors = computed(() => errorMessages.value.length > 0);
     </div>
 
     <!-- Detail Dialog -->
-    <JournalDetailDialog v-model:visible="detailDialogVisible" :journal="selectedJournal" :journalBooksData="journalBooks" />
+    <JournalDetailDialog v-model:visible="detailDialogVisible" :journal="selectedJournal" :journalBooksData="journalBooks" :showEditButton="false" />
 
     <!-- Confirm Dialog -->
     <DialogForm :confirmDialog="showConfirmDialog" :textContent="`ต้องการบันทึกนำเข้ารายการบัญชี ${importData.length} รายการ?`" confirmLabel="บันทึก (Enter)" @close="closeConfirmDialog" @confirm="confirmSave" />
