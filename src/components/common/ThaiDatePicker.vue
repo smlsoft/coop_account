@@ -27,6 +27,10 @@ const props = defineProps({
     manualInput: {
         type: Boolean,
         default: true
+    },
+    showClear: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -373,8 +377,25 @@ onUnmounted(() => {
             :invalid="attrs.invalid"
         />
 
+        <!-- ปุ่ม clear -->
+        <button
+            v-if="showClear && modelValue && manualInput && !attrs.inline"
+            type="button"
+            class="thai-date-clear-btn"
+            @click="
+                () => {
+                    emit('update:modelValue', null);
+                    inputValue = '';
+                }
+            "
+            :disabled="attrs.disabled"
+            tabindex="-1"
+        >
+            <i class="pi pi-times"></i>
+        </button>
+
         <!-- ปุ่มเปิด calendar -->
-        <button v-if="manualInput && !attrs.inline && attrs.showIcon !== false" type="button" class="thai-date-icon-btn" @click="openCalendar" :disabled="attrs.disabled" tabindex="-1">
+        <button v-if="manualInput && !attrs.inline && attrs.showIcon !== false" type="button" class="thai-date-icon-btn" :class="{ 'with-clear': showClear && modelValue }" @click="openCalendar" :disabled="attrs.disabled" tabindex="-1">
             <i class="pi pi-calendar"></i>
         </button>
 
@@ -415,6 +436,34 @@ onUnmounted(() => {
 
 .thai-date-input.has-icon {
     padding-right: 2.75rem;
+}
+
+/* ปุ่ม clear */
+.thai-date-clear-btn {
+    position: absolute;
+    right: 2.5rem;
+    top: 0;
+    bottom: 0;
+    width: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--p-inputtext-color);
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    font-size: 0.7rem;
+}
+
+.thai-date-clear-btn:hover:not(:disabled) {
+    opacity: 1;
+}
+
+.thai-date-clear-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
 }
 
 /* ปุ่ม calendar icon */

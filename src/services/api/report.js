@@ -2,7 +2,91 @@ import axios from 'axios';
 import apiClient from './client';
 
 // Report API ใช้ URL แยกต่างหาก
-const REPORT_API_URL = import.meta.env.VITE_APP_API_REPORT || import.meta.env.VITE_APP_API || 'https://api.dev.dedepos.com/';
+const REPORT_API_URL = import.meta.env.VITE_APP_API;
+
+// ============================================================================
+// Journal VAT Excel (ภาษีซื้อ/ขาย)
+// ============================================================================
+
+export const generateJournalVatExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journalvat/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal VAT Excel:', error);
+        throw error;
+    }
+};
+
+export const checkJournalVatExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journalvat/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking Excel status:', error);
+        throw error;
+    }
+};
+
+export const getJournalVatExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journalvat/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForVatExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+
+            attempts++;
+
+            try {
+                const status = await checkJournalVatExcelStatus(jobId, fileName);
+
+                if (status.completed) {
+                    const downloadUrl = getJournalVatExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadJournalVatExcel = async (params) => {
+    try {
+        const result = await generateJournalVatExcel(params);
+
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForVatExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error in generate and download VAT Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
+// Journal VAT Report Data
+// ============================================================================
 
 /**
  * ดึงรายงานภาษีมูลค่าเพิ่ม (ภาษีซื้อ/ภาษีขาย)
@@ -27,6 +111,22 @@ export const getJournalVat = async (params) => {
         return response.data;
     } catch (error) {
         console.error('Error fetching journal VAT report:', error);
+        throw error;
+    }
+};
+
+/**
+ * ดึงข้อมูล Account Tree
+ * @param {string} shopid - รหัสกิจการ
+ * @returns {Promise} ข้อมูล account tree
+ */
+export const getAccountTree = async (shopid) => {
+    try {
+        const url = createReportApiUrl('apireport/accounttree');
+        const response = await axios.get(url, { params: { shopid } });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching account tree:', error);
         throw error;
     }
 };
@@ -323,6 +423,166 @@ export const generateAndOpenJournalTaxPDF = async (params) => {
 };
 
 // ============================================================================
+// Journal Tax Excel (ภาษีหัก ณ ที่จ่าย)
+// ============================================================================
+
+export const generateJournalTaxExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaltax/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal tax Excel:', error);
+        throw error;
+    }
+};
+
+export const checkJournalTaxExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journaltax/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking tax Excel status:', error);
+        throw error;
+    }
+};
+
+export const getJournalTaxExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journaltax/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForTaxExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+
+            attempts++;
+
+            try {
+                const status = await checkJournalTaxExcelStatus(jobId, fileName);
+
+                if (status.completed) {
+                    const downloadUrl = getJournalTaxExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadJournalTaxExcel = async (params) => {
+    try {
+        const result = await generateJournalTaxExcel(params);
+
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForTaxExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error in generate and download tax Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
+// Journal Tax TXT (ภาษีหัก ณ ที่จ่าย)
+// ============================================================================
+
+export const generateJournalTaxTxt = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaltax/genTxt');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal tax TXT:', error);
+        throw error;
+    }
+};
+
+export const checkJournalTaxTxtStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journaltax/checkTxt/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'TXT generation in progress (timeout)' };
+        }
+        console.error('Error checking tax TXT status:', error);
+        throw error;
+    }
+};
+
+export const getJournalTaxTxtDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journaltax/downloadTxt/${jobId}/${fileName}`);
+};
+
+export const waitForTaxTxtAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง TXT ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+
+            attempts++;
+
+            try {
+                const status = await checkJournalTaxTxtStatus(jobId, fileName);
+
+                if (status.completed) {
+                    const downloadUrl = getJournalTaxTxtDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด TXT สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadJournalTaxTxt = async (params) => {
+    try {
+        const result = await generateJournalTaxTxt(params);
+
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForTaxTxtAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ TXT ได้' };
+        }
+    } catch (error) {
+        console.error('Error in generate and download tax TXT:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
 // Withheld Tax Report (ภาษีถูกหัก ณ ที่จ่าย) - journaltaxdeduct
 // ============================================================================
 
@@ -469,6 +729,86 @@ export const generateAndOpenJournalTaxDeductPDF = async (params) => {
 };
 
 // ============================================================================
+// Journal Tax Deduct Excel (ภาษีถูกหัก ณ ที่จ่าย)
+// ============================================================================
+
+export const generateJournalTaxDeductExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaltaxdeduct/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal tax deduct Excel:', error);
+        throw error;
+    }
+};
+
+export const checkJournalTaxDeductExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journaltaxdeduct/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking tax deduct Excel status:', error);
+        throw error;
+    }
+};
+
+export const getJournalTaxDeductExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journaltaxdeduct/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForTaxDeductExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+
+            attempts++;
+
+            try {
+                const status = await checkJournalTaxDeductExcelStatus(jobId, fileName);
+
+                if (status.completed) {
+                    const downloadUrl = getJournalTaxDeductExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadJournalTaxDeductExcel = async (params) => {
+    try {
+        const result = await generateJournalTaxDeductExcel(params);
+
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForTaxDeductExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error in generate and download tax deduct Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
 // Trial Balance Sheet Report (งบทดลอง)
 // ============================================================================
 
@@ -575,6 +915,324 @@ export const getBalanceSheet = async (params) => {
         return response.data;
     } catch (error) {
         console.error('Error fetching balance sheet report:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
+// Balance Sheet New (รายงานฐานะทางการเงินแบบใหม่) /apireport/balance-sheet
+// ============================================================================
+
+export const getBalanceSheetNew = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching balance sheet new:', error);
+        throw error;
+    }
+};
+
+export const generateBalanceSheetNewPDF = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet/genPDF');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating balance sheet new PDF:', error);
+        throw error;
+    }
+};
+
+export const checkBalanceSheetNewPDFStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/balance-sheet/check/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'PDF generation in progress (timeout)' };
+        }
+        console.error('Error checking balance sheet new PDF status:', error);
+        throw error;
+    }
+};
+
+export const getBalanceSheetNewPDFDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/balance-sheet/download/${jobId}/${fileName}`);
+};
+
+export const waitForBalanceSheetNewPDFAndOpen = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง PDF ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkBalanceSheetNewPDFStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getBalanceSheetNewPDFDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'เปิด PDF สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndOpenBalanceSheetNewPDF = async (params) => {
+    try {
+        const result = await generateBalanceSheetNewPDF(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForBalanceSheetNewPDFAndOpen(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ PDF ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and opening balance sheet new PDF:', error);
+        throw error;
+    }
+};
+
+export const generateBalanceSheetNewExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating balance sheet new Excel:', error);
+        throw error;
+    }
+};
+
+export const checkBalanceSheetNewExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/balance-sheet/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking balance sheet new Excel status:', error);
+        throw error;
+    }
+};
+
+export const getBalanceSheetNewExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/balance-sheet/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForBalanceSheetNewExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkBalanceSheetNewExcelStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getBalanceSheetNewExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadBalanceSheetNewExcel = async (params) => {
+    try {
+        const result = await generateBalanceSheetNewExcel(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForBalanceSheetNewExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and downloading balance sheet new Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
+// Income Statement New (งบกำไรขาดทุนแบบใหม่) /apireport/income-statement
+// ============================================================================
+
+export const getIncomeStatementNew = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/income-statement');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching income statement new:', error);
+        throw error;
+    }
+};
+
+export const generateIncomeStatementNewPDF = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/income-statement/genPDF');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating income statement new PDF:', error);
+        throw error;
+    }
+};
+
+export const checkIncomeStatementNewPDFStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/income-statement/check/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'PDF generation in progress (timeout)' };
+        }
+        console.error('Error checking income statement new PDF status:', error);
+        throw error;
+    }
+};
+
+export const getIncomeStatementNewPDFDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/income-statement/download/${jobId}/${fileName}`);
+};
+
+export const waitForIncomeStatementNewPDFAndOpen = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง PDF ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkIncomeStatementNewPDFStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getIncomeStatementNewPDFDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'เปิด PDF สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndOpenIncomeStatementNewPDF = async (params) => {
+    try {
+        const result = await generateIncomeStatementNewPDF(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForIncomeStatementNewPDFAndOpen(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้าง PDF ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and opening income statement new PDF:', error);
+        throw error;
+    }
+};
+
+export const generateIncomeStatementNewExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/income-statement/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating income statement new Excel:', error);
+        throw error;
+    }
+};
+
+export const checkIncomeStatementNewExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/income-statement/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking income statement new Excel status:', error);
+        throw error;
+    }
+};
+
+export const getIncomeStatementNewExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/income-statement/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForIncomeStatementNewExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้างไฟล์ Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkIncomeStatementNewExcelStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getIncomeStatementNewExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadIncomeStatementNewExcel = async (params) => {
+    try {
+        const result = await generateIncomeStatementNewExcel(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForIncomeStatementNewExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and downloading income statement new Excel:', error);
         throw error;
     }
 };

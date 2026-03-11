@@ -115,8 +115,8 @@ const model = ref([
             {
                 label: 'งบกำไรขาดทุน',
                 icon: 'pi pi-fw pi-chart-line',
-                to: '/financial-reports/income-statement',
-                path: '/income-statement'
+                to: '/financial-reports/income-statement-new',
+                path: '/income-statement-new'
             },
             /// งบกำไรขาดทุน 12 เดือน
             // {
@@ -129,8 +129,7 @@ const model = ref([
             {
                 label: 'งบแสดงฐานะการเงิน',
                 icon: 'pi pi-fw pi-chart-line',
-                to: '/financial-reports/balance-sheet',
-                path: '/balance-sheet'
+                to: '/financial-reports/balance-sheet-new'
             },
             /// งบบัญชีแยกประเภท
             {

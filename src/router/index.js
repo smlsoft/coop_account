@@ -511,6 +511,18 @@ const router = createRouter({
                     name: 'import-journal-books',
                     meta: { title: 'นำเข้าสมุดรายวัน' },
                     component: () => import('@/views/pages/ImportJournalBooks.vue')
+                },
+                {
+                    path: '/financial-reports/income-statement-new',
+                    name: 'income-statement-new-report',
+                    meta: { title: 'งบกำไรขาดทุน' },
+                    component: () => import('@/views/pages/IncomeStatementNewReport.vue')
+                },
+                {
+                    path: '/financial-reports/balance-sheet-new',
+                    name: 'balance-sheet-new-report',
+                    meta: { title: 'งบแสดงฐานะการเงิน' },
+                    component: () => import('@/views/pages/BalanceSheetNewReport.vue')
                 }
             ]
         },
