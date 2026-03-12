@@ -255,7 +255,7 @@ onMounted(async () => {
         <!-- Header -->
         <div class="mb-4 flex items-center justify-between">
             <div>
-                <span class="text-xl font-medium text-surface-900 dark:text-surface-0">รายงานทางการเงิน / งบกำไรขาดทุน (New)</span>
+                <span class="text-xl font-medium text-surface-900 dark:text-surface-0">รายงานทางการเงิน / งบกำไรขาดทุน</span>
                 <div v-if="displayDateRange" class="text-sm text-surface-500 dark:text-surface-400 mt-1">
                     <i class="pi pi-calendar mr-1"></i>
                     {{ displayDateRange }}

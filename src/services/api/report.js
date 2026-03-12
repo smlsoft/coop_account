@@ -2,7 +2,7 @@ import axios from 'axios';
 import apiClient from './client';
 
 // Report API ใช้ URL แยกต่างหาก
-const REPORT_API_URL = import.meta.env.VITE_APP_API;
+const REPORT_API_URL = import.meta.env.VITE_APP_API_REPORT;
 
 // ============================================================================
 // Journal VAT Excel (ภาษีซื้อ/ขาย)
