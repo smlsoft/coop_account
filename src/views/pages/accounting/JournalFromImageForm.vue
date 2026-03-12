@@ -13,9 +13,7 @@ import { useLoading } from '@/composables/useLoading';
 import { getDocumentImageGroup, recountTaskDocuments } from '@/services/api/image';
 import { createJournal, deselectDocref, getJournalBooks, getJournalByDocno, updateJournal } from '@/services/api/journal';
 import { analyzeReceipt, updateDocumentImageGroup } from '@/services/api/ocr';
-import { removeSession, setSessionField, watchSessionField } from '@/services/popupSession';
 import { toDecimalNumber } from '@/utils/numberFormat';
-import { useQRCode } from '@vueuse/integrations/useQRCode';
 import { useToast } from 'primevue/usetoast';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
@@ -93,112 +91,7 @@ const documentImageGroup = ref(null);
 const selectedImageDetail = ref(null);
 
 // Popup window state
-const imagePopupWindow = ref(null);
-const isImagePopupOpen = ref(false);
-const popupSessionId = ref('');
 const showThumbnailStrip = ref(true);
-let popupCheckInterval = null;
-let unwatchPopupDocRef = null;
-let unwatchPopupJournal = null;
-
-// QR code — useQRCode จาก VueUse (reactive ตาม popupUrl)
-const popupUrl = ref('');
-const qrDataUrl = useQRCode(popupUrl, { width: 240, margin: 2 });
-
-// Dialog เลือกโหมด + QR
-const showOpenModeDialog = ref(false);
-const openModeStep = ref('choose'); // 'choose' | 'qr'
-
-const buildPopupUrl = () => `${window.location.origin}/image-viewer?docref=${documentRef.value}&taskid=${taskId.value}&sessionid=${popupSessionId.value}`;
-
-const ensureSession = async () => {
-    if (!popupSessionId.value) {
-        popupSessionId.value = Math.random().toString(36).slice(2);
-        popupUrl.value = buildPopupUrl();
-        // await เพื่อให้ owner เขียนลง Firebase ก่อนที่ iPad จะอ่าน
-        const username = localStorage.getItem('username') || '';
-        await setSessionField(popupSessionId.value, 'owner', username);
-    }
-};
-
-const onOpenModeClick = async () => {
-    await ensureSession();
-    openModeStep.value = 'choose';
-    showOpenModeDialog.value = true;
-};
-
-const openImageNewWindow = async () => {
-    showOpenModeDialog.value = false;
-    await ensureSession();
-    imagePopupWindow.value = window.open(popupUrl.value, 'imageViewer', 'width=960,height=800,resizable=yes,scrollbars=yes');
-    isImagePopupOpen.value = true;
-    startPopupCheck();
-};
-
-const openQRMode = async () => {
-    await ensureSession();
-    isImagePopupOpen.value = true;
-    startPopupCheck();
-    openModeStep.value = 'qr';
-};
-
-const closeImagePopup = () => {
-    clearInterval(popupCheckInterval);
-    popupCheckInterval = null;
-    unwatchPopupDocRef?.();
-    unwatchPopupDocRef = null;
-    unwatchPopupJournal?.();
-    unwatchPopupJournal = null;
-    lastHandledPopupDocRef = ''; // reset เพื่อให้ session ใหม่ทำงานได้ถูกต้อง
-    if (imagePopupWindow.value && !imagePopupWindow.value.closed) {
-        imagePopupWindow.value.close();
-    }
-    imagePopupWindow.value = null;
-    isImagePopupOpen.value = false;
-    if (popupSessionId.value) {
-        removeSession(popupSessionId.value);
-        popupSessionId.value = '';
-        popupUrl.value = '';
-    }
-};
-
-// Track docref ล่าสุดที่ parent จัดการแล้ว เพื่อป้องกัน circular loop
-let lastHandledPopupDocRef = '';
-
-const startPopupCheck = () => {
-    clearInterval(popupCheckInterval);
-    unwatchPopupDocRef?.();
-    unwatchPopupJournal?.();
-
-    // Poll สำหรับ PC popup window closed detection (เฉพาะ window.open mode เท่านั้น)
-    // QR mode ไม่มี imagePopupWindow จึงข้ามการเช็ค
-    popupCheckInterval = setInterval(() => {
-        if (imagePopupWindow.value && imagePopupWindow.value.closed) {
-            closeImagePopup();
-        }
-    }, 1000);
-
-    // Watch journalData จาก Firebase — iPad/popup คลิกรูป green ring → populate form
-    unwatchPopupJournal = watchSessionField(popupSessionId.value, 'journalData', (val) => {
-        if (!val) return;
-        try {
-            const { docref, journalData } = JSON.parse(val);
-            lastHandledPopupDocRef = docref;
-            handleDocumentChange(docref, journalData);
-            setSessionField(popupSessionId.value, 'journalData', null);
-        } catch (e) {
-            // ignore malformed JSON
-        }
-    });
-
-    // Watch docRef จาก Firebase — iPad/popup คลิกรูปใหม่ → reset form
-    unwatchPopupDocRef = watchSessionField(popupSessionId.value, 'docref', (val) => {
-        if (val && val !== documentRef.value && val !== lastHandledPopupDocRef) {
-            lastHandledPopupDocRef = val;
-            handleDocumentChange(val, null);
-        }
-    });
-};
 
 // Journal books for OCR mapping
 const journalBooks = ref([]);
@@ -819,11 +712,6 @@ const submitForm = async () => {
                 currentJournalId.value = journalGuidfixed;
                 const savedRef = { guidfixed: journalGuidfixed, module: 'GL', docno: savedDocno };
                 thumbnailStripRef.value.markCurrentAsSaved(savedRef);
-
-                // แจ้ง popup/iPad strip ให้ update สถานะด้วย (ถ้า popup เปิดอยู่)
-                if (isImagePopupOpen.value && popupSessionId.value) {
-                    setSessionField(popupSessionId.value, 'savedRef', JSON.stringify(savedRef));
-                }
             }
 
             // Step 3: Navigate to next document or go back
@@ -838,22 +726,13 @@ const submitForm = async () => {
                 if (thumbnailStripRef.value && thumbnailStripRef.value.hasNextDocument()) {
                     const moved = await thumbnailStripRef.value.goToNextDocument();
 
-                    if (!moved && !isImagePopupOpen.value) {
+                    if (!moved) {
                         await deselectCurrentDocument();
                         router.push({ name: 'journal-from-image-detail', params: { id: taskId.value } });
                     }
-                } else if (!isImagePopupOpen.value) {
-                    // No more documents and no popup — go back to list
+                } else {
                     await deselectCurrentDocument();
                     router.push({ name: 'journal-from-image-detail', params: { id: taskId.value } });
-                } else {
-                    // No more documents but popup is open — stay on page, show toast
-                    toast.add({
-                        severity: 'success',
-                        summary: 'บันทึกครบทุกรูปแล้ว',
-                        detail: 'ไม่มีรูปถัดไปในงาน คุณสามารถปิดหน้าต่างรูปได้',
-                        life: 5000
-                    });
                 }
             }, 300);
         } else {
@@ -927,15 +806,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
-    closeImagePopup();
-});
-
-// เมื่อเปลี่ยนเอกสาร แจ้ง popup ให้โหลดรูปใหม่
-// ถ้า newRef === lastHandledPopupDocRef หมายความว่า iPad เป็นคนส่งมา ไม่ต้องส่งกลับ (circular loop)
-watch(documentRef, (newRef) => {
-    if (isImagePopupOpen.value && popupSessionId.value && newRef !== lastHandledPopupDocRef) {
-        setSessionField(popupSessionId.value, 'docref', newRef);
-    }
 });
 </script>
 
@@ -1023,21 +893,6 @@ watch(documentRef, (newRef) => {
                             </div>
                         </div>
                     </Popover>
-                    <!-- ปุ่มหลัก: เปิด/ปิด session -->
-                    <Button v-if="isImagePopupOpen" icon="pi pi-times-circle" label="ปิดรูป" severity="danger" text @click="closeImagePopup()" v-tooltip.left="'ปิด session รูปภาพ'" />
-                    <Button v-else icon="pi pi-desktop" label="เปิดรูป" severity="secondary" text :disabled="!documentImageGroup" @click="onOpenModeClick()" v-tooltip.left="'เปิดรูปในหน้าต่างแยก หรือ iPad'" />
-                    <!-- QR thumbnail — คลิกเพื่อดู dialog QR ใหญ่ -->
-                    <img
-                        v-if="isImagePopupOpen && qrDataUrl"
-                        :src="qrDataUrl"
-                        v-tooltip.left="'คลิกเพื่อดู QR สำหรับ iPad'"
-                        class="rounded cursor-pointer border border-surface-300 dark:border-surface-600 hover:ring-2 hover:ring-primary-400 transition-all"
-                        style="width: 36px; height: 36px; image-rendering: pixelated"
-                        @click="
-                            openModeStep = 'qr';
-                            showOpenModeDialog = true;
-                        "
-                    />
                     <Button label="AI วิเคราะห์" icon="pi pi-sparkles" severity="secondary" @click="handleAiAnalyze" :disabled="loading || !documentImageGroup" v-tooltip.left="'วิเคราะห์เอกสารด้วย AI'" />
                     <Button label="บันทึก" icon="pi pi-save" @click="handleSave" :loading="loading" />
                 </div>
@@ -1052,7 +907,6 @@ watch(documentRef, (newRef) => {
             <div v-show="!loading">
                 <!-- Normal mode: Splitter with Image + Form panels -->
                 <Splitter
-                    v-if="!isImagePopupOpen"
                     :layout="isSmallScreen ? 'vertical' : 'horizontal'"
                     class="rounded-lg border border-surface-200 dark:border-surface-700 mb-0"
                     :style="showThumbnailStrip ? 'height: calc(100vh - 33.5vh); min-height: 400px' : 'height: calc(100vh - 19.4vh); min-height: 400px'"
@@ -1134,58 +988,7 @@ watch(documentRef, (newRef) => {
                     </SplitterPanel>
                 </Splitter>
 
-                <!-- Popup mode: Form panel only (full width) -->
-                <div v-else class="rounded-lg border border-surface-200 dark:border-surface-700 mb-0" style="height: calc(100vh - 17vh)">
-                    <div class="h-full flex flex-col p-2">
-                        <Tabs v-model:value="activeTab" class="h-full flex flex-col">
-                            <TabList>
-                                <Tab value="0">
-                                    <i class="pi pi-calendar mr-2"></i>
-                                    ข้อมูลรายวัน
-                                </Tab>
-                                <Tab value="1">
-                                    <i class="pi pi-file-edit mr-2"></i>
-                                    ข้อมูลภาษี
-                                </Tab>
-                                <Tab value="2">
-                                    <i class="pi pi-percentage mr-2"></i>
-                                    ภาษีถูกหัก ณ ที่จ่าย
-                                </Tab>
-                            </TabList>
-                            <TabPanels class="flex-1 overflow-auto">
-                                <TabPanel value="0">
-                                    <div class="pt-4 pb-2">
-                                        <JournalDailyInfoTab
-                                            ref="dailyInfoTabPopupRef"
-                                            :modelValue="formData"
-                                            @update:modelValue="formData = $event"
-                                            @validation-change="handleValidationChange"
-                                            @save="handleSave"
-                                            :isDocNoInvalid="isDocNoInvalid"
-                                            :isBookCodeInvalid="isBookCodeInvalid"
-                                            :isJournalDetailInvalid="isJournalDetailInvalid"
-                                            :isBalanceInvalid="isBalanceInvalid"
-                                        />
-                                    </div>
-                                </TabPanel>
-                                <TabPanel value="1">
-                                    <div class="pt-4 pb-2">
-                                        <JournalTaxInfoTab :modelValue="formData" @update:modelValue="formData = $event" />
-                                    </div>
-                                </TabPanel>
-                                <TabPanel value="2">
-                                    <div class="pt-4 pb-2">
-                                        <JournalWithholdingTaxTab :modelValue="formData" @update:modelValue="formData = $event" />
-                                    </div>
-                                </TabPanel>
-                            </TabPanels>
-                        </Tabs>
-                    </div>
-                </div>
-
-                <!-- Thumbnail Strip — ซ่อนเมื่อ popup เปิด แต่ยังคง mount ไว้ (v-show)
-                     เพื่อให้ thumbnailStripRef ยังใช้งานได้สำหรับ hasNextDocument/goToNextDocument -->
-                <div v-show="!isImagePopupOpen">
+                <div>
                     <!-- Toggle button -->
                     <div class="flex items-center justify-end px-1 pt-1">
                         <Button
@@ -1211,54 +1014,6 @@ watch(documentRef, (newRef) => {
             </div>
         </div>
     </div>
-
-    <!-- Dialog เลือกโหมด / แสดง QR -->
-    <Dialog v-model:visible="showOpenModeDialog" modal :closable="true" :style="{ width: openModeStep === 'qr' ? '360px' : '440px' }" :header="openModeStep === 'qr' ? 'Scan QR บน iPad' : 'เปิดรูปภาพ'">
-        <!-- Step: เลือกโหมด -->
-        <div v-if="openModeStep === 'choose'" class="flex gap-3 py-2">
-            <!-- Card: เปิด Popup -->
-            <button
-                class="flex-1 flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all cursor-pointer group"
-                @click="openImageNewWindow()"
-            >
-                <div class="w-14 h-14 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                    <i class="pi pi-desktop text-2xl text-surface-600 dark:text-surface-300 group-hover:text-primary-500"></i>
-                </div>
-                <div class="text-center">
-                    <div class="font-semibold text-surface-900 dark:text-surface-0 text-sm">เปิด Popup</div>
-                    <div class="text-xs text-surface-500 dark:text-surface-400 mt-1">เปิดในหน้าต่างใหม่<br />บนเครื่องนี้</div>
-                </div>
-            </button>
-            <!-- Card: iPad QR -->
-            <button
-                class="flex-1 flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-surface-200 dark:border-surface-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all cursor-pointer group"
-                @click="openQRMode()"
-            >
-                <div class="w-14 h-14 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                    <i class="pi pi-tablet text-2xl text-surface-600 dark:text-surface-300 group-hover:text-primary-500"></i>
-                </div>
-                <div class="text-center">
-                    <div class="font-semibold text-surface-900 dark:text-surface-0 text-sm">เปิดบน iPad</div>
-                    <div class="text-xs text-surface-500 dark:text-surface-400 mt-1">Scan QR code<br />ด้วย iPad / มือถือ</div>
-                </div>
-            </button>
-        </div>
-
-        <!-- Step: QR Code -->
-        <div v-else class="flex flex-col items-center gap-4 py-2">
-            <div class="p-2 bg-white rounded-xl shadow-inner border border-surface-200">
-                <img v-if="qrDataUrl" :src="qrDataUrl" style="width: 240px; height: 240px; image-rendering: pixelated" />
-                <div v-else class="w-60 h-60 flex items-center justify-center">
-                    <ProgressSpinner style="width: 40px; height: 40px" strokeWidth="4" />
-                </div>
-            </div>
-            <div class="text-center">
-                <p class="text-sm text-surface-600 dark:text-surface-400">Scan QR code ด้วย iPad หรือมือถือ</p>
-                <p class="text-xs text-surface-400 dark:text-surface-500 mt-1 font-mono break-all px-2">{{ popupUrl }}</p>
-            </div>
-            <Button label="เปลี่ยนเป็น Popup แทน" icon="pi pi-desktop" text severity="secondary" size="small" @click="openImageNewWindow()" />
-        </div>
-    </Dialog>
 </template>
 
 <style scoped>
