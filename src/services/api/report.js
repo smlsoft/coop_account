@@ -2,7 +2,7 @@ import axios from 'axios';
 import apiClient from './client';
 
 // Report API ใช้ URL แยกต่างหาก
-const REPORT_API_URL = import.meta.env.VITE_APP_API_REPORT;
+const REPORT_API_URL = import.meta.env.VITE_APP_API_REPORT || import.meta.env.VITE_APP_API || 'https://api.dev.dedepos.com/';
 
 // ============================================================================
 // Journal VAT Excel (ภาษีซื้อ/ขาย)
@@ -1233,6 +1233,165 @@ export const generateAndDownloadIncomeStatementNewExcel = async (params) => {
         }
     } catch (error) {
         console.error('Error generating and downloading income statement new Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
+// Journal Daily Report (รายงานรายวัน) /apireport/journaldaily
+// ============================================================================
+
+export const getJournalDailyReport = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaldaily');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching journal daily report:', error);
+        throw error;
+    }
+};
+
+export const generateJournalDailyPDF = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaldaily/genPDF');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal daily PDF:', error);
+        throw error;
+    }
+};
+
+export const checkJournalDailyPDFStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journaldaily/check/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'PDF generation in progress (timeout)' };
+        }
+        console.error('Error checking journal daily PDF status:', error);
+        throw error;
+    }
+};
+
+export const getJournalDailyPDFDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journaldaily/download/${jobId}/${fileName}`);
+};
+
+export const waitForJournalDailyPDFAndOpen = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง PDF ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkJournalDailyPDFStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getJournalDailyPDFDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'เปิด PDF สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndOpenJournalDailyPDF = async (params) => {
+    try {
+        const result = await generateJournalDailyPDF(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForJournalDailyPDFAndOpen(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้าง PDF ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and opening journal daily PDF:', error);
+        throw error;
+    }
+};
+
+export const generateJournalDailyExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/journaldaily/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating journal daily Excel:', error);
+        throw error;
+    }
+};
+
+export const checkJournalDailyExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/journaldaily/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking journal daily Excel status:', error);
+        throw error;
+    }
+};
+
+export const getJournalDailyExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/journaldaily/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForJournalDailyExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้างไฟล์ Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkJournalDailyExcelStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getJournalDailyExcelDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadJournalDailyExcel = async (params) => {
+    try {
+        const result = await generateJournalDailyExcel(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForJournalDailyExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and downloading journal daily Excel:', error);
         throw error;
     }
 };
