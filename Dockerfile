@@ -13,9 +13,11 @@ COPY . .
 # Build args สำหรับ VITE env (ฝังตอน build)
 ARG VITE_APP_TITLE="COOP ACCOUNT"
 ARG VITE_APP_API=https://glapi.rspcoop.com/
+ARG VITE_APP_API_REPORT=https://glreport-uat.rspcoop.com/
 
 ENV VITE_APP_TITLE=$VITE_APP_TITLE
 ENV VITE_APP_API=$VITE_APP_API
+ENV VITE_APP_API_REPORT=$VITE_APP_API_REPORT
 
 RUN npm run build
 

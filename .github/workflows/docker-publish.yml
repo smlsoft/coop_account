@@ -36,9 +36,11 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "api=https://glapi.rspcoop.com/" >> $GITHUB_OUTPUT
+            echo "api_report=https://glreport-uat.rspcoop.com/" >> $GITHUB_OUTPUT
             echo "env=prod" >> $GITHUB_OUTPUT
           else
             echo "api=https://glapi-uat.rspcoop.com/" >> $GITHUB_OUTPUT
+            echo "api_report=https://glreport-uat.rspcoop.com/" >> $GITHUB_OUTPUT
             echo "env=uat" >> $GITHUB_OUTPUT
           fi
 
@@ -67,5 +69,6 @@ jobs:
           build-args: |
             VITE_APP_TITLE=COOP ACCOUNT
             VITE_APP_API=${{ steps.env.outputs.api }}
+            VITE_APP_API_REPORT=${{ steps.env.outputs.api_report }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
