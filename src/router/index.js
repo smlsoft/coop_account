@@ -523,6 +523,12 @@ const router = createRouter({
                     name: 'balance-sheet-new-report',
                     meta: { title: 'งบแสดงฐานะการเงิน' },
                     component: () => import('@/views/pages/BalanceSheetNewReport.vue')
+                },
+                {
+                    path: '/financial-reports/balance-sheet-simple',
+                    name: 'balance-sheet-simple-report',
+                    meta: { title: 'งบแสดงฐานะการเงิน แบบย่อ' },
+                    component: () => import('@/views/pages/BalanceSheetSimpleReport.vue')
                 }
             ]
         },

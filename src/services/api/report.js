@@ -1238,6 +1238,165 @@ export const generateAndDownloadIncomeStatementNewExcel = async (params) => {
 };
 
 // ============================================================================
+// Balance Sheet Simple (งบแสดงฐานะการเงิน แบบย่อ) /apireport/balance-sheet-simple
+// ============================================================================
+
+export const getBalanceSheetSimple = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet-simple');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching balance sheet simple:', error);
+        throw error;
+    }
+};
+
+export const generateBalanceSheetSimplePDF = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet-simple/genPDF');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating balance sheet simple PDF:', error);
+        throw error;
+    }
+};
+
+export const checkBalanceSheetSimplePDFStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/balance-sheet-simple/check/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'PDF generation in progress (timeout)' };
+        }
+        console.error('Error checking balance sheet simple PDF status:', error);
+        throw error;
+    }
+};
+
+export const getBalanceSheetSimplePDFDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/balance-sheet-simple/download/${jobId}/${fileName}`);
+};
+
+export const waitForBalanceSheetSimplePDFAndOpen = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง PDF ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkBalanceSheetSimplePDFStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getBalanceSheetSimplePDFDownloadUrl(jobId, fileName);
+                    window.open(downloadUrl, '_blank');
+                    resolve({ success: true, message: 'เปิด PDF สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndOpenBalanceSheetSimplePDF = async (params) => {
+    try {
+        const result = await generateBalanceSheetSimplePDF(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForBalanceSheetSimplePDFAndOpen(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ PDF ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and opening balance sheet simple PDF:', error);
+        throw error;
+    }
+};
+
+export const generateBalanceSheetSimpleExcel = async (params) => {
+    try {
+        const url = createReportApiUrl('apireport/balance-sheet-simple/genExcel');
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('Error generating balance sheet simple Excel:', error);
+        throw error;
+    }
+};
+
+export const checkBalanceSheetSimpleExcelStatus = async (jobId, fileName) => {
+    try {
+        const url = createReportApiUrl(`apireport/balance-sheet-simple/checkExcel/${jobId}/${fileName}`);
+        const response = await axios.get(url, { timeout: 10000 });
+        return { completed: response.data.success, ...response.data };
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            return { completed: false, message: 'Excel generation in progress (timeout)' };
+        }
+        console.error('Error checking balance sheet simple Excel status:', error);
+        throw error;
+    }
+};
+
+export const getBalanceSheetSimpleExcelDownloadUrl = (jobId, fileName) => {
+    return createReportApiUrl(`apireport/balance-sheet-simple/downloadExcel/${jobId}/${fileName}`);
+};
+
+export const waitForBalanceSheetSimpleExcelAndDownload = (jobId, fileName, maxAttempts = 20, interval = 3000) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+
+        const checkJob = async () => {
+            if (attempts >= maxAttempts) {
+                reject(new Error('ไม่สามารถสร้าง Excel ได้ภายในเวลาที่กำหนด'));
+                return;
+            }
+            attempts++;
+            try {
+                const status = await checkBalanceSheetSimpleExcelStatus(jobId, fileName);
+                if (status.completed) {
+                    const downloadUrl = getBalanceSheetSimpleExcelDownloadUrl(jobId, fileName);
+                    window.location.href = downloadUrl;
+                    resolve({ success: true, message: 'ดาวน์โหลด Excel สำเร็จ' });
+                } else {
+                    setTimeout(checkJob, interval);
+                }
+            } catch (error) {
+                setTimeout(checkJob, error.response?.status === 500 ? interval * 2 : interval);
+            }
+        };
+
+        checkJob();
+    });
+};
+
+export const generateAndDownloadBalanceSheetSimpleExcel = async (params) => {
+    try {
+        const result = await generateBalanceSheetSimpleExcel(params);
+        if (result.success) {
+            const { jobId, fileName } = result.data;
+            return await waitForBalanceSheetSimpleExcelAndDownload(jobId, fileName);
+        } else {
+            return { success: false, message: result.message || 'ไม่สามารถสร้างไฟล์ Excel ได้' };
+        }
+    } catch (error) {
+        console.error('Error generating and downloading balance sheet simple Excel:', error);
+        throw error;
+    }
+};
+
+// ============================================================================
 // Journal Daily Report (รายงานรายวัน) /apireport/journaldaily
 // ============================================================================
 

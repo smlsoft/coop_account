@@ -131,6 +131,11 @@ const model = ref([
                 icon: 'pi pi-fw pi-chart-line',
                 to: '/financial-reports/balance-sheet-new'
             },
+            {
+                label: 'งบแสดงฐานะการเงิน (แบบย่อ)',
+                icon: 'pi pi-fw pi-chart-line',
+                to: '/financial-reports/balance-sheet-simple'
+            },
             /// งบบัญชีแยกประเภท
             {
                 label: 'งบบัญชีแยกประเภท',
